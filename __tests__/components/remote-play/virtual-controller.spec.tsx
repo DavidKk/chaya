@@ -39,7 +39,7 @@ describe('VirtualController (analog joystick & action buttons)', () => {
   it('renders analog joystick and action buttons with accessible labels', () => {
     const onInput = jest.fn()
     act(() => {
-      root.render(<VirtualController onInput={onInput} visible={true} />)
+      root.render(<VirtualController onInput={onInput} visible={true} mode="fixed" />)
     })
 
     const joystick = host.querySelector('[role="slider"][aria-label="虚拟摇杆"]')
@@ -61,7 +61,7 @@ describe('VirtualController (analog joystick & action buttons)', () => {
   it('handles action button press and release', () => {
     const onInput = jest.fn()
     act(() => {
-      root.render(<VirtualController onInput={onInput} visible={true} />)
+      root.render(<VirtualController onInput={onInput} visible={true} mode="fixed" />)
     })
 
     const confirmBtn = host.querySelector('button[aria-label="确认"]') as HTMLButtonElement
@@ -79,10 +79,10 @@ describe('VirtualController (analog joystick & action buttons)', () => {
     expect(onInput).toHaveBeenCalledWith('ok', 'up')
   })
 
-  it('triggers joystick directional inputs when pointer moves past threshold', () => {
+  it('triggers joystick directional inputs when pointer moves past threshold in fixed mode', () => {
     const onInput = jest.fn()
     act(() => {
-      root.render(<VirtualController onInput={onInput} visible={true} />)
+      root.render(<VirtualController onInput={onInput} visible={true} mode="fixed" />)
     })
 
     const joystick = host.querySelector('[role="slider"]') as HTMLDivElement
@@ -112,12 +112,54 @@ describe('VirtualController (analog joystick & action buttons)', () => {
     })
     expect(onInput).toHaveBeenCalledWith('down', 'up')
   })
-})
 
-  it('renders correctly in portrait mode', () => {
+  it('renders nothing when mode is touch', () => {
     const onInput = jest.fn()
     act(() => {
-      root.render(<VirtualController onInput={onInput} visible={true} isPortrait={true} />)
+      root.render(<VirtualController onInput={onInput} visible={true} mode="touch" />)
+    })
+
+    const joystick = host.querySelector('[role="slider"]')
+    expect(joystick).toBeNull()
+    const confirmBtn = host.querySelector('button[aria-label="确认"]')
+    expect(confirmBtn).toBeNull()
+  })
+
+  it('renders dynamic touch interception area and action buttons in dynamic mode', () => {
+    const onInput = jest.fn()
+    act(() => {
+      root.render(<VirtualController onInput={onInput} visible={true} mode="dynamic" />)
+    })
+
+    const dynamicArea = host.querySelector('[role="slider"][aria-label="虚拟摇杆"]') as HTMLDivElement
+    expect(dynamicArea).not.toBeNull()
+    expect(dynamicArea.className).toContain('w-[55%]')
+
+    dynamicArea.setPointerCapture = jest.fn()
+    dynamicArea.releasePointerCapture = jest.fn()
+
+    // Touch down at (200, 300) and drag to (200, 340) -> down
+    act(() => {
+      dynamicArea.dispatchEvent(new PointerEvent('pointerdown', { pointerId: 2, clientX: 200, clientY: 300, bubbles: true }))
+    })
+    act(() => {
+      dynamicArea.dispatchEvent(new PointerEvent('pointermove', { pointerId: 2, clientX: 200, clientY: 340, bubbles: true }))
+    })
+    expect(onInput).toHaveBeenCalledWith('down', 'down')
+
+    act(() => {
+      dynamicArea.dispatchEvent(new PointerEvent('pointerup', { pointerId: 2, bubbles: true }))
+    })
+    expect(onInput).toHaveBeenCalledWith('down', 'up')
+
+    const confirmBtn = host.querySelector('button[aria-label="确认"]')
+    expect(confirmBtn).not.toBeNull()
+  })
+
+  it('renders scaled sizes in portrait mode', () => {
+    const onInput = jest.fn()
+    act(() => {
+      root.render(<VirtualController onInput={onInput} visible={true} isPortrait={true} mode="fixed" />)
     })
 
     const joystick = host.querySelector('[role="slider"][aria-label="虚拟摇杆"]')
@@ -127,3 +169,4 @@ describe('VirtualController (analog joystick & action buttons)', () => {
     const confirmBtn = host.querySelector('button[aria-label="确认"]')
     expect(confirmBtn?.className).toContain('h-15 w-15')
   })
+})

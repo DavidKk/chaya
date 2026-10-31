@@ -273,14 +273,14 @@ export function RemoteCheatDrawer({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm transition-opacity"
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/75 backdrop-blur-md transition-opacity select-none"
       onPointerDown={(e) => e.stopPropagation()}
       onPointerMove={(e) => e.stopPropagation()}
       onPointerUp={(e) => e.stopPropagation()}
       onClick={onClose}
     >
       <div
-        className="relative flex h-full w-full max-w-sm flex-col border-l border-neutral-700/60 bg-neutral-900/95 p-5 text-neutral-100 shadow-2xl"
+        className="relative flex flex-col w-full max-w-lg max-h-[90vh] sm:max-h-[85vh] rounded-2xl border border-white/15 bg-neutral-900/95 p-4 sm:p-5 text-neutral-100 shadow-2xl backdrop-blur-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}

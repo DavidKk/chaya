@@ -3,16 +3,19 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import {
   LuActivity,
+  LuCompass,
   LuGamepad2,
   LuMaximize2,
-  LuMenu,
   LuMinimize2,
+  LuMousePointer2,
   LuRotateCw,
   LuScaling,
   LuScrollText,
+  LuSlidersHorizontal,
   LuSparkles,
   LuVolume2,
   LuVolumeX,
+  LuX,
 } from 'react-icons/lu'
 
 import type { GameLinkMessage, RemoteInputKey } from '@/lib/runtime/game-link-protocol'
@@ -20,11 +23,10 @@ import { initErudaMobileDevTools } from '@/lib/runtime/mobile-devtools'
 import { remotePlayLogger } from '@/lib/runtime/remote-play-logger'
 import { WebGameLink } from '@/lib/runtime/web-game-link'
 
-import { FloatingBall } from './FloatingBall'
 import { IosInstallGuideModal } from './IosInstallGuideModal'
 import { PerformanceHud } from './PerformanceHud'
 import { RemoteCheatDrawer } from './RemoteCheatDrawer'
-import { VirtualController } from './VirtualController'
+import { type ControlMode, VirtualController } from './VirtualController'
 
 type RemotePlayViewProps = {
   initialRoomId?: string
@@ -45,14 +47,18 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const [videoResolution, setVideoResolution] = useState<{ width: number; height: number } | null>(null)
   const [hudVisible, setHudVisible] = useState(false)
   const [isIdle, setIsIdle] = useState(false)
-  const [controlsVisible, setControlsVisible] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [isStandalone, setIsStandalone] = useState(false)
   const [installGuideOpen, setInstallGuideOpen] = useState(false)
   const [fitMode, setFitMode] = useState<'contain' | 'cover'>('contain')
   const [isPortrait, setIsPortrait] = useState(false)
-  const [landscapeMenuOpen, setLandscapeMenuOpen] = useState(false)
+
+  // Unified Menu Modal (Single Button trigger, Requirement 4)
+  const [menuOpen, setMenuOpen] = useState(false)
+
+  // Control Mode: fixed, touch, dynamic (Requirement 2)
+  const [controlMode, setControlMode] = useState<ControlMode>('fixed')
 
   // Auto-reconnect & toast states
   const [reconnectAttempt, setReconnectAttempt] = useState(0)
@@ -100,7 +106,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     setAutoReconnectCountdown(null)
   }, [])
 
-  // 0. Environment diagnostics & orientation detection
+  // 0. Environment diagnostics, orientation detection & saved preferences
   useEffect(() => {
     remotePlayLogger.initEnvironmentDiagnostics()
     remotePlayLogger.installGlobalErrorHandlers()
@@ -164,6 +170,10 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         if (savedFit === 'cover' || savedFit === 'contain') {
           setFitMode(savedFit)
         }
+        const savedMode = localStorage.getItem('chaya_remote_control_mode') as ControlMode
+        if (savedMode === 'fixed' || savedMode === 'touch' || savedMode === 'dynamic') {
+          setControlMode(savedMode)
+        }
       } catch {
         /* ignore */
       }
@@ -182,7 +192,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     }
   }, [resetIdleTimer])
 
-  // 1. Toast notifications on connection status changes (Requirement 7)
+  // 1. Toast notifications on connection status changes
   useEffect(() => {
     if (prevStatusRef.current !== status) {
       const prev = prevStatusRef.current
@@ -238,7 +248,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     }
   }, [initialRoomId])
 
-  // 3. WebRTC Link Connection & Auto-reconnect (Requirement 1)
+  // 3. WebRTC Link Connection & Auto-reconnect
   const connect = useCallback(
     (isManual = false) => {
       if (!roomId) return
@@ -346,7 +356,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     if (!roomId) return
     connect(false)
 
-    // Keepalive ping & latency probe
     pingTimerRef.current = setInterval(() => {
       if (linkRef.current?.connected) {
         linkRef.current.send({ type: 'ping', t: Date.now() })
@@ -370,7 +379,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     })
   }, [])
 
-  // 5. Direct canvas touch on video
+  // 5. Direct canvas touch on video (active in touch mode and canvas taps)
   const handleVideoPointer = (e: React.PointerEvent<HTMLVideoElement>, phase: 'down' | 'move' | 'up') => {
     const video = videoRef.current
     if (!video || !linkRef.current?.connected) return
@@ -408,9 +417,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       remotePlayLogger.info('用户轻触屏幕尝试唤醒视频播放')
       void videoRef.current.play().catch(() => {})
     }
-    if (landscapeMenuOpen) {
-      setLandscapeMenuOpen(false)
-    }
   }
 
   // 6. Unmute audio on user tap
@@ -426,14 +432,12 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const toggleFullscreen = () => {
     resetIdleTimer()
 
-    // If running as iOS Web Clip / PWA standalone, it already equals fullscreen
     if (isStandalone) {
       setInstallGuideOpen(true)
       remotePlayLogger.info('检测到已处于主屏独立全屏模式 (Web App)')
       return
     }
 
-    // If in standard full screen, exit
     const doc = document as Document & { webkitFullscreenElement?: Element; webkitExitFullscreen?: () => Promise<void> }
     if (doc.fullscreenElement || doc.webkitFullscreenElement) {
       if (document.exitFullscreen) {
@@ -445,7 +449,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       return
     }
 
-    // Check device and browser capabilities
     const docEl = document.documentElement as HTMLElement & {
       webkitRequestFullscreen?: () => Promise<void>
     }
@@ -454,14 +457,12 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       (/iPad|iPhone|iPod/.test(navigator.userAgent) ||
         (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1))
 
-    // On iOS Safari (or browsers without fullscreen API), prompt to Add to Home Screen
     if (isIos || (!docEl.requestFullscreen && !docEl.webkitRequestFullscreen)) {
       setInstallGuideOpen(true)
       remotePlayLogger.info('触发 iOS Safari 添加到主屏幕全屏指引')
       return
     }
 
-    // Standard fullscreen API
     if (docEl.requestFullscreen) {
       docEl
         .requestFullscreen()
@@ -509,14 +510,30 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     })
   }
 
-  const effectiveIdle = isIdle && status === 'connected' && !drawerOpen
+  const handleSelectControlMode = (mode: ControlMode) => {
+    setControlMode(mode)
+    try {
+      localStorage.setItem('chaya_remote_control_mode', mode)
+    } catch {
+      /* ignore */
+    }
+    const names = {
+      fixed: '固定手柄模式',
+      touch: '屏幕触摸模式 (鼠标模式)',
+      dynamic: '自由摇杆模式',
+    }
+    showStatusToast('connecting', `已切换至: ${names[mode]}`, 2000)
+    remotePlayLogger.info(`操作模式切换为: ${names[mode]}`)
+  }
+
+  const effectiveIdle = isIdle && status === 'connected' && !drawerOpen && !menuOpen
 
   return (
     <main
       onPointerDown={handleGlobalPointerDown}
       className="relative h-screen w-screen overflow-hidden bg-black select-none touch-none"
     >
-      {/* 1. Status Change Toast (Requirement 7: simple toast, not permanent) */}
+      {/* 1. Status Change Toast */}
       {statusToast && (
         <div
           style={{ top: 'max(0.75rem, env(safe-area-inset-top))' }}
@@ -547,12 +564,12 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
 
       {/* 2. Video Stream Rendering (Orientation adaptive) */}
       {isPortrait ? (
-        /* Portrait Layout: Video at top, controls neatly below (Requirements 3 & 4) */
+        /* Portrait Layout: Video at top, Gamepad below */
         <div className="flex h-full w-full flex-col">
           {/* Top Video Container */}
           <div
             style={{ paddingTop: 'env(safe-area-inset-top)' }}
-            className="relative w-full aspect-video max-h-[44vh] bg-neutral-950 flex items-center justify-center overflow-hidden shrink-0 border-b border-white/10"
+            className="relative w-full aspect-video max-h-[46vh] bg-neutral-950 flex items-center justify-center overflow-hidden shrink-0 border-b border-white/10"
           >
             <video
               ref={setVideoRef}
@@ -587,139 +604,40 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 onClose={() => setHudVisible(false)}
               />
             )}
+
+            {/* ONLY ONE Menu Button in Top-Right (Requirement 4) */}
+            {status === 'connected' && (
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
+                style={{
+                  top: 'max(0.5rem, env(safe-area-inset-top))',
+                  right: 'max(0.75rem, env(safe-area-inset-right))',
+                }}
+                className="pointer-events-auto absolute z-40 flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-neutral-900/80 text-neutral-300 shadow-md backdrop-blur-md transition-colors hover:bg-neutral-800 active:scale-95 shrink-0"
+                title="打开设置与控制台"
+                aria-label="打开设置与控制台"
+              >
+                <LuSlidersHorizontal size={14} className="text-emerald-400" />
+              </button>
+            )}
           </div>
 
-          {/* Middle Toolbar in Portrait (Only when connected, Requirement 8) */}
-          {status === 'connected' && (
-            <div className="flex items-center justify-between px-3 py-1.5 border-b border-white/10 bg-neutral-900/80 backdrop-blur-md shrink-0">
-              <div className="flex items-center gap-1.5">
-                {/* Audio Button */}
-                <button
-                  type="button"
-                  onClick={muted ? handleUnmute : () => setMuted(true)}
-                  className={`flex h-7 items-center rounded-full border px-2 text-[11px] font-semibold transition-colors whitespace-nowrap shrink-0 ${
-                    muted
-                      ? 'border-amber-400/50 bg-amber-950/80 text-amber-200 animate-pulse'
-                      : 'border-white/10 bg-neutral-800 text-neutral-200 hover:bg-neutral-700'
-                  }`}
-                >
-                  {muted ? (
-                    <LuVolumeX size={12} className="mr-1 shrink-0" />
-                  ) : (
-                    <LuVolume2 size={12} className="mr-1 text-emerald-400 shrink-0" />
-                  )}
-                  <span className="whitespace-nowrap shrink-0">{muted ? '开声' : '已开'}</span>
-                </button>
-
-                {/* Fit Mode Button */}
-                <button
-                  type="button"
-                  onClick={toggleFitMode}
-                  className={`flex h-7 items-center gap-1 rounded-full border px-2 text-[11px] transition-colors whitespace-nowrap shrink-0 ${
-                    fitMode === 'cover'
-                      ? 'border-sky-400/50 bg-sky-950/80 text-sky-300'
-                      : 'border-white/10 bg-neutral-800 text-neutral-300 hover:bg-neutral-700'
-                  }`}
-                  title="画面比例切换"
-                >
-                  <LuScaling size={12} className="shrink-0" />
-                  <span className="whitespace-nowrap shrink-0">{fitMode === 'cover' ? '铺满' : '等比'}</span>
-                </button>
-              </div>
-
-              <div className="flex items-center gap-1.5">
-                {/* Controller Toggle */}
-                <button
-                  type="button"
-                  onClick={() => setControlsVisible((p) => !p)}
-                  className={`flex h-7 w-7 items-center justify-center rounded-full border transition-colors shrink-0 ${
-                    controlsVisible
-                      ? 'border-emerald-400/40 bg-emerald-950/70 text-emerald-300'
-                      : 'border-white/10 bg-neutral-800 text-neutral-400'
-                  }`}
-                  title="手柄显隐"
-                  aria-label="手柄显隐"
-                >
-                  <LuGamepad2 size={13} />
-                </button>
-
-                {/* HUD Toggle */}
-                <button
-                  type="button"
-                  onClick={handleToggleHud}
-                  className={`flex h-7 w-7 items-center justify-center rounded-full border transition-colors shrink-0 ${
-                    hudVisible
-                      ? 'border-emerald-400/40 bg-emerald-950/70 text-emerald-300'
-                      : 'border-white/10 bg-neutral-800 text-neutral-400'
-                  }`}
-                  title="性能 HUD"
-                  aria-label="性能 HUD"
-                >
-                  <LuActivity size={13} />
-                </button>
-
-                {/* Cheat Drawer */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDrawerTab('cheat')
-                    setDrawerOpen(true)
-                  }}
-                  className="flex h-7 w-7 items-center justify-center rounded-full border border-amber-400/30 bg-amber-950/50 text-amber-300 hover:bg-amber-900/60 transition-colors shrink-0"
-                  title="金手指修改器"
-                  aria-label="金手指修改器"
-                >
-                  <LuSparkles size={13} />
-                </button>
-
-                {/* Logs Drawer */}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setDrawerTab('logs')
-                    setDrawerOpen(true)
-                  }}
-                  className="flex h-7 w-7 items-center justify-center rounded-full border border-white/10 bg-neutral-800 text-sky-400 hover:bg-neutral-700 transition-colors shrink-0"
-                  title="诊断日志"
-                  aria-label="诊断日志"
-                >
-                  <LuScrollText size={13} />
-                </button>
-
-                {/* Fullscreen (only if !isStandalone, Requirement 10) */}
-                {!isStandalone && (
-                  <button
-                    type="button"
-                    onClick={toggleFullscreen}
-                    className={`flex h-7 w-7 items-center justify-center rounded-full border transition-colors shrink-0 ${
-                      isFullscreen
-                        ? 'border-emerald-400/40 bg-emerald-950/70 text-emerald-300'
-                        : 'border-white/10 bg-neutral-800 text-neutral-200'
-                    }`}
-                    title="全屏切换"
-                    aria-label="全屏切换"
-                  >
-                    {isFullscreen ? <LuMinimize2 size={13} /> : <LuMaximize2 size={13} />}
-                  </button>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Bottom Gamepad Area in Portrait (Only when connected, Requirement 8) */}
+          {/* Dedicated Gamepad Area in Portrait */}
           {status === 'connected' && (
             <div className="flex-1 w-full relative">
               <VirtualController
                 onInput={handleInput}
-                visible={controlsVisible}
+                visible={true}
                 idle={effectiveIdle}
                 isPortrait={true}
+                mode={controlMode}
               />
             </div>
           )}
         </div>
       ) : (
-        /* Landscape Layout: Fullscreen video with compact top controls (Requirements 3, 4, 5) */
+        /* Landscape Layout: Fullscreen video with ONE single menu button (Requirements 3 & 4) */
         <>
           <video
             ref={setVideoRef}
@@ -741,7 +659,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             style={{ touchAction: 'none' }}
           />
 
-          {/* In-game UI (Only when connected, Requirement 8) */}
           {status === 'connected' && (
             <>
               {/* Performance HUD in Top-Left (Requirement 6) */}
@@ -756,199 +673,251 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 onClose={() => setHudVisible(false)}
               />
 
-              {/* Landscape Top-Right Controls: Sound & Collapsible Menu (Requirement 3) */}
-              <header
+              {/* ONLY ONE Single Menu Button in Top-Right (Requirement 4) */}
+              <button
+                type="button"
+                onClick={() => setMenuOpen(true)}
                 style={{
                   top: 'max(0.5rem, env(safe-area-inset-top))',
                   right: 'max(0.75rem, env(safe-area-inset-right))',
                 }}
-                className={`pointer-events-auto fixed z-40 flex items-center gap-2 select-none transition-opacity duration-300 ${
-                  effectiveIdle ? 'opacity-25 hover:opacity-100' : 'opacity-100'
+                className={`pointer-events-auto fixed z-40 flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-neutral-900/85 text-neutral-300 shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-neutral-800 active:scale-95 shrink-0 ${
+                  effectiveIdle ? 'opacity-35 hover:opacity-100' : 'opacity-90 hover:opacity-100'
                 }`}
+                title="打开快捷设置与控制台"
+                aria-label="打开快捷设置与控制台"
               >
-                {/* Quick Sound button (Requirement 2: whitespace-nowrap) */}
-                <button
-                  type="button"
-                  onClick={muted ? handleUnmute : () => setMuted(true)}
-                  className={`flex h-7 items-center rounded-full border px-2 text-[11px] font-semibold shadow-md backdrop-blur-md transition-colors whitespace-nowrap shrink-0 ${
-                    muted
-                      ? 'border-amber-400/50 bg-amber-950/80 text-amber-200 animate-pulse'
-                      : 'border-white/10 bg-neutral-900/80 text-neutral-200 hover:bg-neutral-800'
-                  }`}
-                >
-                  {muted ? (
-                    <LuVolumeX size={13} className="mr-1 shrink-0" />
-                  ) : (
-                    <LuVolume2 size={13} className="mr-1 text-emerald-400 shrink-0" />
-                  )}
-                  <span className="whitespace-nowrap shrink-0">{muted ? '开声' : '已开'}</span>
-                </button>
+                <LuSlidersHorizontal size={15} className="text-emerald-400" />
+              </button>
 
-                {/* Collapsible Menu Button (Requirement 3: 菜单收到一个菜单按键里面) */}
-                <div className="relative">
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setLandscapeMenuOpen((prev) => !prev)
-                    }}
-                    className={`flex h-7 w-7 items-center justify-center rounded-full border shadow-md backdrop-blur-md transition-colors shrink-0 ${
-                      landscapeMenuOpen
-                        ? 'border-emerald-400/50 bg-emerald-950/80 text-emerald-300'
-                        : 'border-white/10 bg-neutral-900/80 text-neutral-300 hover:bg-neutral-800'
-                    }`}
-                    title="功能菜单"
-                    aria-label="功能菜单"
-                  >
-                    <LuMenu size={15} />
-                  </button>
-
-                  {/* Glassmorphic Dropdown Popover */}
-                  {landscapeMenuOpen && (
-                    <div
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute right-0 top-8.5 z-50 w-44 rounded-2xl border border-white/15 bg-neutral-900/95 p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150 space-y-1 select-none"
-                    >
-                      {/* Fit Mode Toggle */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          toggleFitMode()
-                          setLandscapeMenuOpen(false)
-                        }}
-                        className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-xs text-neutral-200 hover:bg-white/10 transition-colors whitespace-nowrap shrink-0"
-                      >
-                        <span className="flex items-center gap-2">
-                          <LuScaling size={14} className="text-sky-400 shrink-0" />
-                          <span className="whitespace-nowrap shrink-0">画面比例</span>
-                        </span>
-                        <span className="text-[10px] text-neutral-400 font-mono whitespace-nowrap shrink-0">
-                          {fitMode === 'cover' ? '铺满' : '等比'}
-                        </span>
-                      </button>
-
-                      {/* Gamepad Visibility */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setControlsVisible((p) => !p)
-                          setLandscapeMenuOpen(false)
-                        }}
-                        className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-xs text-neutral-200 hover:bg-white/10 transition-colors whitespace-nowrap shrink-0"
-                      >
-                        <span className="flex items-center gap-2">
-                          <LuGamepad2
-                            size={14}
-                            className={controlsVisible ? 'text-emerald-400 shrink-0' : 'text-neutral-500 shrink-0'}
-                          />
-                          <span className="whitespace-nowrap shrink-0">虚拟手柄</span>
-                        </span>
-                        <span className="text-[10px] text-neutral-400 whitespace-nowrap shrink-0">
-                          {controlsVisible ? '显示' : '隐藏'}
-                        </span>
-                      </button>
-
-                      {/* HUD Toggle */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          handleToggleHud()
-                          setLandscapeMenuOpen(false)
-                        }}
-                        className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-xs text-neutral-200 hover:bg-white/10 transition-colors whitespace-nowrap shrink-0"
-                      >
-                        <span className="flex items-center gap-2">
-                          <LuActivity
-                            size={14}
-                            className={hudVisible ? 'text-emerald-400 shrink-0' : 'text-neutral-500 shrink-0'}
-                          />
-                          <span className="whitespace-nowrap shrink-0">性能 HUD</span>
-                        </span>
-                        <span className="text-[10px] text-neutral-400 whitespace-nowrap shrink-0">
-                          {hudVisible ? '开启' : '关闭'}
-                        </span>
-                      </button>
-
-                      {/* Cheat Mod Drawer */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDrawerTab('cheat')
-                          setDrawerOpen(true)
-                          setLandscapeMenuOpen(false)
-                        }}
-                        className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs text-neutral-200 hover:bg-white/10 transition-colors whitespace-nowrap shrink-0"
-                      >
-                        <LuSparkles size={14} className="text-amber-400 shrink-0" />
-                        <span className="whitespace-nowrap shrink-0">金手指修改器</span>
-                      </button>
-
-                      {/* Diagnostics Log */}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setDrawerTab('logs')
-                          setDrawerOpen(true)
-                          setLandscapeMenuOpen(false)
-                        }}
-                        className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-xs text-neutral-200 hover:bg-white/10 transition-colors whitespace-nowrap shrink-0"
-                      >
-                        <LuScrollText size={14} className="text-sky-400 shrink-0" />
-                        <span className="whitespace-nowrap shrink-0">运行诊断日志</span>
-                      </button>
-
-                      {/* Fullscreen (only if !isStandalone, Requirement 10) */}
-                      {!isStandalone && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            toggleFullscreen()
-                            setLandscapeMenuOpen(false)
-                          }}
-                          className="flex w-full items-center justify-between rounded-xl px-2.5 py-1.5 text-xs text-neutral-200 hover:bg-white/10 transition-colors whitespace-nowrap shrink-0 border-t border-white/5 pt-1.5"
-                        >
-                          <span className="flex items-center gap-2">
-                            {isFullscreen ? (
-                              <LuMinimize2 size={14} className="text-emerald-400 shrink-0" />
-                            ) : (
-                              <LuMaximize2 size={14} className="text-neutral-300 shrink-0" />
-                            )}
-                            <span className="whitespace-nowrap shrink-0">
-                              {isFullscreen ? '退出全屏' : '全屏模式'}
-                            </span>
-                          </span>
-                        </button>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </header>
-
-              {/* Floating Ball for Mod Drawer (Requirement 5: avoids Dynamic Island band) */}
-              <FloatingBall
-                idle={effectiveIdle}
-                onClick={() => {
-                  setDrawerTab('cheat')
-                  setDrawerOpen(true)
-                }}
-              />
-
-              {/* Virtual D-Pad & Action Buttons (scaled for landscape, Requirements 4 & 5) */}
+              {/* Virtual D-Pad & Action Buttons (Configurable via mode, Requirements 2 & 5) */}
               <VirtualController
                 onInput={handleInput}
-                visible={controlsVisible}
+                visible={true}
                 idle={effectiveIdle}
                 isPortrait={false}
+                mode={controlMode}
               />
             </>
           )}
         </>
       )}
 
-      {/* 3. Error or Connecting Overlay (Requirements 1, 8, 9: Uses Logo, Auto-reconnect) */}
+      {/* 3. Unified Control Menu Modal (Requirement 4: 唯一的弹出入口) */}
+      {menuOpen && (
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="menu-title"
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm select-none"
+          onClick={() => setMenuOpen(false)}
+        >
+          <div
+            className="relative w-full max-w-sm overflow-hidden rounded-2xl border border-white/15 bg-neutral-900/95 p-4 sm:p-5 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-400 text-white shadow-md">
+                  <LuSlidersHorizontal size={14} />
+                </div>
+                <h3 id="menu-title" className="text-sm font-bold text-white whitespace-nowrap shrink-0">
+                  Chaya 串流控制台
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setMenuOpen(false)}
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-white/5 text-neutral-400 hover:bg-white/10 hover:text-white transition-colors"
+                aria-label="关闭"
+              >
+                <LuX size={15} />
+              </button>
+            </div>
+
+            {/* Section 1: 操作模式选择 (Requirement 2) */}
+            <div className="space-y-1.5">
+              <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
+                操作模式
+              </div>
+              <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-neutral-950/70 border border-white/5">
+                {/* Mode 1: 固定手柄 */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectControlMode('fixed')}
+                  className={`flex flex-col items-center justify-center gap-1 rounded-lg py-2 px-1 text-xs transition-all ${
+                    controlMode === 'fixed'
+                      ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
+                      : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <LuGamepad2 size={16} />
+                  <span className="text-[11px] whitespace-nowrap">固定手柄</span>
+                </button>
+
+                {/* Mode 2: 屏幕触摸 */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectControlMode('touch')}
+                  className={`flex flex-col items-center justify-center gap-1 rounded-lg py-2 px-1 text-xs transition-all ${
+                    controlMode === 'touch'
+                      ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
+                      : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <LuMousePointer2 size={16} />
+                  <span className="text-[11px] whitespace-nowrap">屏幕触摸</span>
+                </button>
+
+                {/* Mode 3: 自由摇杆 */}
+                <button
+                  type="button"
+                  onClick={() => handleSelectControlMode('dynamic')}
+                  className={`flex flex-col items-center justify-center gap-1 rounded-lg py-2 px-1 text-xs transition-all ${
+                    controlMode === 'dynamic'
+                      ? 'bg-emerald-950/80 border border-emerald-400/50 text-emerald-300 font-bold shadow-sm'
+                      : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <LuCompass size={16} />
+                  <span className="text-[11px] whitespace-nowrap">自由摇杆</span>
+                </button>
+              </div>
+
+              {/* Mode description hint */}
+              <div className="text-[10px] text-neutral-400 px-1 leading-normal">
+                {controlMode === 'fixed' && '固定手柄：左下角固定虚拟摇杆，右侧动作按键。'}
+                {controlMode === 'touch' && '屏幕触摸：隐藏所有虚拟按键，触屏点击作为鼠标/触控操作。'}
+                {controlMode === 'dynamic' && '自由摇杆：在左半屏任意处触屏下压，即刻在该位置生成摇杆。'}
+              </div>
+            </div>
+
+            {/* Section 2: 核心功能与居中控制台入口 (Requirements 3 & 4) */}
+            <div className="space-y-1.5 pt-1">
+              <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
+                功能与设置
+              </div>
+
+              <div className="space-y-1 text-xs">
+                {/* 常用修改 (居中控制台) */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDrawerTab('cheat')
+                    setDrawerOpen(true)
+                    setMenuOpen(false)
+                  }}
+                  className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <LuSparkles size={15} className="text-amber-400 shrink-0" />
+                    <span className="whitespace-nowrap shrink-0">局内控制台 (常用修改)</span>
+                  </span>
+                  <span className="text-[10px] text-neutral-400">打开</span>
+                </button>
+
+                {/* 诊断日志 */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDrawerTab('logs')
+                    setDrawerOpen(true)
+                    setMenuOpen(false)
+                  }}
+                  className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <LuScrollText size={15} className="text-sky-400 shrink-0" />
+                    <span className="whitespace-nowrap shrink-0">运行与诊断日志</span>
+                  </span>
+                  <span className="text-[10px] text-neutral-400">查看</span>
+                </button>
+
+                {/* 声音开关 */}
+                <button
+                  type="button"
+                  onClick={muted ? handleUnmute : () => setMuted(true)}
+                  className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    {muted ? (
+                      <LuVolumeX size={15} className="text-amber-400 shrink-0" />
+                    ) : (
+                      <LuVolume2 size={15} className="text-emerald-400 shrink-0" />
+                    )}
+                    <span className="whitespace-nowrap shrink-0">游戏声音输出</span>
+                  </span>
+                  <span className={`text-[10px] font-semibold ${muted ? 'text-amber-300' : 'text-emerald-400'}`}>
+                    {muted ? '已静音 (点击开声)' : '已开启'}
+                  </span>
+                </button>
+
+                {/* 画面比例 */}
+                <button
+                  type="button"
+                  onClick={toggleFitMode}
+                  className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <LuScaling size={15} className="text-sky-400 shrink-0" />
+                    <span className="whitespace-nowrap shrink-0">画面缩放模式</span>
+                  </span>
+                  <span className="text-[10px] text-sky-300 font-mono">
+                    {fitMode === 'cover' ? '铺满全屏' : '等比适应'}
+                  </span>
+                </button>
+
+                {/* 性能 HUD 开关 */}
+                <button
+                  type="button"
+                  onClick={handleToggleHud}
+                  className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+                >
+                  <span className="flex items-center gap-2">
+                    <LuActivity
+                      size={15}
+                      className={hudVisible ? 'text-emerald-400 shrink-0' : 'text-neutral-500 shrink-0'}
+                    />
+                    <span className="whitespace-nowrap shrink-0">实时性能 HUD (FPS / 延迟)</span>
+                  </span>
+                  <span className={`text-[10px] ${hudVisible ? 'text-emerald-400' : 'text-neutral-500'}`}>
+                    {hudVisible ? '已显示' : '已隐藏'}
+                  </span>
+                </button>
+
+                {/* 全屏模式 (仅非 standalone 时展示) */}
+                {!isStandalone && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleFullscreen()
+                      setMenuOpen(false)
+                    }}
+                    className="flex w-full items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200 hover:bg-white/10 hover:text-white transition-colors"
+                  >
+                    <span className="flex items-center gap-2">
+                      {isFullscreen ? (
+                        <LuMinimize2 size={15} className="text-emerald-400 shrink-0" />
+                      ) : (
+                        <LuMaximize2 size={15} className="text-neutral-300 shrink-0" />
+                      )}
+                      <span className="whitespace-nowrap shrink-0">全屏显示</span>
+                    </span>
+                    <span className="text-[10px] text-neutral-400">
+                      {isFullscreen ? '退出全屏' : 'iOS添加主屏幕'}
+                    </span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 4. Error or Connecting Overlay */}
       {status !== 'connected' && (
         <div className="pointer-events-auto fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/85 p-6 text-center backdrop-blur-md select-none">
-          {/* Chaya Brand Logo (Requirement 9: 使用 Logo 不用链接 ICON) */}
           <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl border border-white/10 bg-neutral-900/80 p-3 shadow-2xl backdrop-blur-md">
             <img
               src="/brand/chaya-mark.svg"
@@ -977,7 +946,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               : errorMessage || '未检测到正在运行的游戏。请在电脑端开启游戏。'}
           </p>
 
-          {/* Auto-reconnect countdown badge (Requirement 1) */}
           {status === 'disconnected' && autoReconnectCountdown != null && (
             <div className="mt-3 flex items-center gap-1.5 rounded-full border border-sky-500/25 bg-sky-950/40 px-3 py-1 text-[11px] text-sky-300 whitespace-nowrap shrink-0">
               <LuRotateCw size={12} className="animate-spin text-sky-400 shrink-0" />
@@ -987,7 +955,6 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             </div>
           )}
 
-          {/* Action buttons (Requirement 2: whitespace-nowrap) */}
           <div className="mt-5 flex items-center gap-2.5">
             <button
               type="button"
@@ -1015,20 +982,25 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         </div>
       )}
 
-      {/* 4. iOS Safari Add to Home Screen Fullscreen Guide Modal */}
+      {/* 5. iOS Safari Add to Home Screen Fullscreen Guide Modal */}
       <IosInstallGuideModal
         open={installGuideOpen}
         onClose={() => setInstallGuideOpen(false)}
         isStandalone={isStandalone}
       />
 
-      {/* 5. Remote Modding Drawer */}
+      {/* 6. Centered Remote Modding & Diagnostics Console Modal (Requirement 3: 居中不走侧栏) */}
       <RemoteCheatDrawer
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         onSend={(msg) => linkRef.current?.send(msg)}
         gameId={roomId}
         initialTab={drawerTab}
+        status={status}
+        latencyMs={latencyMs}
+        videoResolution={videoResolution}
+        hudVisible={hudVisible}
+        onToggleHud={handleToggleHud}
       />
     </main>
   )
