@@ -6,6 +6,7 @@ import type { RunActionId, RunFlagKey } from '@/components/game-edit/types'
 import { canSettleBattleEnd, settleBattleEnd } from '../session/live-battle'
 import { Cheats } from './cheats'
 import { RunCheats, type ScenePushId } from './cheats-run'
+import { setAutoTalk } from './auto-talk'
 
 type BoostApi = {
   rates?: (o: { walk?: number; run?: number }) => void
@@ -37,7 +38,10 @@ export function applyRunFlag(key: RunFlagKey, on: boolean) {
   else if (key === 'autoBattle') Cheats.setAutoBattle(on)
   else if (key === 'skipBattleResult') Cheats.setSkipBattleResult(on)
   else if (key === 'through') Cheats.setThrough(on)
-  else if (key === 'autotalk') window.ChayaEdit?.autoTalk?.(on)
+  else if (key === 'autotalk') {
+    setAutoTalk(on)
+    window.ChayaEdit?.autoTalk?.(on)
+  }
   else if (key === 'encounter') RunCheats.setEncounter(on)
   else if (key === 'menuEnabled') RunCheats.setMenuEnabled(on)
   else if (key === 'saveEnabled') RunCheats.setSaveEnabled(on)

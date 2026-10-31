@@ -7,6 +7,7 @@ import type { CatalogEntry, GameEditCatalog } from '@/lib/game/game-edit-catalog
 import { itemLabel, tName } from '../console/item-label'
 import { Cheats } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
+import { getAutoTalk } from '../runtime/auto-talk'
 
 /** 局内面板只读当前页。`items` / `events` / `full` 仍扫三类持有数；单页用 `item` / `weapon` / `armor`。 */
 export type LiveSessionScope = 'run' | 'item' | 'weapon' | 'armor' | 'items' | 'vars' | 'switches' | 'actors' | 'events' | 'full'
@@ -127,7 +128,7 @@ function readRunFields(
     autoBattle: Cheats.getAutoBattle(),
     skipBattleResult: Cheats.getSkipBattleResult(),
     through: Cheats.getThrough(),
-    autotalk: typeof window.ChayaEdit?.autoTalk === 'function' ? !!window.ChayaEdit.autoTalk() : prev.autotalk,
+    autotalk: typeof window.ChayaEdit?.autoTalk === 'function' ? !!window.ChayaEdit.autoTalk() : getAutoTalk(),
     encounter: RunCheats.getEncounter(),
     menuEnabled: RunCheats.getMenuEnabled(),
     saveEnabled: RunCheats.getSaveEnabled(),

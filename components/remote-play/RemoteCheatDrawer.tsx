@@ -11,6 +11,7 @@ import {
   LuCopy,
   LuFootprints,
   LuHeart,
+  LuMessageSquareText,
   LuMonitor,
   LuRotateCw,
   LuSave,
@@ -102,6 +103,7 @@ export function RemoteCheatDrawer({
   const [godMode, setGodMode] = useState(false)
   const [throughWalls, setThroughWalls] = useState(false)
   const [autoWin, setAutoWin] = useState(false)
+  const [autoTalk, setAutoTalk] = useState(false)
   const [gameSpeed, setGameSpeed] = useState<number>(1)
   const [feedback, setFeedback] = useState<string | null>(null)
   const [logs, setLogs] = useState<RemotePlayLogEntry[]>([])
@@ -227,8 +229,15 @@ export function RemoteCheatDrawer({
   const handleToggleThrough = () => {
     const next = !throughWalls
     setThroughWalls(next)
-    sendCmd({ op: 'runFlag', key: 'throughWalls', value: next })
+    sendCmd({ op: 'runFlag', key: 'through', value: next })
     showFeedback(next ? '已开启穿墙模式' : '已关闭穿墙模式')
+  }
+
+  const handleToggleAutoTalk = () => {
+    const next = !autoTalk
+    setAutoTalk(next)
+    sendCmd({ op: 'runFlag', key: 'autotalk', value: next })
+    showFeedback(next ? '已开启自动对话' : '已关闭自动对话')
   }
 
   const handleToggleAutoWin = () => {
@@ -640,8 +649,20 @@ export function RemoteCheatDrawer({
 
                   <button
                     type="button"
+                    onClick={handleToggleAutoTalk}
+                    className={`rounded-lg border py-2 text-xs font-semibold transition-colors active:scale-95 ${
+                      autoTalk ? 'border-sky-500 bg-sky-600/30 text-sky-300' : 'border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:bg-neutral-700'
+                    }`}
+                  >
+                    <span className="flex items-center justify-center gap-1.5">
+                      <LuMessageSquareText size={14} /> 自动对话: {autoTalk ? '开启' : '关闭'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
                     onClick={handleToggleAutoWin}
-                    className={`col-span-2 rounded-lg border py-2 text-xs font-semibold transition-colors active:scale-95 ${
+                    className={`rounded-lg border py-2 text-xs font-semibold transition-colors active:scale-95 ${
                       autoWin ? 'border-amber-500 bg-amber-600/30 text-amber-300' : 'border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:bg-neutral-700'
                     }`}
                   >
@@ -795,13 +816,25 @@ export function RemoteCheatDrawer({
 
                     <button
                       type="button"
+                      onClick={handleToggleAutoTalk}
+                      className={`rounded-lg border py-2 text-[11px] font-semibold transition-colors active:scale-95 ${
+                        autoTalk ? 'border-sky-500 bg-sky-600/30 text-sky-300' : 'border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:bg-neutral-700'
+                      }`}
+                    >
+                      <span className="flex items-center justify-center gap-1">
+                        <LuMessageSquareText size={13} /> 对话: {autoTalk ? '开' : '关'}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={handleToggleAutoWin}
-                      className={`col-span-2 rounded-lg border py-2 text-[11px] font-semibold transition-colors active:scale-95 ${
+                      className={`rounded-lg border py-2 text-[11px] font-semibold transition-colors active:scale-95 ${
                         autoWin ? 'border-amber-500 bg-amber-600/30 text-amber-300' : 'border-neutral-700 bg-neutral-800/80 text-neutral-300 hover:bg-neutral-700'
                       }`}
                     >
-                      <span className="flex items-center justify-center gap-1.5">
-                        <LuSwords size={13} /> 遇敌必胜: {autoWin ? '开启' : '关闭'}
+                      <span className="flex items-center justify-center gap-1">
+                        <LuSwords size={13} /> 必胜: {autoWin ? '开' : '关'}
                       </span>
                     </button>
                   </div>
