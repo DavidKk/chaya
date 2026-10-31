@@ -182,8 +182,27 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     })
   }, [])
 
+  const [autoTalk, setAutoTalk] = useState(false)
+
   const handleAction = useCallback((id: string) => {
     if (!linkRef.current?.connected) return
+    if (id === 'flag:autotalk' || id === 'autotalk') {
+      setAutoTalk((prev) => {
+        const next = !prev
+        remotePlayLogger.info(`Toggled autotalk shortcut: ${next}`)
+        linkRef.current?.send({
+          type: 'edit.cmd',
+          cmdId: `cmd_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          op: 'runFlag',
+          key: 'autotalk',
+          value: next,
+        } as any)
+        showStatusToast('info', next ? '已开启自动对话' : '已关闭自动对话', 1800)
+        return next
+      })
+      return
+    }
+
     remotePlayLogger.info(`Triggering remote game action shortcut: ${id}`)
     linkRef.current.send({
       type: 'edit.cmd',
@@ -191,7 +210,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       op: 'runAction',
       id: id as any,
     })
-  }, [])
+  }, [showStatusToast])
 
   const handleOpenDrawer = useCallback(() => {
     setDrawerTab('cheat')
@@ -1418,6 +1437,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               isPortrait={true}
               mode={controlMode}
               opacity={controllerOpacity}
+              autoTalk={autoTalk}
             />
           )}
         </div>
@@ -1584,6 +1604,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   isPortrait={false}
                   mode={controlMode}
                   opacity={controllerOpacity}
+                  autoTalk={autoTalk}
                 />
               )}
             </>
@@ -1607,13 +1628,10 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           onClick={() => setMenuOpen(false)}
         >
           <div
-            className={`relative flex flex-col rounded-lg border border-[rgb(230_238_248/0.12)] bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden ${
-              isPortrait
-                ? 'w-full max-w-sm max-h-[85vh]'
-                : 'w-full max-w-2xl'
-            }`}
+            className="relative flex flex-col rounded-lg border border-[rgb(230_238_248/0.12)] bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
             style={{
-              maxHeight: isPortrait ? '85vh' : 'min(380px, 88vh)',
+              width: isPortrait ? 'min(384px, 92vw)' : 'min(640px, 92vw)',
+              height: isPortrait ? 'min(540px, 82vh)' : 'min(340px, 85vh)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -2056,6 +2074,8 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         hudVisible={hudVisible}
         onToggleHud={handleToggleHud}
         isPortrait={isPortrait}
+        autoTalk={autoTalk}
+        onToggleAutoTalk={() => handleAction('flag:autotalk')}
       />
 
       {/* 7. Game Library Selector Modal (Safe for Dynamic Island & Centered header) */}
@@ -2074,9 +2094,11 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           onClick={() => setGameSelectorOpen(false)}
         >
           <div
-            className={`relative flex flex-col rounded-lg border border-[rgb(230_238_248/0.12)] bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden ${
-              isPortrait ? 'w-full max-w-sm max-h-[80vh]' : 'w-full max-w-xl max-h-[85vh]'
-            }`}
+            className="relative flex flex-col rounded-lg border border-[rgb(230_238_248/0.12)] bg-neutral-900/95 text-neutral-200 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-200 overflow-hidden"
+            style={{
+              width: isPortrait ? 'min(384px, 92vw)' : 'min(640px, 92vw)',
+              height: isPortrait ? 'min(420px, 75vh)' : 'min(260px, 75vh)',
+            }}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header: No dividing line, text-sm font-semibold matching content rhythm, clean icon button (Requirement 4) */}

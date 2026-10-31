@@ -90,12 +90,14 @@ describe('VirtualController (analog joystick & action buttons)', () => {
     const equipBtn = host.querySelector('button[aria-label="装备"]')
     const saveBtn = host.querySelector('button[aria-label="存档"]')
     const loadBtn = host.querySelector('button[aria-label="读档"]')
+    const autoTalkBtn = host.querySelector('button[aria-label="自动对话"]') as HTMLButtonElement
     const consoleBtn = host.querySelector('button[aria-label="控制台"]') as HTMLButtonElement
 
     expect(itemBtn).not.toBeNull()
     expect(equipBtn).not.toBeNull()
     expect(saveBtn).not.toBeNull()
     expect(loadBtn).not.toBeNull()
+    expect(autoTalkBtn).not.toBeNull()
     expect(consoleBtn).not.toBeNull()
 
     // Tap backpack shortcut
@@ -105,6 +107,17 @@ describe('VirtualController (analog joystick & action buttons)', () => {
     expect(onAction).toHaveBeenCalledWith('scene:item')
     // Automatically collapsed
     expect(host.querySelector('button[aria-label="背包"]')).toBeNull()
+
+    // Re-open and tap autotalk
+    act(() => {
+      configBtn.click()
+    })
+    const autoTalkBtn2 = host.querySelector('button[aria-label="自动对话"]') as HTMLButtonElement
+    act(() => {
+      autoTalkBtn2.click()
+    })
+    expect(onAction).toHaveBeenCalledWith('flag:autotalk')
+    expect(host.querySelector('button[aria-label="自动对话"]')).toBeNull()
 
     // Re-open and tap console
     act(() => {

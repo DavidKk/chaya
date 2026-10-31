@@ -45,6 +45,8 @@ type RemoteCheatDrawerProps = {
   hudVisible?: boolean
   onToggleHud?: () => void
   isPortrait?: boolean
+  autoTalk?: boolean
+  onToggleAutoTalk?: () => void
 }
 
 function generateCmdId(): string {
@@ -98,12 +100,20 @@ export function RemoteCheatDrawer({
   hudVisible = false,
   onToggleHud,
   isPortrait,
+  autoTalk: propAutoTalk,
+  onToggleAutoTalk,
 }: RemoteCheatDrawerProps) {
   const [activeTab, setActiveTab] = useState<'cheat' | 'logs'>(initialTab)
   const [godMode, setGodMode] = useState(false)
   const [throughWalls, setThroughWalls] = useState(false)
   const [autoWin, setAutoWin] = useState(false)
-  const [autoTalk, setAutoTalk] = useState(false)
+  const [autoTalk, setAutoTalk] = useState(propAutoTalk ?? false)
+
+  useEffect(() => {
+    if (propAutoTalk !== undefined) {
+      setAutoTalk(propAutoTalk)
+    }
+  }, [propAutoTalk])
   const [gameSpeed, setGameSpeed] = useState<number>(1)
   const [feedback, setFeedback] = useState<string | null>(null)
   const [logs, setLogs] = useState<RemotePlayLogEntry[]>([])
@@ -234,6 +244,10 @@ export function RemoteCheatDrawer({
   }
 
   const handleToggleAutoTalk = () => {
+    if (onToggleAutoTalk) {
+      onToggleAutoTalk()
+      return
+    }
     const next = !autoTalk
     setAutoTalk(next)
     sendCmd({ op: 'runFlag', key: 'autotalk', value: next })
@@ -303,11 +317,12 @@ export function RemoteCheatDrawer({
       <div
         className={`relative flex flex-col rounded-lg border border-[rgb(230_238_248/0.12)] bg-neutral-900/95 text-neutral-100 shadow-2xl backdrop-blur-xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 ${
           isPortraitEffective
-            ? 'w-full max-w-lg max-h-[85vh] p-4 sm:p-5'
-            : 'w-full max-w-2xl px-3.5 pt-2 pb-2.5'
+            ? 'p-4 sm:p-5'
+            : 'px-3.5 pt-2 pb-2.5'
         }`}
         style={{
-          maxHeight: isPortraitEffective ? '85vh' : 'min(370px, 88vh)',
+          width: isPortraitEffective ? 'min(480px, 92vw)' : 'min(640px, 92vw)',
+          height: isPortraitEffective ? 'min(540px, 82vh)' : 'min(340px, 85vh)',
         }}
         onClick={(e) => e.stopPropagation()}
       >

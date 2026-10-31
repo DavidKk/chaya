@@ -4,6 +4,7 @@ import React, { useRef, useState } from 'react'
 import {
   LuCheck,
   LuFolderOpen,
+  LuMessageSquareText,
   LuPackage,
   LuSave,
   LuShield,
@@ -26,6 +27,7 @@ type VirtualControllerProps = {
   isPortrait?: boolean
   mode?: ControlMode
   opacity?: number
+  autoTalk?: boolean
 }
 
 type Direction = 'up' | 'down' | 'left' | 'right'
@@ -42,6 +44,7 @@ export function VirtualController({
   isPortrait = false,
   mode = 'fixed',
   opacity = 0.65,
+  autoTalk = false,
 }: VirtualControllerProps) {
   const [knobOffset, setKnobOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
@@ -405,6 +408,21 @@ export function VirtualController({
                     >
                       <LuFolderOpen size={13} className="text-sky-400 shrink-0" />
                       <span>{t('edit.actLoad') || '读档'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => handleShortcutClick('flag:autotalk')}
+                      className={`flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-medium transition-all whitespace-nowrap shadow-sm active:scale-95 ${
+                        autoTalk
+                          ? 'border-sky-400/80 bg-sky-900/70 text-sky-200 shadow-sky-950/50'
+                          : 'border-sky-500/30 bg-sky-950/40 text-sky-300 hover:bg-sky-900/60'
+                      }`}
+                      aria-label="自动对话"
+                      title={autoTalk ? '自动对话 (进行中)' : '自动对话'}
+                    >
+                      <LuMessageSquareText size={13} className={autoTalk ? 'text-sky-300' : 'text-sky-400'} />
+                      <span>{autoTalk ? '对话中' : '自动对话'}</span>
                     </button>
 
                     <button
