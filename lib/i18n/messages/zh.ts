@@ -1,3 +1,4 @@
+import { playZh } from '@/lib/i18n/messages/parts/play'
 import { aboutZh } from '@/lib/i18n/messages/parts/about'
 import { agentAuthZh } from '@/lib/i18n/messages/parts/agent-auth'
 import { commonZh } from '@/lib/i18n/messages/parts/common'
@@ -21,6 +22,7 @@ import type { MessageTree } from '@/lib/i18n/messages/types'
 /** 简体中文（结构真源） */
 export const zh = {
   debug: debugZh,
+  play: playZh,
   ...commonZh,
   ...marketingZh,
   ...dashboardZh,

@@ -1,9 +1,11 @@
+import { playDe } from '@/lib/i18n/messages/parts/play'
 import { debugDe } from '@/lib/i18n/messages/parts/debug'
 import { mcpGatewayDe } from '@/lib/i18n/messages/parts/mcp-gateway'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const de: MessageTree = {
   debug: debugDe,
+  play: playDe,
   locale: {
     label: 'Sprache',
     switch: 'Sprache wechseln',

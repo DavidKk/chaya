@@ -42,7 +42,7 @@ export function detectDeviceDiagnostics(): DeviceDiagnostics {
     /Android|iPhone|iPad|iPod|Mobile/i.test(ua) ||
     (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1)
 
-  let os = platform || '未知操作系统'
+  let os = platform || 'Unknown OS'
   if (isIOS) os = 'iOS / iPadOS'
   else if (/Android/i.test(ua)) os = 'Android'
   else if (/Macintosh|Mac OS X/i.test(ua)) os = 'macOS'
@@ -120,7 +120,7 @@ export class RemotePlayLogger {
     if (this.initialized) return
     this.initialized = true
     const diag = this.getDiagnostics()
-    this.info('客户端环境信息初始化', {
+    this.info('Client environment diagnostics initialized', {
       os: diag.os,
       browser: diag.browser,
       isIOS: diag.isIOS,
@@ -138,7 +138,7 @@ export class RemotePlayLogger {
     this.handlersInstalled = true
 
     window.addEventListener('error', (event) => {
-      this.fail(`页面异常: ${event.message}`, {
+      this.fail(`Uncaught page error: ${event.message}`, {
         filename: event.filename,
         lineno: event.lineno,
         colno: event.colno,
@@ -149,7 +149,7 @@ export class RemotePlayLogger {
     window.addEventListener('unhandledrejection', (event) => {
       const reason = event.reason
       const msg = reason instanceof Error ? reason.message : String(reason)
-      this.fail(`未处理 Promise 拒绝: ${msg}`, {
+      this.fail(`Unhandled promise rejection: ${msg}`, {
         stack: reason instanceof Error ? reason.stack : undefined,
       })
     })
@@ -317,14 +317,14 @@ export class RemotePlayLogger {
   exportAsText(): string {
     const diag = this.getDiagnostics()
     const header = [
-      '=== Chaya 云游戏远程游玩诊断日志 ===',
-      `生成时间: ${new Date().toLocaleString()}`,
-      `操作系统: ${diag.os} (${diag.platform || '未知平台'})`,
-      `运行浏览器: ${diag.browser} (iOS: ${diag.isIOS ? '是' : '否'}, Safari: ${diag.isSafari ? '是' : '否'})`,
-      `屏幕规格: ${diag.screen.width}x${diag.screen.height} @${diag.screen.dpr}x (视口: ${diag.viewport.width}x${diag.viewport.height})`,
-      `触控点数: ${diag.maxTouchPoints}`,
-      `WebRTC支持: ${diag.webrtcSupported ? '是' : '否'} | H.264 解码支持: ${diag.h264Supported ? '是' : '否'}`,
-      '========================================',
+      '=== Chaya Remote Play Diagnostic Logs ===',
+      `Generated at: ${new Date().toISOString()}`,
+      `Operating System: ${diag.os} (${diag.platform || 'Unknown platform'})`,
+      `Browser: ${diag.browser} (iOS: ${diag.isIOS ? 'Yes' : 'No'}, Safari: ${diag.isSafari ? 'Yes' : 'No'})`,
+      `Screen: ${diag.screen.width}x${diag.screen.height} @${diag.screen.dpr}x (Viewport: ${diag.viewport.width}x${diag.viewport.height})`,
+      `Max Touch Points: ${diag.maxTouchPoints}`,
+      `WebRTC Supported: ${diag.webrtcSupported ? 'Yes' : 'No'} | H.264 Video Decoder: ${diag.h264Supported ? 'Yes' : 'No'}`,
+      '==========================================',
     ].join('\n')
 
     const body = this.buffer

@@ -1,3 +1,4 @@
+import { playJa } from '@/lib/i18n/messages/parts/play'
 import { aboutJa } from '@/lib/i18n/messages/parts/about'
 import { agentAuthJa } from '@/lib/i18n/messages/parts/agent-auth'
 import { companionJa } from '@/lib/i18n/messages/parts/companion'
@@ -323,6 +324,7 @@ const base = {
 
 export const ja: MessageTree = {
   debug: debugJa,
+  play: playJa,
   ...base,
   ...translateJa,
   ...editJa,

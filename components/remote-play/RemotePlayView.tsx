@@ -27,6 +27,10 @@ import { initErudaMobileDevTools } from '@/lib/runtime/mobile-devtools'
 import { remotePlayLogger } from '@/lib/runtime/remote-play-logger'
 import { WebGameLink } from '@/lib/runtime/web-game-link'
 
+import { useT } from '@/components/i18n/LocaleProvider'
+import { LocaleSwitcher } from '@/components/i18n/LocaleSwitcher'
+import { GradientButton } from '@/components/sk'
+import { IoPlayOutline } from 'react-icons/io5'
 import { IosInstallGuideModal } from './IosInstallGuideModal'
 import { PerformanceHud } from './PerformanceHud'
 import { RemoteCheatDrawer } from './RemoteCheatDrawer'
@@ -57,6 +61,7 @@ type LibraryItem = {
 }
 
 export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
+  const t = useT()
   const [roomId, setRoomId] = useState<string>(initialRoomId || '')
   const [status, setStatus] = useState<'connecting' | 'connected' | 'disconnected'>('connecting')
   const [latencyMs, setLatencyMs] = useState<number | null>(null)
@@ -127,7 +132,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   )
 
   const handleClearCacheAndReload = useCallback(async () => {
-    remotePlayLogger.info('用户触发清理缓存并重载页面')
+    remotePlayLogger.info('User triggered clear cache and reload')
     try {
       if (typeof window !== 'undefined') {
         localStorage.clear()
@@ -156,7 +161,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   useEffect(() => {
     remotePlayLogger.initEnvironmentDiagnostics()
     remotePlayLogger.installGlobalErrorHandlers()
-    remotePlayLogger.info('远程游玩视图已挂载')
+    remotePlayLogger.info('Remote play view mounted')
     resetIdleTimer()
 
     const handleActivity = () => {
@@ -260,13 +265,13 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       prevStatusRef.current = status
 
       if (status === 'connected') {
-        showStatusToast('connected', '已连接游戏串流')
+        showStatusToast('connected', t('play.connected'))
       } else if (status === 'disconnected') {
         if (gameOnline) {
-          showStatusToast('disconnected', '串流已断开，正在自动重连…', 3000)
+          showStatusToast('disconnected', `${t('play.disconnected')}...`, 3000)
         }
       } else if (status === 'connecting' && prev === 'disconnected') {
-        showStatusToast('connecting', '正在重新连接…', 2000)
+        showStatusToast('connecting', t('play.connecting'), 2000)
       }
     }
   }, [status, gameOnline, showStatusToast])
@@ -274,7 +279,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   // 2. Resolve room ID, game library & check if game is online
   useEffect(() => {
     let cancelled = false
-    remotePlayLogger.info('正在请求 /api/status 探测可用游戏与运行状态…')
+    remotePlayLogger.info('Probing game status from /api/status...')
     void fetch('/api/status')
       .then((res) => res.json())
       .then((data) => {
@@ -300,7 +305,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           data?.resolved?.gameId ||
           'default'
 
-        remotePlayLogger.ok(`探测到游戏房间与状态: ${detectedId} (在线: ${isOnline})`, {
+        remotePlayLogger.ok(`Detected game room: ${detectedId} (online: ${isOnline})`, {
           gameId: detectedId,
           selected,
           name: current?.name,
@@ -312,7 +317,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         }
       })
       .catch((err) => {
-        const msg = `无法获取游戏状态: ${err instanceof Error ? err.message : String(err)}`
+        const msg = `Failed to get game status: ${err instanceof Error ? err.message : String(err)}`
         remotePlayLogger.fail(msg)
         if (!cancelled) setErrorMessage(msg)
       })
@@ -332,9 +337,9 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       setErrorMessage(null)
 
       if (isManual) {
-        remotePlayLogger.info('用户手动重连游戏串流')
+        remotePlayLogger.info('User manually reconnected stream')
       } else {
-        remotePlayLogger.info(`正在建立 WebRTC 串流连接 (房间: ${roomId})`)
+        remotePlayLogger.info(`Establishing WebRTC stream connection (room: ${roomId})`)
       }
 
       linkRef.current?.stop()
@@ -342,7 +347,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       const scheduleSilentAutoReconnect = () => {
         clearReconnectTimers()
         reconnectTimerRef.current = setTimeout(() => {
-          remotePlayLogger.info('自动重新发起 WebRTC 串流连接…')
+          remotePlayLogger.info('Auto-reconnecting WebRTC stream...')
           connect(false)
         }, 2600)
       }
@@ -356,18 +361,18 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           setIsCancelled(false)
           setStatus('connected')
           setGameOnline(true)
-          remotePlayLogger.ok('云游戏 WebRTC 链路握手成功，已建立端到端连接')
+          remotePlayLogger.ok('WebRTC stream link established successfully')
           setErrorMessage(null)
         },
         onDisconnected: () => {
           setStatus('disconnected')
           setLatencyMs(null)
-          remotePlayLogger.warn('云游戏 WebRTC 链路断开，自动静默重连中')
+          remotePlayLogger.warn('WebRTC stream disconnected, auto-reconnecting silently')
           scheduleSilentAutoReconnect()
         },
         onTrack: (stream: MediaStream) => {
           streamRef.current = stream
-          remotePlayLogger.ok(`接收到远程媒体流，包含 ${stream.getTracks().length} 个音视频轨道`, {
+          remotePlayLogger.ok(`Received remote media stream with ${stream.getTracks().length} tracks`, {
             tracks: stream.getTracks().map((t) => ({ kind: t.kind, label: t.label, readyState: t.readyState })),
           })
           if (!videoRef.current) return
@@ -377,11 +382,11 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           void videoRef.current
             .play()
             .then(() => {
-              remotePlayLogger.ok('视频画面已开始播放')
+              remotePlayLogger.ok('Video playback started')
             })
             .catch((err) => {
               remotePlayLogger.warn(
-                `视频自动播放被浏览器拦截（需要用户轻触屏幕以唤醒播放）: ${
+                `Autoplay blocked by browser policy (user tap required): ${
                   err instanceof Error ? err.message : String(err)
                 }`
               )
@@ -394,7 +399,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           }
         },
         onIdle: () => {
-          remotePlayLogger.warn('信令等待游戏端响应中，自动重试')
+          remotePlayLogger.warn('Signaling waiting for game response, retrying...')
           setStatus((prev) => (prev === 'connected' ? prev : 'disconnected'))
           scheduleSilentAutoReconnect()
         },
@@ -403,7 +408,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       linkRef.current = link
 
       void link.start({ enableMedia: true, takeover: true }).catch((err) => {
-        const errStr = `WebRTC 连接握手异常: ${err instanceof Error ? err.message : String(err)}`
+        const errStr = `WebRTC connection handshake exception: ${err instanceof Error ? err.message : String(err)}`
         remotePlayLogger.fail(errStr)
         setStatus('disconnected')
         setErrorMessage(errStr)
@@ -441,31 +446,31 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const handleLaunchGame = useCallback(async () => {
     if (isLaunching) return
     setIsLaunching(true)
-    remotePlayLogger.info('用户在手机端点击启动游戏，发起 POST /api/launch…')
-    showStatusToast('connecting', '正在启动游戏进程…', 8000)
+    remotePlayLogger.info('User initiated game launch via POST /api/launch...')
+    showStatusToast('connecting', t('play.launchingLocalGame'), 8000)
 
     try {
       const res = await fetch('/api/launch', { method: 'POST' })
       const data = await res.json()
       if (!res.ok || data.ok === false) {
-        const errMsg = data?.error?.message || data?.error || '启动游戏失败'
-        remotePlayLogger.fail(`启动游戏异常: ${errMsg}`)
-        showStatusToast('disconnected', `启动失败: ${errMsg}`, 4000)
+        const errMsg = data?.error?.message || data?.error || 'Failed to launch game'
+        remotePlayLogger.fail(`Game launch failed: ${errMsg}`)
+        showStatusToast('disconnected', `${t('play.failed')}: ${errMsg}`, 4000)
         setIsLaunching(false)
         return
       }
 
       if (data.alreadyRunning) {
-        remotePlayLogger.ok('检测到游戏已在运行，直接连入 WebRTC 串流')
-        showStatusToast('connecting', '检测到游戏已在运行，正在接入…', 3000)
+        remotePlayLogger.ok('Game already running, connecting directly to WebRTC stream')
+        showStatusToast('connecting', t('play.connecting'), 3000)
         setGameOnline(true)
         setIsLaunching(false)
         connect(true)
         return
       }
 
-      remotePlayLogger.ok('游戏进程已拉起，等待 WebRTC 串流就绪…')
-      showStatusToast('connecting', '游戏已拉起，等待就绪…', 6000)
+      remotePlayLogger.ok('Game process spawned, awaiting WebRTC stream readiness...')
+      showStatusToast('connecting', t('play.connecting'), 6000)
 
       let attempts = 0
       const maxAttempts = 30
@@ -479,7 +484,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             clearInterval(pollInterval)
             setGameOnline(true)
             setIsLaunching(false)
-            remotePlayLogger.ok('检测到游戏已在线，自动连入 WebRTC 串流')
+            remotePlayLogger.ok('Game detected online, connecting to WebRTC stream')
             connect(true)
             return
           }
@@ -490,14 +495,14 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         if (attempts >= maxAttempts) {
           clearInterval(pollInterval)
           setIsLaunching(false)
-          remotePlayLogger.warn('等待游戏上线超时，进入重连待命状态')
-          showStatusToast('disconnected', '游戏启动较慢，可点击下方重连', 4000)
+          remotePlayLogger.warn('Timed out waiting for game online, entering reconnection standby')
+          showStatusToast('disconnected', t('play.pausedConnecting'), 4000)
         }
       }, 1200)
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err)
-      remotePlayLogger.fail(`启动请求发生异常: ${errMsg}`)
-      showStatusToast('disconnected', `请求失败: ${errMsg}`, 4000)
+      remotePlayLogger.fail(`Launch request encountered exception: ${errMsg}`)
+      showStatusToast('disconnected', `${t('play.failed')}: ${errMsg}`, 4000)
       setIsLaunching(false)
     }
   }, [isLaunching, showStatusToast, connect])
@@ -505,8 +510,8 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   // Game switching handler
   const handleSelectGame = useCallback(
     async (game: LibraryItem) => {
-      remotePlayLogger.info(`切换目标游戏至: ${game.name} (${game.gameRoot})`)
-      // 切换游戏：重置连接并置为断开
+      remotePlayLogger.info(`Switched target game to: ${game.name} (${game.gameRoot})`)
+      // Switch game: reset connection and mark disconnected
       clearReconnectTimers()
       linkRef.current?.stop()
       linkRef.current = null
@@ -520,13 +525,13 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         })
         const data = await res.json()
         if (!res.ok || data.ok === false) {
-          showStatusToast('disconnected', '切换游戏失败', 3000)
+          showStatusToast('disconnected', `${t('play.switchGame')} ${t('play.failed')}`, 3000)
           return
         }
         setSelectedGame(game)
         setRoomId(game.id)
         setGameSelectorOpen(false)
-        showStatusToast('info', `已切换至: ${game.name}`, 2500)
+        showStatusToast('info', `${t('play.switchGame')}: ${game.name}`, 2500)
 
         const stRes = await fetch('/api/status')
         const stData = await stRes.json()
@@ -538,7 +543,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           setStatus('disconnected')
         }
       } catch {
-        showStatusToast('disconnected', '网络异常，切换游戏失败', 3000)
+        showStatusToast('disconnected', `${t('play.switchGame')} ${t('play.failed')}`, 3000)
       }
     },
     [showStatusToast, connect]
@@ -608,7 +613,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
 
   const handleGlobalPointerDown = () => {
     if (videoRef.current && videoRef.current.paused && videoRef.current.srcObject) {
-      remotePlayLogger.info('用户轻触屏幕尝试唤醒视频播放')
+      remotePlayLogger.info('User tapped screen to resume video playback')
       void videoRef.current.play().catch(() => {})
     }
   }
@@ -616,7 +621,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   // 7. Unmute audio on user tap
   const handleUnmute = () => {
     setMuted(false)
-    remotePlayLogger.info('用户点击开启声音')
+    remotePlayLogger.info('User unmuted stream audio')
     if (videoRef.current) {
       videoRef.current.muted = false
       void videoRef.current.play().catch(() => {})
@@ -628,7 +633,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
 
     if (isStandalone) {
       setInstallGuideOpen(true)
-      remotePlayLogger.info('检测到已处于主屏独立全屏模式 (Web App)')
+      remotePlayLogger.info('Detected standalone PWA full-screen mode')
       return
     }
 
@@ -639,7 +644,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       } else if (doc.webkitExitFullscreen) {
         void doc.webkitExitFullscreen().catch(() => {})
       }
-      remotePlayLogger.info('用户退出全屏模式')
+      remotePlayLogger.info('User exited full-screen mode')
       return
     }
 
@@ -653,7 +658,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
 
     if (isIos || (!docEl.requestFullscreen && !docEl.webkitRequestFullscreen)) {
       setInstallGuideOpen(true)
-      remotePlayLogger.info('触发 iOS Safari 添加到主屏幕全屏指引')
+      remotePlayLogger.info('Triggered iOS Safari Add to Home Screen guide')
       return
     }
 
@@ -661,7 +666,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       docEl
         .requestFullscreen()
         .then(() => {
-          remotePlayLogger.ok('已成功进入网页全屏')
+          remotePlayLogger.ok('Successfully entered browser fullscreen')
         })
         .catch(() => {
           setInstallGuideOpen(true)
@@ -686,7 +691,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       } catch {
         /* ignore */
       }
-      remotePlayLogger.info(`切换画面比例模式: ${next === 'cover' ? '铺满全屏' : '等比适应'}`)
+      remotePlayLogger.info(`Switched aspect ratio mode to: ${next}`)
       return next
     })
   }
@@ -711,13 +716,9 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     } catch {
       /* ignore */
     }
-    const names = {
-      fixed: '固定手柄模式',
-      touch: '屏幕触摸模式 (鼠标模式)',
-      dynamic: '自由摇杆模式',
-    }
-    showStatusToast('connecting', `已切换至: ${names[mode]}`, 2000)
-    remotePlayLogger.info(`操作模式切换为: ${names[mode]}`)
+    const modeLabel = mode === 'fixed' ? t('play.modeFixed') : mode === 'touch' ? t('play.modeTouch') : t('play.modeDynamic')
+    showStatusToast('connecting', modeLabel, 2000)
+    remotePlayLogger.info(`Control mode switched to: ${mode}`)
   }
 
   const effectiveIdle = isIdle && status === 'connected' && !drawerOpen && !menuOpen
@@ -728,7 +729,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         return (
           <div className="space-y-3">
             <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider">
-              操作控制模式
+              {t('play.controlModeTitle')}
             </div>
             <div className="grid grid-cols-3 gap-1.5 p-1 rounded-xl bg-neutral-950/70 border border-white/5">
               <button
@@ -741,7 +742,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 }`}
               >
                 <LuGamepad2 size={16} />
-                <span className="text-[11px] whitespace-nowrap">固定手柄</span>
+                <span className="text-[11px] whitespace-nowrap">{t('play.modeFixed')}</span>
               </button>
 
               <button
@@ -754,7 +755,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 }`}
               >
                 <LuMousePointer2 size={16} />
-                <span className="text-[11px] whitespace-nowrap">屏幕触摸</span>
+                <span className="text-[11px] whitespace-nowrap">{t('play.modeTouch')}</span>
               </button>
 
               <button
@@ -767,14 +768,14 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 }`}
               >
                 <LuCompass size={16} />
-                <span className="text-[11px] whitespace-nowrap">自由摇杆</span>
+                <span className="text-[11px] whitespace-nowrap">{t('play.modeDynamic')}</span>
               </button>
             </div>
 
             <div className="rounded-xl border border-white/5 bg-white/[0.02] p-2.5 text-[11px] text-neutral-400 leading-relaxed">
-              {controlMode === 'fixed' && '固定手柄：左下角固定虚拟摇杆，右侧动作按键。'}
-              {controlMode === 'touch' && '屏幕触摸：隐藏所有虚拟按键，触屏点击作为鼠标/触控操作。'}
-              {controlMode === 'dynamic' && '自由摇杆：在左半屏任意处触屏下压，即刻在该位置生成摇杆。'}
+              {controlMode === 'fixed' && t('play.modeFixedDesc')}
+              {controlMode === 'touch' && t('play.modeTouchDesc')}
+              {controlMode === 'dynamic' && t('play.modeDynamicDesc')}
             </div>
           </div>
         )
@@ -782,7 +783,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         return (
           <div className="space-y-2 text-xs">
             <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1">
-              局内控制与诊断
+              {t('play.inGameControlTitle')}
             </div>
             <button
               type="button"
@@ -795,9 +796,9 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             >
               <span className="flex items-center gap-2">
                 <LuSparkles size={16} className="text-amber-400 shrink-0" />
-                <span className="font-semibold whitespace-nowrap">局内控制台 (常用修改)</span>
+                <span className="font-semibold whitespace-nowrap">{t('play.inGameConsole')}</span>
               </span>
-              <span className="text-[11px] text-neutral-400">打开面板</span>
+              <span className="text-[11px] text-neutral-400">{t('play.openPanel')}</span>
             </button>
 
             <button
@@ -811,9 +812,9 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             >
               <span className="flex items-center gap-2">
                 <LuScrollText size={16} className="text-sky-400 shrink-0" />
-                <span className="font-semibold whitespace-nowrap">运行与诊断日志</span>
+                <span className="font-semibold whitespace-nowrap">{t('play.diagLogs')}</span>
               </span>
-              <span className="text-[11px] text-neutral-400">查看日志</span>
+              <span className="text-[11px] text-neutral-400">{t('play.viewLogs')}</span>
             </button>
           </div>
         )
@@ -821,7 +822,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         return (
           <div className="space-y-2 text-xs">
             <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1">
-              声音与画面设置
+              {t('play.audioVisualTitle')}
             </div>
             <button
               type="button"
@@ -834,10 +835,10 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 ) : (
                   <LuVolume2 size={15} className="text-emerald-400 shrink-0" />
                 )}
-                <span className="whitespace-nowrap shrink-0">声音输出</span>
+                <span className="whitespace-nowrap shrink-0">{t('play.audioOutput')}</span>
               </span>
               <span className={`text-[10px] font-semibold ${muted ? 'text-amber-300' : 'text-emerald-400'}`}>
-                {muted ? '已静音 (点击开声)' : '已开启'}
+                {muted ? t('play.muted') : t('play.unmuted')}
               </span>
             </button>
 
@@ -848,10 +849,10 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             >
               <span className="flex items-center gap-2">
                 <LuScaling size={15} className="text-sky-400 shrink-0" />
-                <span className="whitespace-nowrap shrink-0">画面缩放模式</span>
+                <span className="whitespace-nowrap shrink-0">{t('play.scalingMode')}</span>
               </span>
               <span className="text-[10px] text-sky-300 font-mono">
-                {fitMode === 'cover' ? '铺满全屏' : '等比适应'}
+                {fitMode === 'cover' ? t('play.fitCover') : t('play.fitContain')}
               </span>
             </button>
 
@@ -865,10 +866,10 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   size={15}
                   className={hudVisible ? 'text-emerald-400 shrink-0' : 'text-neutral-500 shrink-0'}
                 />
-                <span className="whitespace-nowrap shrink-0">实时性能 HUD (FPS / 延迟)</span>
+                <span className="whitespace-nowrap shrink-0">{t('play.perfHud')}</span>
               </span>
               <span className={`text-[10px] ${hudVisible ? 'text-emerald-400' : 'text-neutral-500'}`}>
-                {hudVisible ? '已显示' : '已隐藏'}
+                {hudVisible ? t('play.shown') : t('play.hidden')}
               </span>
             </button>
 
@@ -887,10 +888,10 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   ) : (
                     <LuMaximize2 size={15} className="text-neutral-300 shrink-0" />
                   )}
-                  <span className="whitespace-nowrap shrink-0">全屏显示</span>
+                  <span className="whitespace-nowrap shrink-0">{t('play.fullscreen')}</span>
                 </span>
                 <span className="text-[10px] text-neutral-400">
-                  {isFullscreen ? '退出全屏' : 'iOS添加主屏幕'}
+                  {isFullscreen ? t('play.exitFullscreen') : t('play.iosAddHomeScreen')}
                 </span>
               </button>
             )}
@@ -900,7 +901,13 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         return (
           <div className="space-y-2 text-xs">
             <div className="text-[11px] font-semibold text-neutral-400 uppercase tracking-wider mb-1">
-              游戏管理与系统偏好
+              {t('play.preferencesTitle')}
+            </div>
+            <div className="flex items-center justify-between rounded-xl border border-white/5 bg-white/[0.03] px-3 py-2 text-neutral-200">
+              <span className="flex items-center gap-2">
+                <span className="whitespace-nowrap shrink-0 font-medium">{t('locale.label')}</span>
+              </span>
+              <LocaleSwitcher className="shrink-0" />
             </div>
             {library.length > 0 && (
               <button
@@ -913,10 +920,10 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               >
                 <span className="flex items-center gap-2">
                   <LuGamepad2 size={15} className="text-emerald-400 shrink-0" />
-                  <span className="whitespace-nowrap shrink-0 font-medium">切换目标游戏</span>
+                  <span className="whitespace-nowrap shrink-0 font-medium">{t('play.switchGame')}</span>
                 </span>
                 <span className="text-[10px] text-neutral-400 truncate max-w-[130px]">
-                  {selectedGame?.name || '选择游戏'}
+                  {selectedGame?.name || t('play.tapToSelect')}
                 </span>
               </button>
             )}
@@ -931,9 +938,9 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             >
               <span className="flex items-center gap-2">
                 <LuRotateCcw size={15} className="text-amber-400 shrink-0" />
-                <span className="whitespace-nowrap shrink-0 font-medium">清理缓存并重载</span>
+                <span className="whitespace-nowrap shrink-0 font-medium">{t('play.clearReload')}</span>
               </span>
-              <span className="text-[10px] text-neutral-400">重置偏好并刷新</span>
+              <span className="text-[10px] text-neutral-400">{t('play.clearReloadDesc')}</span>
             </button>
           </div>
         )
@@ -1044,8 +1051,8 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   right: 'max(0.75rem, env(safe-area-inset-right))',
                 }}
                 className="pointer-events-auto absolute z-40 flex h-7 w-7 items-center justify-center rounded-full border border-white/15 bg-neutral-900/80 text-neutral-300 shadow-md backdrop-blur-md transition-colors hover:bg-neutral-800 active:scale-95 shrink-0"
-                title="打开设置与控制台"
-                aria-label="打开设置与控制台"
+                title={t('play.consoleTitle')}
+                aria-label={t('play.consoleTitle')}
               >
                 <LuSlidersHorizontal size={14} className="text-emerald-400" />
               </button>
@@ -1114,8 +1121,8 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 className={`pointer-events-auto fixed z-40 flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-neutral-900/85 text-neutral-300 shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-neutral-800 active:scale-95 shrink-0 ${
                   effectiveIdle ? 'opacity-35 hover:opacity-100' : 'opacity-90 hover:opacity-100'
                 }`}
-                title="打开快捷设置与控制台"
-                aria-label="打开快捷设置与控制台"
+                title={t('play.consoleTitle')}
+                aria-label={t('play.consoleTitle')}
               >
                 <LuSlidersHorizontal size={15} className="text-emerald-400" />
               </button>
@@ -1162,13 +1169,13 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             {/* Header: Centered title, compressed height, clean icon button */}
             <div className="relative flex items-center justify-center py-1.5 px-8 border-b border-white/10 shrink-0">
               <h3 id="menu-title" className="text-xs font-bold text-white text-center leading-none">
-                串流控制台
+                {t('play.consoleTitle')}
               </h3>
               <button
                 type="button"
                 onClick={() => setMenuOpen(false)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white active:scale-90 transition-all"
-                aria-label="关闭"
+                aria-label={t('common.close')}
               >
                 <LuX size={15} />
               </button>
@@ -1189,7 +1196,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                     }`}
                   >
                     <LuGamepad2 size={14} className="mb-0.5" />
-                    <span>手柄模式</span>
+                    <span>{t('play.gamepadTab')}</span>
                   </button>
                   <button
                     type="button"
@@ -1201,7 +1208,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                     }`}
                   >
                     <LuSparkles size={14} className="mb-0.5 text-amber-400" />
-                    <span>快捷面板</span>
+                    <span>{t('play.quickTab')}</span>
                   </button>
                   <button
                     type="button"
@@ -1213,7 +1220,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                     }`}
                   >
                     <LuSlidersHorizontal size={14} className="mb-0.5 text-sky-400" />
-                    <span>音画设置</span>
+                    <span>{t('play.displayTab')}</span>
                   </button>
                   <button
                     type="button"
@@ -1225,7 +1232,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                     }`}
                   >
                     <LuRotateCcw size={14} className="mb-0.5 text-teal-400" />
-                    <span>系统偏好</span>
+                    <span>{t('play.systemTab')}</span>
                   </button>
                 </div>
 
@@ -1247,7 +1254,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                     }`}
                   >
                     <LuGamepad2 size={15} />
-                    <span className="whitespace-nowrap">操作手柄</span>
+                    <span className="whitespace-nowrap">{t('play.gamepadTab')}</span>
                   </button>
                   <button
                     type="button"
@@ -1259,7 +1266,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                     }`}
                   >
                     <LuSparkles size={15} className="text-amber-400" />
-                    <span className="whitespace-nowrap">快捷面板</span>
+                    <span className="whitespace-nowrap">{t('play.quickTab')}</span>
                   </button>
                   <button
                     type="button"
@@ -1271,7 +1278,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                     }`}
                   >
                     <LuSlidersHorizontal size={15} className="text-sky-400" />
-                    <span className="whitespace-nowrap">音画设置</span>
+                    <span className="whitespace-nowrap">{t('play.displayTab')}</span>
                   </button>
                   <button
                     type="button"
@@ -1283,7 +1290,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                     }`}
                   >
                     <LuRotateCcw size={15} className="text-teal-400" />
-                    <span className="whitespace-nowrap">系统偏好</span>
+                    <span className="whitespace-nowrap">{t('play.systemTab')}</span>
                   </button>
                 </div>
 
@@ -1310,7 +1317,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           {/* Dark Glassmorphic Vignette Overlay */}
           <div className="absolute inset-0 bg-gradient-to-b from-neutral-950/70 via-neutral-950/80 to-neutral-950/95 backdrop-blur-md pointer-events-none" />
 
-          {/* Top Bar with Safe Area: Top-Right Clear Cache & Hard Reload Button */}
+          {/* Top Bar with Safe Area: Language Switcher and Clear Cache & Hard Reload Button */}
           <div
             style={{
               top: 'max(0.75rem, env(safe-area-inset-top))',
@@ -1318,12 +1325,13 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             }}
             className="pointer-events-auto fixed z-50 flex items-center gap-2"
           >
+            <LocaleSwitcher className="shrink-0" />
             <button
               type="button"
               onClick={handleClearCacheAndReload}
               className="flex h-8 w-8 items-center justify-center rounded-full border border-white/15 bg-neutral-900/80 text-sky-400 hover:text-white hover:bg-neutral-800 backdrop-blur-md active:scale-90 transition-all shadow-md"
-              title="清理缓存并重载"
-              aria-label="清理重载"
+              title={t('play.clearReload')}
+              aria-label={t('play.clearReload')}
             >
               <LuRotateCcw size={15} />
             </button>
@@ -1386,7 +1394,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   </h2>
                 </div>
                 <p className="text-xs text-neutral-300/80 font-medium tracking-wide">
-                  正在拉起本地游戏进程并准备 WebRTC 串流…
+                  {t('play.launchingLocalGame')}
                 </p>
               </div>
             ) : gameOnline === false ? (
@@ -1404,10 +1412,10 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                       <div className="flex flex-col min-w-0 pr-2">
                         <span className="text-[10px] text-neutral-400 flex items-center gap-1.5">
                           <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-                          <span>游戏未运行 · 待拉起</span>
+                          <span>{t('play.gameNotRunning')}</span>
                         </span>
                         <span className="text-xs sm:text-sm font-bold text-white truncate">
-                          {selectedGame?.name || 'RPG Maker 游戏'}
+                          {selectedGame?.name || 'RPG Maker'}
                         </span>
                       </div>
 
@@ -1418,20 +1426,22 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                           className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-neutral-300 hover:bg-white/10 hover:text-white shrink-0 active:scale-95 transition-all"
                         >
                           <LuGamepad2 size={13} className="text-emerald-400" />
-                          <span>切换游戏</span>
+                          <span>{t('play.switchGame')}</span>
                         </button>
                       )}
                     </div>
 
-                    {/* Prominent Launch CTA Button */}
-                    <button
-                      type="button"
+                    {/* App-styled Gradient Launch CTA Button */}
+                    <GradientButton
+                      size="lg"
+                      variant="ok"
+                      className="w-full justify-center min-h-12 shadow-[0_0_24px_rgba(16,185,129,0.5)]"
+                      loading={isLaunching}
                       onClick={handleLaunchGame}
-                      className="inline-flex items-center justify-center gap-2 w-full rounded-full border border-emerald-400/50 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 py-3 text-sm font-black text-white shadow-[0_0_24px_rgba(16,185,129,0.5)] hover:brightness-110 active:scale-95 transition-all"
                     >
-                      <LuPlay size={15} className="fill-white" />
-                      <span>启动游戏并连入串流</span>
-                    </button>
+                      <IoPlayOutline size={19} aria-hidden />
+                      <span>{t('play.launchAndStream')}</span>
+                    </GradientButton>
 
                     <div className="flex items-center justify-center gap-4 text-xs pt-0.5">
                       <button
@@ -1439,7 +1449,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                         onClick={() => connect(true)}
                         className="text-neutral-400 hover:text-neutral-200 text-[11px] underline underline-offset-2 transition-colors"
                       >
-                        直接尝试连接
+                        {t('play.directConnect')}
                       </button>
                       <span className="text-neutral-600">·</span>
                       <button
@@ -1450,20 +1460,20 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                         }}
                         className="text-neutral-400 hover:text-neutral-200 text-[11px] transition-colors"
                       >
-                        诊断日志
+                        {t('play.diagLogs')}
                       </button>
                     </div>
                   </>
                 ) : (
-                  /* Landscape: Single Line (一行) */
+                  /* Landscape: Single Line */
                   <>
                     <div className="flex items-center gap-2.5 min-w-0 flex-1">
                       <span className="h-2 w-2 rounded-full bg-amber-400 shrink-0 animate-pulse" />
                       <div className="flex items-center gap-2 min-w-0">
                         <span className="text-xs font-bold text-white truncate max-w-[200px]">
-                          {selectedGame?.name || 'RPG Maker 游戏'}
+                          {selectedGame?.name || 'RPG Maker'}
                         </span>
-                        <span className="text-[10px] text-neutral-400 shrink-0">待启动</span>
+                        <span className="text-[10px] text-neutral-400 shrink-0">{t('play.waitingLaunch')}</span>
                       </div>
                     </div>
 
@@ -1475,26 +1485,28 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                           className="inline-flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-neutral-300 hover:bg-white/10 hover:text-white shrink-0 active:scale-95 transition-all"
                         >
                           <LuGamepad2 size={13} className="text-emerald-400" />
-                          <span>切换游戏</span>
+                          <span>{t('play.switchGame')}</span>
                         </button>
                       )}
 
-                      <button
-                        type="button"
+                      <GradientButton
+                        size="md"
+                        variant="ok"
+                        className="shrink-0 min-h-8 text-xs font-bold"
+                        loading={isLaunching}
                         onClick={handleLaunchGame}
-                        className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-400/50 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 px-4 py-1.5 text-xs font-bold text-white shadow-[0_0_16px_rgba(16,185,129,0.4)] hover:brightness-110 active:scale-95 transition-all"
                       >
-                        <LuPlay size={13} className="fill-white" />
-                        <span>启动游戏</span>
-                      </button>
+                        <IoPlayOutline size={15} aria-hidden />
+                        <span>{t('play.launchGame')}</span>
+                      </GradientButton>
 
                       <button
                         type="button"
                         onClick={() => connect(true)}
                         className="rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5 text-xs text-neutral-300 hover:bg-white/10 hover:text-white active:scale-95 transition-all"
-                        title="直接尝试连接"
+                        title="{t('play.directConnect')}"
                       >
-                        直接连接
+                        {t('play.directConnect')}
                       </button>
                     </div>
                   </>
@@ -1512,7 +1524,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   </span>
                 </div>
                 <p className="text-xs text-neutral-300/80 font-medium tracking-wide">
-                  正在自动建立游戏串流通道…
+                  {t('play.autoConnecting')}
                 </p>
 
                 {/* Subdued Cancel Button */}
@@ -1525,7 +1537,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   }}
                   className="mt-2 rounded-full border border-white/10 bg-white/5 px-5 py-1.5 text-xs text-neutral-400 hover:text-white hover:bg-white/10 active:scale-95 transition-all"
                 >
-                  取消连接
+                  {t('play.cancelConnect')}
                 </button>
               </div>
             ) : (
@@ -1535,7 +1547,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                     PAUSED
                   </h2>
                   <p className="text-xs text-neutral-400">
-                    已暂停自动连接。点击下方按钮开始连接
+                    {t('play.pausedConnecting')}
                   </p>
                 </div>
 
@@ -1547,7 +1559,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                     className="inline-flex items-center gap-2 rounded-full border border-emerald-400/40 bg-gradient-to-r from-emerald-500 to-teal-500 px-6 py-2.5 text-xs sm:text-sm font-bold text-white shadow-[0_0_20px_rgba(16,185,129,0.4)] hover:brightness-110 active:scale-95 transition-all"
                   >
                     <LuRotateCw size={14} />
-                    <span>重新连接游戏</span>
+                    <span>{t('play.reconnect')}</span>
                   </button>
 
                   <button
@@ -1559,7 +1571,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                     className="inline-flex items-center gap-1.5 rounded-full border border-white/15 bg-neutral-900/80 px-4 py-2.5 text-xs font-semibold text-neutral-300 shadow-md hover:bg-neutral-800 active:scale-95 transition-all"
                   >
                     <LuScrollText size={14} />
-                    <span>诊断日志</span>
+                    <span>{t('play.diagLogs')}</span>
                   </button>
                 </div>
               </div>
@@ -1614,13 +1626,13 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             {/* Header: Centered title, compressed height, clean icon button */}
             <div className="relative flex items-center justify-center py-1.5 px-8 border-b border-white/10 shrink-0">
               <h3 id="game-select-title" className="text-xs font-bold text-white text-center leading-none">
-                可运行游戏列表
+                {t('play.gameSelectorTitle')}
               </h3>
               <button
                 type="button"
                 onClick={() => setGameSelectorOpen(false)}
                 className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-neutral-400 hover:text-white active:scale-90 transition-all"
-                aria-label="关闭"
+                aria-label={t('common.close')}
               >
                 <LuX size={15} />
               </button>
@@ -1646,7 +1658,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                     }`}
                   >
                     <div className="flex flex-col min-w-0 pr-2">
-                      <span className="text-xs font-semibold truncate">{item.name || '未命名游戏'}</span>
+                      <span className="text-xs font-semibold truncate">{item.name || 'Untitled Game'}</span>
                       <span className="text-[10px] text-neutral-400 mt-0.5">
                         {item.kindLabel || item.fingerprint?.engine?.name || 'RPG Maker'}
                       </span>
@@ -1654,10 +1666,10 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                     {isSelected ? (
                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/20 px-2 py-0.5 text-[10px] font-medium text-emerald-300 shrink-0">
                         <LuCheck size={10} />
-                        <span>当前选中</span>
+                        <span>{t('play.selected')}</span>
                       </span>
                     ) : (
-                      <span className="text-[10px] text-neutral-500 shrink-0">点击选择</span>
+                      <span className="text-[10px] text-neutral-500 shrink-0">{t('play.tapToSelect')}</span>
                     )}
                   </button>
                 )

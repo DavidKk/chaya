@@ -20,7 +20,7 @@ import { anyWebConnected, clearGameQuitRequest, getGamePresence, preferredPlugin
 
 export const runtime = 'nodejs'
 
-/** 启动：确保 Loader + Env（含 launchToken）+ 磁盘缓存，再 open / 传参启动 */
+/** Launch: Ensure loader, environment, and disk cache, then launch shell or open directory. */
 export const POST = defineApiRoute('post:/api/launch', async () => {
   const denied = requireDisk()
   if (denied) return denied
@@ -31,7 +31,7 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
   if (resolved.engine === 'VX Ace' || resolved.engine === 'VX') {
     if (findRunningJob('rgss-shell')) return apiError(409, 'SHELL_JOB_RUNNING', 'mkxp-z installation is in progress')
     if (!resolved.hasShell) return apiBadRequest('Install the native mkxp-z runtime to launch VX / VX Ace on macOS', 'RGSS_RUNTIME_MISSING')
-    // 启动前若有其他运行中的游戏，先关闭
+    // Terminate any running game processes before launching MKXP-Z
     await terminateAllRunningGameProcesses()
     try {
       return apiOk(await launchRgss(resolved))
@@ -53,7 +53,7 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
   const presence = getGamePresence()
   const isSamePresenceOnline = presence.online && (!targetContentRoot || !presence.contentRoot || pathEquals(presence.contentRoot, targetContentRoot))
 
-  // 游戏如果已经启动了但是没有被识别则不要再开游戏，直接返回就绪进入串流
+  // If the game process or WebRTC connection is already active, return ready without launching duplicate instances
   if (isSameGameRunning || anyWebConnected() || isSamePresenceOnline) {
     const apiBase = preferredPluginApiBase(toolkitListenPort())
     return apiOk({
@@ -65,7 +65,7 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
     })
   }
 
-  // 切换或启动新游戏：不能同时运行多个，必须先关闭之前运行的游戏
+  // Switching or launching a new game: ensure previous instances are terminated
   if (runningProcesses.length > 0) {
     await terminateAllRunningGameProcesses()
     await new Promise((resolve) => setTimeout(resolve, 500))
@@ -86,7 +86,7 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
   }
 
   try {
-    // 部分 Windows 发布包 package.json name 为空，NW.js 会直接拒启
+    // Some Windows game packages lack package.json name which NW.js requires
     const nwPackage = ensureNwPackageName(resolved.contentRoot)
     let gameIcon: string | undefined
     if (!resolved.bundled) {
@@ -151,7 +151,7 @@ export const POST = defineApiRoute('post:/api/launch', async () => {
   }
 })
 
-/** 关闭：兼容路径；主路径已改 WebRTC DataChannel quit */
+/** Terminate: Legacy endpoint; modern clients issue quit via WebRTC DataChannel */
 export const DELETE = defineApiRoute('delete:/api/launch', async () => {
   const denied = requireDisk()
   if (denied) return denied

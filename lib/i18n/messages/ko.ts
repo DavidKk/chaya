@@ -1,3 +1,4 @@
+import { playKo } from '@/lib/i18n/messages/parts/play'
 import { aboutKo } from '@/lib/i18n/messages/parts/about'
 import { agentAuthKo } from '@/lib/i18n/messages/parts/agent-auth'
 import { companionKo } from '@/lib/i18n/messages/parts/companion'
@@ -323,6 +324,7 @@ const base = {
 
 export const ko: MessageTree = {
   debug: debugKo,
+  play: playKo,
   ...base,
   ...translateKo,
   ...editKo,

@@ -12,10 +12,22 @@ export type RunningGameProcess = {
   contentRoot?: string
 }
 
+let cachedProcesses: { timestamp: number; targetRoot?: string; results: RunningGameProcess[] } | null = null
+const PROCESS_CACHE_TTL_MS = 1500
+
+export function clearGameProcessCache() {
+  cachedProcesses = null
+}
+
 /**
- * 扫描操作系统中正在运行的 Chaya 游戏进程（NW.js / mkxp-z / Game.exe 等）。
+ * Scan the operating system for active Chaya game processes (NW.js, mkxp-z, Game.exe, etc.).
+ * Includes a short-lived cache (1.5s) to avoid repeatedly executing ps during rapid status polling.
  */
 export function findRunningGameProcesses(targetContentRoot?: string): RunningGameProcess[] {
+  const now = Date.now()
+  if (cachedProcesses && now - cachedProcesses.timestamp < PROCESS_CACHE_TTL_MS && cachedProcesses.targetRoot === targetContentRoot) {
+    return cachedProcesses.results
+  }
   const results: RunningGameProcess[] = []
 
   if (process.platform === 'win32') {
@@ -58,20 +70,20 @@ export function findRunningGameProcesses(targetContentRoot?: string): RunningGam
       const pid = parseInt(match[1], 10)
       const cmd = match[2]
 
-      // 忽略当前 Node/脚本进程
+      // Ignore current Node scripts and search utilities
       if (/node|grep|ps -eo/i.test(cmd)) continue
 
-      // 检测 Chaya NW.js 或 RGSS mkxp-z
+      // Identify Chaya NW.js or RGSS mkxp-z processes
       const isNwShell = /Chaya\.app.*nwjs/i.test(cmd) || (/nwjs/i.test(cmd) && /app\.nw|--nwapp-path/i.test(cmd))
       const isRgss = /mkxp-z|mkxp/i.test(cmd)
 
       if (isNwShell || isRgss) {
         const isMain = !/Helper|crashpad|--type=/i.test(cmd)
 
-        // 尝试从命令行中提取 contentRoot
+        // Try to parse contentRoot from command line parameters
         let detectedRoot: string | undefined
         if (isMain && isNwShell) {
-          // 主进程参数格式形如：.../nwjs /path/to/game/www
+          // Main process argument pattern: .../nwjs /path/to/game/www
           const tokens = cmd.split(/\s+/)
           const lastToken = tokens[tokens.length - 1]
           if (lastToken && !lastToken.startsWith('-') && !lastToken.includes('nwjs')) {
@@ -97,11 +109,12 @@ export function findRunningGameProcesses(targetContentRoot?: string): RunningGam
     /* ignore ps errors */
   }
 
+  cachedProcesses = { timestamp: now, targetRoot: targetContentRoot, results }
   return results
 }
 
 /**
- * 判断是否有游戏进程正在运行（支持按 contentRoot 过滤）
+ * Check whether any game process is currently running (optionally filtered by contentRoot).
  */
 export function isAnyGameProcessRunning(contentRoot?: string): boolean {
   if (anyRgssRunning()) return true
@@ -110,9 +123,10 @@ export function isAnyGameProcessRunning(contentRoot?: string): boolean {
 }
 
 /**
- * 彻底关闭当前所有正在运行的游戏进程（切换游戏或关闭时调用）
+ * Terminate all running game processes (called during game switching or shutdown).
  */
 export async function terminateAllRunningGameProcesses(targetContentRoot?: string): Promise<{ killed: number[] }> {
+  clearGameProcessCache()
   const killed: number[] = []
 
   // 1. RGSS runtime
@@ -122,9 +136,9 @@ export async function terminateAllRunningGameProcesses(targetContentRoot?: strin
     /* ignore */
   }
 
-  // 2. 查找并杀掉 NW.js / shell 进程
+  // 2. Locate and terminate NW.js / shell processes
   const processes = findRunningGameProcesses(targetContentRoot)
-  // 优先给主进程发 SIGTERM，让其自然销毁子进程
+  // Send SIGTERM to the main process first so it cleans up children naturally
   const sorted = [...processes].sort((a, b) => (a.isMain === b.isMain ? 0 : a.isMain ? -1 : 1))
 
   for (const proc of sorted) {
@@ -140,13 +154,13 @@ export async function terminateAllRunningGameProcesses(targetContentRoot?: strin
     }
   }
 
-  // 3. 稍后检查是否有顽固未退出的辅助进程，发送 SIGKILL
+  // 3. Verify if stubborn helper processes remain alive and escalate to SIGKILL
   if (killed.length > 0 && process.platform !== 'win32') {
     await new Promise((resolve) => setTimeout(resolve, 350))
     for (const pid of killed) {
       try {
         process.kill(pid, 0)
-        // 依然存活，强行杀死
+        // Process still alive: force kill
         process.kill(pid, 'SIGKILL')
       } catch {
         /* already dead */
@@ -154,7 +168,7 @@ export async function terminateAllRunningGameProcesses(targetContentRoot?: strin
     }
   }
 
-  // 4. 清理 Presence 状态
+  // 4. Clean up Presence state
   clearGamePresenceKeepQuit()
   requestGameQuit()
 

@@ -1,9 +1,11 @@
+import { playCht } from '@/lib/i18n/messages/parts/play'
 import { debugCht } from '@/lib/i18n/messages/parts/debug'
 import { mcpGatewayCht } from '@/lib/i18n/messages/parts/mcp-gateway'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const cht: MessageTree = {
   debug: debugCht,
+  play: playCht,
   locale: {
     label: '語言',
     switch: '切換語言',

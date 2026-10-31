@@ -4,6 +4,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 
+import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 import { RemotePlayView } from '@/components/remote-play/RemotePlayView'
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
@@ -49,16 +50,16 @@ afterEach(() => {
 describe('RemotePlayView Launcher & UI refinements', () => {
   it('renders clear cache button on startup screen', async () => {
     await act(async () => {
-      root.render(<RemotePlayView initialRoomId="game-1" />)
+      root.render(<LocaleProvider initialLocale="zh" initialPreference="zh"><RemotePlayView initialRoomId="game-1" /></LocaleProvider>)
     })
 
-    const reloadBtn = Array.from(host.querySelectorAll('button')).find((b) => b.getAttribute('aria-label') === '清理重载')
+    const reloadBtn = Array.from(host.querySelectorAll('button')).find((b) => b.getAttribute('aria-label')?.includes('清理') || b.getAttribute('title')?.includes('清理'))
     expect(reloadBtn).toBeDefined()
   })
 
   it('detects game not running and displays launch button with game card', async () => {
     await act(async () => {
-      root.render(<RemotePlayView initialRoomId="game-1" />)
+      root.render(<LocaleProvider initialLocale="zh" initialPreference="zh"><RemotePlayView initialRoomId="game-1" /></LocaleProvider>)
     })
 
     // Allow status fetch to resolve
@@ -71,9 +72,31 @@ describe('RemotePlayView Launcher & UI refinements', () => {
     expect(host.textContent).toContain('切换游戏')
   })
 
+
+  it('renders language switcher and GradientButton for game launch', async () => {
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <RemotePlayView initialRoomId="game-1" />
+        </LocaleProvider>
+      )
+    })
+    await act(async () => {
+      await Promise.resolve()
+    })
+
+    // Language switcher trigger rendered
+    const langTrigger = host.querySelector('button[aria-label="切换语言"]')
+    expect(langTrigger).not.toBeNull()
+
+    // Launch button rendered with GradientButton
+    const launchBtn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.includes('启动游戏'))
+    expect(launchBtn).toBeDefined()
+  })
+
   it('opens game selector modal with safe padding and centered title', async () => {
     await act(async () => {
-      root.render(<RemotePlayView initialRoomId="game-1" />)
+      root.render(<LocaleProvider initialLocale="zh" initialPreference="zh"><RemotePlayView initialRoomId="game-1" /></LocaleProvider>)
     })
     await act(async () => {
       await Promise.resolve()

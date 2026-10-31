@@ -1,3 +1,4 @@
+import { playEn } from '@/lib/i18n/messages/parts/play'
 import { aboutEn } from '@/lib/i18n/messages/parts/about'
 import { agentAuthEn } from '@/lib/i18n/messages/parts/agent-auth'
 import { companionEn } from '@/lib/i18n/messages/parts/companion'
@@ -329,6 +330,7 @@ const dashboardEn = {
 
 export const en: MessageTree = {
   debug: debugEn,
+  play: playEn,
   ...commonEn,
   ...marketingEn,
   ...dashboardEn,

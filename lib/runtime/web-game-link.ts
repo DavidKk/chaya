@@ -12,20 +12,20 @@ type Handlers = {
   onDisconnected?: () => void
   onMessage?: (msg: GameLinkMessage) => void
   onTrack?: (stream: MediaStream) => void
-  /** 不再主动协商且没连上：别的标签页占着链路，或等 answer 超时 */
+  /** Cease active negotiation if another tab claims the link or answer times out */
   onIdle?: () => void
   onLog?: (level: LogLevel, message: string, meta?: Record<string, unknown>) => void
 }
 
 const SIGNAL_URL = '/api/runtime/webrtc'
 const ANSWER_POLL_MS = 8_000
-/** 信令房间 10 分钟无写入即过期，过后再轮询也等不到 answer */
+/** Signaling room expires after 10 minutes of inactivity */
 const ANSWER_WAIT_MS = 10 * 60_000
-/** 连上的标签页每 30s 刷新 webConnected，超过这个间隔就当它已不在 */
+/** Connected tabs refresh webConnected every 30s */
 const LIVE_LINK_MAX_AGE_MS = 45_000
 const HELD_RECHECK_MS = 10_000
 
-/** 浏览器模式才有令牌（服务端模式走管理会话），没有就不带 */
+/** Browser mode tokens; omitted in standalone server sessions */
 function signalHeaders(roomId: string, extra?: Record<string, string>): Record<string, string> {
   const token = readCloudLinkToken(roomId)
   return token ? { ...extra, [GAME_LINK_TOKEN_HEADER]: token } : { ...extra }
@@ -42,7 +42,7 @@ async function postSignal(body: { roomId: string } & Record<string, unknown>): P
     await res.json().catch(() => null)
     return true
   } catch {
-    // HMR / 页卸载 / 服务短暂不可达时常见；断线回调里绝不能抛成 unhandledRejection
+    // Common during HMR/unload/network blips; ensure disconnect handler does not throw unhandledRejections
     return false
   }
 }
@@ -71,8 +71,8 @@ async function linkHeldElsewhere(roomId: string): Promise<boolean> {
 }
 
 /**
- * Web 侧：创建 DataChannel + offer，等游戏 answer。
- * 连上 = 在线；断开 = 离线。
+ * Web client: Creates DataChannel + offer, awaits answer from game.
+ * Connected = online; Disconnected = offline.
  */
 export class WebGameLink {
   private pc: RTCPeerConnection | null = null
@@ -92,7 +92,7 @@ export class WebGameLink {
     private handlers: Handlers = {}
   ) {}
 
-  /** React 重挂时更新回调，不重建 PeerConnection */
+  /** Update callbacks across React remounts without recreating PeerConnection */
   setHandlers(handlers: Handlers) {
     this.handlers = handlers
   }
@@ -111,21 +111,21 @@ export class WebGameLink {
     this.closed = false
     const run = this.run
     const deadline = Date.now() + ANSWER_WAIT_MS
-    this.log('info', `启动 WebGameLink 串流连接 (房间: ${this.roomId})`, { takeover, enableMedia })
+    this.log('info', `Starting WebGameLink stream connection (room: ${this.roomId})`, { takeover, enableMedia })
     if (!takeover && !(await this.waitUntilFree(run, deadline))) {
-      this.log('warn', '发现已有活动连接占用房间，已停止争抢')
+      this.log('warn', 'Found active connection occupying room; yielded negotiation')
       return
     }
     if (!this.live(run)) return
-    this.log('debug', '发送信令 reset 请求')
+    this.log('debug', 'Sending signaling reset request')
     if (!(await postSignal({ action: 'reset', roomId: this.roomId }))) {
-      this.log('fail', '向信令服务重置房间失败')
+      this.log('fail', 'Failed to reset signaling room')
       throw new Error('signaling reset failed')
     }
 
     const pc = new RTCPeerConnection(defaultPeerConfig())
     this.pc = pc
-    this.log('debug', '已初始化 RTCPeerConnection 与 DataChannel')
+    this.log('debug', 'Initialized RTCPeerConnection and DataChannel')
     const dc = pc.createDataChannel(GAME_LINK_CHANNEL, { ordered: true })
     this.dc = dc
     this.bindChannel(dc)
@@ -143,7 +143,7 @@ export class WebGameLink {
             if (h264.length > 0) {
               trVideo.setCodecPreferences([...h264, ...others])
             }
-            this.log('info', '已注册音视频接收器并配置 H.264 首选编码')
+            this.log('info', 'Registered transceiver and configured H.264 preference')
           }
         }
       } catch {
@@ -159,24 +159,24 @@ export class WebGameLink {
         if (!remoteStream) remoteStream = new MediaStream()
         remoteStream.addTrack(ev.track)
       }
-      this.log('ok', `接收到远程媒体流轨道: ${ev.track.kind} (${ev.track.label || '默认'})`, { trackId: ev.track.id, readyState: ev.track.readyState })
+      this.log('ok', `Received remote media track: ${ev.track.kind} (${ev.track.label || 'default'})`, { trackId: ev.track.id, readyState: ev.track.readyState })
       this.handlers.onTrack?.(remoteStream)
     }
 
     pc.oniceconnectionstatechange = () => {
       const ice = pc.iceConnectionState
-      this.log(ice === 'failed' ? 'fail' : ice === 'connected' || ice === 'completed' ? 'ok' : 'info', `ICE 连接状态变迁: ${ice}`)
+      this.log(ice === 'failed' ? 'fail' : ice === 'connected' || ice === 'completed' ? 'ok' : 'info', `ICE connection state changed: ${ice}`)
     }
 
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState
-      this.log(state === 'failed' ? 'fail' : state === 'connected' ? 'ok' : 'info', `WebRTC PeerConnection 状态变迁: ${state}`)
+      this.log(state === 'failed' ? 'fail' : state === 'connected' ? 'ok' : 'info', `WebRTC PeerConnection state changed: ${state}`)
       if (state === 'failed' || state === 'closed') {
         this.clearDisconnectTimer()
         this.markDisconnected()
         return
       }
-      // disconnected 常可恢复，给短暂宽限，避免误切回「开始」
+      // 'disconnected' state can recover; give a short grace period
       if (state === 'disconnected') {
         this.armDisconnectTimer()
         return
@@ -187,16 +187,16 @@ export class WebGameLink {
     }
 
     await pc.setLocalDescription(await pc.createOffer())
-    this.log('debug', '已生成 SDP Offer，正在等待本地 ICE 候选收集完成…')
+    this.log('debug', 'Created SDP Offer, gathering local ICE candidates...')
     await waitForIceGathering(pc)
     if (!this.live(run) || this.pc !== pc) return
     const offer = normalizeLocalWebRtcDescription(pc.localDescription!.toJSON())
-    this.log('debug', '本地 ICE 收集完成，正在提交 SDP Offer')
+    this.log('debug', 'Local ICE gathering complete, submitting SDP Offer')
     if (!(await postSignal({ action: 'offer', roomId: this.roomId, sdp: offer }))) {
-      this.log('fail', '向信令服务提交 SDP Offer 失败')
+      this.log('fail', 'Failed to submit SDP Offer to signaling service')
       throw new Error('signaling offer failed')
     }
-    this.log('info', 'SDP Offer 已发送至信令服务，正在等待游戏端 Answer')
+    this.log('info', 'SDP Offer submitted, waiting for answer from game')
     if (!this.live(run)) return
 
     void this.pollAnswer()
@@ -249,7 +249,7 @@ export class WebGameLink {
       const answer = room?.answer
       if (!answer?.type || !answer.sdp) return false
       await this.pc.setRemoteDescription(answer)
-      this.log('ok', '成功获取游戏端 SDP Answer 并设为远程描述')
+      this.log('ok', 'Received SDP Answer and set remote description')
       this.clearPoll()
       return true
     } catch {
@@ -259,7 +259,7 @@ export class WebGameLink {
 
   private bindChannel(dc: RTCDataChannel) {
     dc.onopen = () => {
-      this.log('ok', 'WebRTC DataChannel 数据通道建立成功')
+      this.log('ok', 'WebRTC DataChannel established')
       this.clearDisconnectTimer()
       this.connected = true
       void postSignal({ action: 'connected', roomId: this.roomId, connected: true })
@@ -268,12 +268,12 @@ export class WebGameLink {
       this.handlers.onConnected?.()
     }
     dc.onclose = () => {
-      this.log('warn', 'WebRTC DataChannel 数据通道关闭')
+      this.log('warn', 'WebRTC DataChannel closed')
       this.markDisconnected()
     }
     dc.onerror = () => {
-      this.log('warn', 'WebRTC DataChannel 触发错误')
-      /* onclose 会跟进；避免 error 与 close 双触发抖动 */
+      this.log('warn', 'WebRTC DataChannel error event')
+      /* onclose will follow; avoid duplicate jitter */
     }
     dc.onmessage = (ev) => {
       const msg = parseGameLinkMessage(String(ev.data || ''))
@@ -284,7 +284,7 @@ export class WebGameLink {
     }
   }
 
-  /** 刷新信令板 webConnected 时间戳，避免标签页崩溃后永久锁启动 */
+  /** Refresh webConnected timestamp on signaling board */
   private startConnectedKeepalive() {
     this.clearKeepalive()
     this.keepaliveTimer = setInterval(() => {
@@ -341,7 +341,7 @@ export class WebGameLink {
     this.clearDisconnectTimer()
     this.clearKeepalive()
     const was = this.connected
-    this.log('warn', 'WebGameLink 标记为断开状态')
+    this.log('warn', 'WebGameLink marked as disconnected')
     this.connected = false
     void postSignal({ action: 'connected', roomId: this.roomId, connected: false })
     if (was) this.handlers.onDisconnected?.()

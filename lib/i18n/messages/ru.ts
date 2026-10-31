@@ -1,9 +1,11 @@
+import { playRu } from '@/lib/i18n/messages/parts/play'
 import { debugRu } from '@/lib/i18n/messages/parts/debug'
 import { mcpGatewayRu } from '@/lib/i18n/messages/parts/mcp-gateway'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const ru: MessageTree = {
   debug: debugRu,
+  play: playRu,
   locale: {
     label: 'Язык',
     switch: 'Сменить язык',
