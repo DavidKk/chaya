@@ -9,10 +9,12 @@ import type { IntegrationMessages } from '@/lib/i18n/messages/integration-types'
 import type { LegalMessages } from '@/lib/i18n/messages/legal-types'
 import type { McpGatewayMessages } from '@/lib/i18n/messages/mcp-gateway-types'
 import type { DebugMessages } from '@/lib/i18n/messages/parts/debug'
+import type { FloatingBallMessages } from '@/lib/i18n/messages/parts/floating-ball'
 import type { SavesMessages } from '@/lib/i18n/messages/saves-types'
 
 /** 叶子为 string 的同构文案树 */
 export type MessageTree = {
+  floatingBall: FloatingBallMessages
   debug: DebugMessages
   locale: { label: string; switch: string; auto: string }
   nav: {

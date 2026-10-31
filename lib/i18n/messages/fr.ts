@@ -1,8 +1,10 @@
 import { debugFr } from '@/lib/i18n/messages/parts/debug'
+import { floatingBallFr } from '@/lib/i18n/messages/parts/floating-ball'
 import { mcpGatewayFr } from '@/lib/i18n/messages/parts/mcp-gateway'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const fr: MessageTree = {
+  floatingBall: floatingBallFr,
   debug: debugFr,
   locale: {
     label: 'Langue',
