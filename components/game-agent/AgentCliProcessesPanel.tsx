@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { IoRefreshOutline, IoStopCircleOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
@@ -93,26 +93,43 @@ export function AgentCliProcessesPanel({ request }: { request?: GameAgentRequest
   const [killingId, setKillingId] = useState('')
   const [error, setError] = useState('')
   const [at, setAt] = useState<number | null>(null)
+  const [includeSystem, setIncludeSystem] = useState(false)
+  const pending = useRef<AbortController | null>(null)
 
   const load = useCallback(async () => {
+    if (document.hidden) return
+    pending.current?.abort()
+    const controller = new AbortController()
+    pending.current = controller
     try {
-      const response = await send('/api/game-agent/processes', { method: 'GET', cache: 'no-store' })
+      const response = await send(`/api/game-agent/processes${includeSystem ? '?includeSystem=1' : ''}`, { method: 'GET', cache: 'no-store', signal: controller.signal })
       const body = (await response.json()) as { processes?: LiveProcess[]; at?: number; error?: { message?: string } }
+      if (controller.signal.aborted) return
       if (!response.ok) throw new Error(body.error?.message || `HTTP ${response.status}`)
       setItems(body.processes || [])
       setAt(body.at ?? Date.now())
       setError('')
     } catch (cause) {
+      if (controller.signal.aborted) return
       setError(cause instanceof Error ? cause.message : String(cause))
     } finally {
-      setLoading(false)
+      if (!controller.signal.aborted) setLoading(false)
     }
-  }, [send])
+  }, [includeSystem, send])
 
   useEffect(() => {
     void load()
-    const timer = setInterval(() => void load(), 3_000)
-    return () => clearInterval(timer)
+    const timer = setInterval(() => void load(), 10_000)
+    const onVisibilityChange = () => {
+      if (document.hidden) pending.current?.abort()
+      else void load()
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange)
+    return () => {
+      clearInterval(timer)
+      document.removeEventListener('visibilitychange', onVisibilityChange)
+      pending.current?.abort()
+    }
   }, [load])
 
   const kill = useCallback(
@@ -139,7 +156,23 @@ export function AgentCliProcessesPanel({ request }: { request?: GameAgentRequest
       <div className={panelHead}>
         <PanelHeadTitle title={t('logs.cliProcesses')} description={t('logs.cliProcessesDesc')} />
         <div className={panelHeadEnd}>
-          {at ? <span className="text-[0.68rem] text-ink-soft">{t('logs.cliRefreshed', { time: new Date(at).toLocaleTimeString() })}</span> : null}
+          <Button
+            size="xs"
+            variant={includeSystem ? 'accent' : 'ghost'}
+            aria-pressed={includeSystem}
+            disabled={!!killingId}
+            onClick={() => {
+              pending.current?.abort()
+              setItems([])
+              setError('')
+              setAt(null)
+              setLoading(true)
+              setIncludeSystem((current) => !current)
+            }}
+          >
+            {t('logs.cliIncludeSystem')}
+          </Button>
+          {at ? <span className="hidden text-[0.68rem] text-ink-soft md:inline">{t('logs.cliRefreshed', { time: new Date(at).toLocaleTimeString() })}</span> : null}
           <Button size="icon" variant="ghost" aria-label={t('logs.cliRefresh')} onClick={() => void load()}>
             {loading && !items.length ? <Spinner size="sm" /> : <IoRefreshOutline size={16} />}
           </Button>
@@ -147,11 +180,15 @@ export function AgentCliProcessesPanel({ request }: { request?: GameAgentRequest
       </div>
       {error ? (
         <div className={panelBody}>
-          <EmptyState title={t('logs.cliLoadFailed')} message={error} />
+          <EmptyState role="alert" title={t('logs.cliLoadFailed')} message={error} />
+        </div>
+      ) : loading && !items.length ? (
+        <div className={cn(panelBody, 'items-center justify-center')} role="status" aria-label={t('logs.cliRefresh')}>
+          <Spinner size="sm" />
         </div>
       ) : !items.length && !loading ? (
         <div className={panelBody}>
-          <EmptyState title={t('logs.cliEmptyTitle')} message={t('logs.cliEmptyMsg')} hint={t('logs.cliEmptyHint')} />
+          <EmptyState title={t('logs.cliEmptyTitle')} message={includeSystem ? t('logs.cliSystemEmptyMsg') : t('logs.cliEmptyMsg')} hint={t('logs.cliEmptyHint')} />
         </div>
       ) : (
         <ScrollArea className="min-h-0 flex-1">

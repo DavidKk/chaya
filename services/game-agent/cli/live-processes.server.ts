@@ -89,7 +89,7 @@ const tracked = new Map<string, Tracked>()
 let nextId = 1
 
 function basenameOf(file: string) {
-  return path
+  return path.win32
     .basename(file)
     .replace(/\.(cmd|bat|exe)$/i, '')
     .toLowerCase()
@@ -247,16 +247,25 @@ export function trackLiveAgentProcess(input: {
   }
 }
 
-type PsRow = { pid: number; ppid: number; cpuPercent: number | null; memoryBytes: number | null; elapsed: string | null; command: string }
+type PsRow = { pid: number; ppid: number; cpuPercent: number | null; memoryBytes: number | null; elapsed: string | null; file: string; command: string }
 
-async function readProcessTable(): Promise<PsRow[]> {
+async function readProcessTable(pids?: number[]): Promise<PsRow[]> {
+  if (pids && !pids.length) return []
   try {
-    const { stdout } = await execFileAsync('ps', ['-ax', '-o', 'pid=,ppid=,pcpu=,rss=,etime=,command='], {
-      maxBuffer: 4 * 1024 * 1024,
-      timeout: 5_000,
-    })
+    const options = { maxBuffer: 4 * 1024 * 1024, timeout: 5_000 }
+    const selection = pids ? ['-p', pids.join(',')] : ['-ax']
+    // `comm` keeps executable paths containing spaces intact; arguments are not evidence of a CLI executable.
+    const [commands, executables] = await Promise.all([
+      execFileAsync('ps', [...selection, '-o', 'pid=,ppid=,pcpu=,rss=,etime=,command='], options),
+      pids ? Promise.resolve({ stdout: '' }) : execFileAsync('ps', ['-ax', '-o', 'pid=,comm='], options),
+    ])
+    const files = new Map<number, string>()
+    for (const line of executables.stdout.split('\n')) {
+      const match = line.trim().match(/^(\d+)\s+(.+)$/)
+      if (match) files.set(Number(match[1]), match[2])
+    }
     const rows: PsRow[] = []
-    for (const line of stdout.split('\n')) {
+    for (const line of commands.stdout.split('\n')) {
       const match = line.trim().match(/^(\d+)\s+(\d+)\s+([\d.]+)\s+(\d+)\s+(\S+)\s+(.+)$/)
       if (!match) continue
       const pid = Number(match[1])
@@ -270,6 +279,7 @@ async function readProcessTable(): Promise<PsRow[]> {
         cpuPercent: Number.isFinite(cpu) ? cpu : null,
         memoryBytes: Number.isFinite(rssKb) ? rssKb * 1024 : null,
         elapsed: match[5] || null,
+        file: files.get(pid) || '',
         command: match[6],
       })
     }
@@ -279,41 +289,52 @@ async function readProcessTable(): Promise<PsRow[]> {
   }
 }
 
-function looksLikeAgentCli(command: string): boolean {
-  const tokens = command.trim().split(/\s+/)
-  const file = tokens[0] || ''
+export function looksLikeAgentCli(file: string, command = file): boolean {
   const base = basenameOf(file)
-  if (!CLI_BASENAMES.has(base)) {
-    if (!/(?:^|[\s/\\])(?:agy|antigravity|gemini|cursor-agent|codex|claude-agent-acp|claude-code)(?:\s|$)/i.test(command)) return false
+  if (CLI_BASENAMES.has(base)) {
+    if (/\.app[/\\]Contents[/\\]MacOS[/\\]Codex$/.test(file)) return false
+    if (base !== 'agent') return true
+    // Linux comm may contain only "agent"; use its executable argument, never later provider mentions.
+    const executable =
+      file === 'agent'
+        ? command
+            .match(/^(?:"([^"]+)"|'([^']+)'|(\S+))/)
+            ?.slice(1)
+            .find(Boolean) || file
+        : file
+    return /cursor|[/\\]\.local[/\\]bin[/\\]agent$/i.test(executable)
   }
-  if (/\/System\/|Cursor Helper|Code Helper|trustd|GamePolicy|iconservices|knowledge-agent|ssh-agent|cfprefsd/i.test(command)) return false
-  if (base === 'agent' && !/cursor|\/\.local\/bin\/agent\b/i.test(command)) return false
-  return true
+  if (!['node', 'nodejs', 'bun'].includes(base)) return false
+  const script = command.match(/(?:^|\s)(?:"([^"]+\.[cm]?js)"|'([^']+\.[cm]?js)'|(\S+\.[cm]?js))(?=\s|$)/)
+  return (
+    !!script &&
+    /(?:^|[/\\])(?:(?:codex|gemini|claude-agent-acp|claude-code)\.[cm]?js$|(?:@openai[/\\]codex|@google[/\\]gemini-cli|claude-agent-acp|@anthropic-ai[/\\]claude-code)[/\\])/i.test(
+      script[1] || script[2] || script[3]
+    )
+  )
 }
 
-/** Chaya-spawned children plus any matching agent CLI still alive on the machine. */
-export async function listLiveAgentProcesses(): Promise<LiveAgentProcess[]> {
-  const table = await readProcessTable()
+/** Current service children; host-wide discovery is explicitly opt-in. */
+export async function listLiveAgentProcesses({ includeSystem = false }: { includeSystem?: boolean } = {}): Promise<LiveAgentProcess[]> {
+  const pids = [...tracked.values()].flatMap((entry) => (entry.pid == null ? [] : [entry.pid]))
+  const table = await readProcessTable(includeSystem ? undefined : pids)
   const byPid = new Map(table.map((row) => [row.pid, row]))
 
   const owned: LiveAgentProcess[] = []
   for (const entry of tracked.values()) {
-    if (entry.pid == null || !byPid.has(entry.pid)) {
-      if (entry.pid != null && !pidAlive(entry.pid)) tracked.delete(entry.id)
-      continue
-    }
-    const row = byPid.get(entry.pid)!
-    const view = toView(entry, { cpuPercent: row.cpuPercent, memoryBytes: row.memoryBytes, elapsed: row.elapsed })
+    const row = entry.pid == null ? undefined : byPid.get(entry.pid)
+    const view = toView(entry, { cpuPercent: row?.cpuPercent ?? null, memoryBytes: row?.memoryBytes ?? null, elapsed: row?.elapsed ?? null })
     if (view) owned.push(view)
+    else if (entry.pid != null) tracked.delete(entry.id)
   }
 
+  if (!includeSystem) return owned.sort((a, b) => (b.startedAt || 0) - (a.startedAt || 0) || b.pid - a.pid)
   const exclude = new Set(owned.map((item) => item.pid))
   const orphans: LiveAgentProcess[] = []
   for (const row of table) {
-    if (exclude.has(row.pid) || !looksLikeAgentCli(row.command)) continue
-    const tokens = row.command.split(/\s+/)
-    const file = tokens[0] || row.command
-    const args = tokens.slice(1)
+    if (exclude.has(row.pid) || !looksLikeAgentCli(row.file, row.command)) continue
+    const file = row.file
+    const args = row.command.startsWith(file) ? row.command.slice(file.length).trim().split(/\s+/).filter(Boolean) : row.command.split(/\s+/).slice(1)
     orphans.push({
       id: `system-${row.pid}`,
       pid: row.pid,
@@ -355,7 +376,7 @@ export async function killLiveAgentProcess(id: string): Promise<{ ok: true } | {
   if (!match) return { ok: false, error: '未知进程' }
   const pid = Number(match[1])
   const row = (await readProcessTable()).find((item) => item.pid === pid)
-  if (!row || pid === process.pid || !looksLikeAgentCli(row.command)) return { ok: false, error: '目标不是可终止的 Agent 进程' }
+  if (!row || pid === process.pid || !looksLikeAgentCli(row.file, row.command)) return { ok: false, error: '目标不是可终止的 Agent 进程' }
   if (!pidAlive(pid)) return { ok: false, error: '进程已退出' }
   killPidTree(pid)
   return { ok: true }

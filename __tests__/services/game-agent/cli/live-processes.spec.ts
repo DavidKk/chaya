@@ -3,6 +3,7 @@ import {
   formatEnvText,
   inferProcessLabel,
   killLiveAgentProcess,
+  looksLikeAgentCli,
   pickTrackedEnv,
   proxyReportFromEnv,
   resetLiveAgentProcessesForTests,
@@ -50,6 +51,38 @@ describe('inferProcessLabel', () => {
     expect(inferProcessLabel('/Users/me/.local/bin/agy', [])).toContain('Gemini')
     expect(inferProcessLabel('/Users/me/.local/bin/agent', [])).toContain('Cursor')
     expect(inferProcessLabel('node', ['/x/claude-agent-acp/index.js'])).toContain('Claude')
+  })
+})
+
+describe('looksLikeAgentCli', () => {
+  it.each([
+    '/Applications/ChatGPT.app/Contents/Frameworks/Codex Framework.framework/Helpers/Codex (Renderer).app/Contents/MacOS/Codex (Renderer)',
+    '/Applications/ChatGPT.app/Contents/Frameworks/Codex Framework.framework/Helpers/browser_crashpad_handler',
+    '/Users/me/.codex/computer-use/Codex Computer Use.app/Contents/MacOS/SkyComputerUseService',
+    '/Applications/Codex.app/Contents/MacOS/Codex',
+  ])('excludes desktop application processes: %s', (file) => {
+    expect(looksLikeAgentCli(file, `${file} --type=renderer`)).toBe(false)
+  })
+
+  it.each([
+    '/Applications/ChatGPT.app/Contents/Resources/codex-cli/CodexCLI.app/Contents/MacOS/codex',
+    '/Users/me/Library/Application Support/Cursor/agent-cli/.local/bin/cursor-agent',
+    '/Users/me/.local/bin/agent',
+    'C:\\Program Files\\Codex\\codex.exe',
+    '/usr/local/bin/gemini',
+  ])('recognizes CLI executables including paths with spaces: %s', (file) => {
+    expect(looksLikeAgentCli(file, `${file} app-server`)).toBe(true)
+  })
+
+  it('recognizes node CLI scripts but ignores provider names in arbitrary arguments', () => {
+    expect(looksLikeAgentCli('/usr/bin/node', 'node /x/claude-agent-acp/index.js')).toBe(true)
+    expect(looksLikeAgentCli('/usr/bin/node', 'node /x/@openai/codex/bin/codex.js app-server')).toBe(true)
+    expect(looksLikeAgentCli('/usr/bin/node', 'node /x/server.js --model codex')).toBe(false)
+    expect(looksLikeAgentCli('/usr/bin/node', 'node /Users/me/Library/Application Support/Codex/runtime/host-daemon.mjs')).toBe(false)
+    expect(looksLikeAgentCli('/usr/bin/python', 'python /x/codex')).toBe(false)
+    expect(looksLikeAgentCli('/usr/bin/agent')).toBe(false)
+    expect(looksLikeAgentCli('agent', '/home/me/.local/bin/agent acp')).toBe(true)
+    expect(looksLikeAgentCli('agent', '/usr/bin/agent --model cursor')).toBe(false)
   })
 })
 
