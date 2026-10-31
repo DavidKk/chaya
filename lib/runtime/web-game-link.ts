@@ -10,6 +10,7 @@ type Handlers = {
   onConnected?: () => void
   onDisconnected?: () => void
   onMessage?: (msg: GameLinkMessage) => void
+  onTrack?: (stream: MediaStream) => void
   /** 不再主动协商且没连上：别的标签页占着链路，或等 answer 超时 */
   onIdle?: () => void
 }
@@ -95,7 +96,7 @@ export class WebGameLink {
    * `takeover: false` (background auto start) leaves a room alone while another tab holds a live link,
    * rechecking until it frees up or the wait runs out; an explicit restart takes over.
    */
-  async start({ takeover = true }: { takeover?: boolean } = {}) {
+  async start({ takeover = true, enableMedia = false }: { takeover?: boolean; enableMedia?: boolean } = {}) {
     this.stop({ silent: true })
     this.closed = false
     const run = this.run
@@ -111,6 +112,26 @@ export class WebGameLink {
     const dc = pc.createDataChannel(GAME_LINK_CHANNEL, { ordered: true })
     this.dc = dc
     this.bindChannel(dc)
+
+    if (enableMedia && typeof pc.addTransceiver === 'function') {
+      try {
+        pc.addTransceiver('video', { direction: 'recvonly' })
+        pc.addTransceiver('audio', { direction: 'recvonly' })
+      } catch {
+        /* */
+      }
+    }
+
+    let remoteStream: MediaStream | null = null
+    pc.ontrack = (ev) => {
+      if (ev.streams && ev.streams[0]) {
+        remoteStream = ev.streams[0]
+      } else {
+        if (!remoteStream) remoteStream = new MediaStream()
+        remoteStream.addTrack(ev.track)
+      }
+      this.handlers.onTrack?.(remoteStream)
+    }
 
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState

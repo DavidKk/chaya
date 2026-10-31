@@ -285,6 +285,21 @@ export type TranslationDialogueMessage =
       type: 'translation.dialogue.close'
     }
 
+export type RemoteInputKey = 'up' | 'down' | 'left' | 'right' | 'ok' | 'cancel' | 'shift' | 'menu' | 'pageup' | 'pagedown'
+
+export type RemoteStreamMessage =
+  | {
+      type: 'remote.input'
+      key: RemoteInputKey
+      action: 'down' | 'up'
+    }
+  | {
+      type: 'remote.tap'
+      x: number
+      y: number
+      phase: 'down' | 'move' | 'up'
+    }
+
 export type GameLinkMessage =
   | TranslationPacket
   | TranslationDialogueMessage
@@ -308,6 +323,7 @@ export type GameLinkMessage =
   | GameEditCmd
   | GameEditAck
   | GameEditStateMsg
+  | RemoteStreamMessage
   | { type: 'overlay.open'; open: boolean }
 
 export const GAME_LINK_CHANNEL = 'chaya'

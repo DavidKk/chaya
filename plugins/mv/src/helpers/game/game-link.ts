@@ -16,6 +16,7 @@ import { ChayaLog, type LocalPluginLog, logsViaLink } from '../net/logger'
 import { runLinkAgentRequest } from './agent-link'
 import { dispatchGameLinkEditMessage, stopGameLinkEditBridge } from './edit-link-bridge'
 import { detectGameIdentity } from './game-identity'
+import { attachGameMediaStream, handleRemoteInput, handleRemoteTap } from './remote-stream'
 
 const STUN = 'stun:stun.cloudflare.com:3478'
 /** Disconnected: wait for Web offer; match console-side poll backoff */
@@ -122,6 +123,10 @@ function stopLogForward() {
 function normalizeLocalSdp(description: RTCSessionDescriptionInit): RTCSessionDescriptionInit {
   const sdp = String(description.sdp || '')
   if (!sdp.includes('candidate:')) return description
+  // If remote offer was gathered over LAN, preserve LAN candidates for mobile/cross-device connection
+  if (lastOfferSdp && /(\s)(192\.168\.|10\.|172\.(?:1[6-9]|2[0-9]|3[01])\.)/.test(lastOfferSdp)) {
+    return description
+  }
   return {
     ...description,
     sdp: sdp.replace(/(\s)((?:[0-9]{1,3}\.){3}[0-9]{1,3})(\s)/g, (full, a, ip, b) => {
@@ -240,6 +245,14 @@ function bindDc(dc: RTCDataChannel) {
         sendOnDc(dc, { type: 'pong', t: msg.t })
         return
       }
+      if (msg.type === 'remote.input') {
+        handleRemoteInput(msg.key, msg.action)
+        return
+      }
+      if (msg.type === 'remote.tap') {
+        handleRemoteTap(msg.x, msg.y, msg.phase)
+        return
+      }
       dispatchGameLinkEditMessage(msg, (out) => sendOnDc(dc, out))
     } catch {
       /* */
@@ -315,6 +328,11 @@ async function tryAnswer() {
     }
 
     await peer.setRemoteDescription(offer)
+    try {
+      attachGameMediaStream(peer)
+    } catch (err) {
+      ChayaLog.warn('ChayaLink', 'Failed to attach game media stream', err)
+    }
     await peer.setLocalDescription(await peer.createAnswer())
     await waitIce(peer)
     if (!started || pc !== peer) return false
