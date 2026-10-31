@@ -92,6 +92,7 @@ export function VirtualController({
   const handleFixedPointerDown = (e: React.PointerEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    if (shortcutsExpanded) setShortcutsExpanded(false)
     e.currentTarget.setPointerCapture(e.pointerId)
     setIsDragging(true)
     triggerHaptic('selection')
@@ -148,6 +149,7 @@ export function VirtualController({
   const handleDynamicPointerDown = (e: React.PointerEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    if (shortcutsExpanded) setShortcutsExpanded(false)
     try {
       e.currentTarget.setPointerCapture(e.pointerId)
     } catch {
@@ -207,6 +209,7 @@ export function VirtualController({
   const handleButtonPress = (key: RemoteInputKey, e: React.PointerEvent) => {
     e.preventDefault()
     e.stopPropagation()
+    if (shortcutsExpanded) setShortcutsExpanded(false)
     try {
       e.currentTarget.setPointerCapture(e.pointerId)
     } catch {
@@ -362,9 +365,10 @@ export function VirtualController({
                 {/* Expandable Shortcuts Dock */}
                 {shortcutsExpanded && (
                   <div
-                    className={`absolute bottom-full mb-2.5 z-50 flex items-center gap-1 sm:gap-1.5 rounded-full border border-white/20 bg-neutral-900/90 p-1 sm:p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150 ${
+                    className={`absolute bottom-full mb-2.5 z-50 flex items-center gap-1 sm:gap-1.5 rounded-full border border-white/20 bg-neutral-900/92 p-1 sm:p-1.5 shadow-2xl backdrop-blur-xl animate-in fade-in zoom-in-95 duration-150 max-w-[calc(100vw-2.5rem)] overflow-x-auto ${
                       align === 'start' ? 'left-0' : 'right-0'
                     }`}
+                    style={{ scrollbarWidth: 'none' }}
                   >
                     <button
                       type="button"
@@ -460,7 +464,10 @@ export function VirtualController({
                   title="快捷配置"
                   aria-expanded={shortcutsExpanded}
                 >
-                  <LuSlidersHorizontal size={isPortrait ? (compact ? 14 : 16) : 14} className="stroke-[2.2]" />
+                  <LuSlidersHorizontal
+                    size={isPortrait ? (compact ? 14 : 16) : 14}
+                    className={`stroke-[2.2] transition-transform duration-200 ${shortcutsExpanded ? 'rotate-90 text-emerald-300' : ''}`}
+                  />
                 </button>
               </div>
 
