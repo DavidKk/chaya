@@ -553,7 +553,7 @@ export function VirtualController({
       {/* Main Controller Overlay: Inward margins (Thumb Comfort Zone away from physical bezel) */}
       <div
         style={{
-          paddingLeft: 'max(2.5rem, calc(env(safe-area-inset-left) + 1.25rem))',
+          paddingLeft: 'max(1.25rem, calc(env(safe-area-inset-left) + 0.5rem))',
           paddingRight: 'max(2.5rem, calc(env(safe-area-inset-right) + 1.25rem))',
           paddingBottom: 'max(2rem, calc(env(safe-area-inset-bottom) + 1rem))',
           opacity,
