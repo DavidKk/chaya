@@ -16,6 +16,7 @@ const SSE_HEADERS = {
 export const GET = defineApiRoute('get:/api/logs/stream', async ({ request }) => {
   const u = new URL(request.url)
   const backlog = Math.min(500, Math.max(0, Number(u.searchParams.get('backlog') || 100)))
+  const source = u.searchParams.get('source') || undefined
 
   const stream = new ReadableStream({
     start(controller) {
@@ -28,8 +29,9 @@ export const GET = defineApiRoute('get:/api/logs/stream', async ({ request }) =>
       // 浏览器模式：日志经游戏连接直达页面，只保活不推条目（关流会让 EventSource 不停重连）
       const unsub = canUseDisk()
         ? (() => {
-            for (const entry of listLogs({ limit: backlog })) send('log', entry)
+            for (const entry of listLogs({ limit: backlog, source })) send('log', entry)
             const off = subscribeLogs((entry: LogEntry) => {
+              if (source && entry.source !== source) return
               try {
                 send('log', entry)
               } catch {

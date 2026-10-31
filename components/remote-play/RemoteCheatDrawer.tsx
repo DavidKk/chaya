@@ -2,6 +2,8 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react'
 import {
+  LuActivity,
+  LuBug,
   LuCheck,
   LuChevronDown,
   LuChevronRight,
@@ -16,12 +18,18 @@ import {
   LuShield,
   LuSlidersHorizontal,
   LuSwords,
+  LuTerminal,
   LuTrash2,
   LuX,
   LuZap,
 } from 'react-icons/lu'
 
 import type { GameEditCmd, GameLinkMessage } from '@/lib/runtime/game-link-protocol'
+import {
+  destroyErudaMobileDevTools,
+  initErudaMobileDevTools,
+  isErudaActive,
+} from '@/lib/runtime/mobile-devtools'
 import { type RemotePlayLogEntry, remotePlayLogger } from '@/lib/runtime/remote-play-logger'
 
 type RemoteCheatDrawerProps = {
@@ -33,6 +41,8 @@ type RemoteCheatDrawerProps = {
   status?: 'connecting' | 'connected' | 'disconnected'
   latencyMs?: number | null
   videoResolution?: { width: number; height: number } | null
+  hudVisible?: boolean
+  onToggleHud?: () => void
 }
 
 function generateCmdId(): string {
@@ -83,6 +93,8 @@ export function RemoteCheatDrawer({
   status = 'connecting',
   latencyMs,
   videoResolution,
+  hudVisible = false,
+  onToggleHud,
 }: RemoteCheatDrawerProps) {
   const [activeTab, setActiveTab] = useState<'cheat' | 'logs'>(initialTab)
   const [godMode, setGodMode] = useState(false)
@@ -96,12 +108,15 @@ export function RemoteCheatDrawer({
   const [copied, setCopied] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [synced, setSynced] = useState(false)
+  const [devToolsActive, setDevToolsActive] = useState(false)
+  const [copiedMacCmd, setCopiedMacCmd] = useState(false)
   const logEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (open && initialTab) {
       setActiveTab(initialTab)
     }
+    setDevToolsActive(isErudaActive())
   }, [open, initialTab])
 
   useEffect(() => {
@@ -147,6 +162,32 @@ export function RemoteCheatDrawer({
       setTimeout(() => setSynced(false), 2000)
     } else {
       showFeedback('上报未完成，待网络畅通后重试')
+    }
+  }
+
+  const handleToggleDevTools = async () => {
+    if (devToolsActive) {
+      destroyErudaMobileDevTools()
+      setDevToolsActive(false)
+      showFeedback('已关闭手机 DevTools 控制台')
+    } else {
+      const ok = await initErudaMobileDevTools()
+      if (ok) {
+        setDevToolsActive(true)
+        showFeedback('手机 DevTools 已启动 (屏幕右下角)')
+      } else {
+        showFeedback('启动 DevTools 失败')
+      }
+    }
+  }
+
+  const handleCopyMacCmd = async () => {
+    const cmd = `curl -N "http://${window.location.hostname}:3000/api/logs/stream?source=remote-play"`
+    const ok = await copyToClipboard(cmd)
+    if (ok) {
+      setCopiedMacCmd(true)
+      showFeedback('已复制 Mac 终端实时监视命令')
+      setTimeout(() => setCopiedMacCmd(false), 2000)
     }
   }
 
@@ -332,6 +373,53 @@ export function RemoteCheatDrawer({
                 <span className={diagnostics.h264Supported ? 'text-emerald-400' : 'text-neutral-400'}>
                   {diagnostics.h264Supported ? '硬件加速支持' : '回退/未知'}
                 </span>
+              </div>
+            </div>
+
+            {/* Mobile Debugging Tools Box */}
+            <div className="rounded-xl border border-sky-500/30 bg-sky-950/20 p-2.5 space-y-2">
+              <div className="flex items-center justify-between text-xs">
+                <span className="flex items-center gap-1.5 font-semibold text-sky-300">
+                  <LuBug size={14} />
+                  移动端调试工具箱
+                </span>
+                <span className="text-[10px] text-neutral-400">专为手机端调优</span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-[11px]">
+                <button
+                  type="button"
+                  onClick={handleToggleDevTools}
+                  className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 px-2 font-medium transition-all active:scale-95 ${
+                    devToolsActive
+                      ? 'border-emerald-500/50 bg-emerald-950/80 text-emerald-300 shadow-sm'
+                      : 'border-neutral-700 bg-neutral-900/90 text-neutral-200 hover:bg-neutral-800'
+                  }`}
+                >
+                  <LuTerminal size={13} className={devToolsActive ? 'text-emerald-400' : 'text-neutral-400'} />
+                  {devToolsActive ? '已开启手机控制台' : '开启手机控制台'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={onToggleHud}
+                  className={`flex items-center justify-center gap-1.5 rounded-lg border py-2 px-2 font-medium transition-all active:scale-95 ${
+                    hudVisible
+                      ? 'border-emerald-500/50 bg-emerald-950/80 text-emerald-300 shadow-sm'
+                      : 'border-neutral-700 bg-neutral-900/90 text-neutral-200 hover:bg-neutral-800'
+                  }`}
+                >
+                  <LuActivity size={13} className={hudVisible ? 'text-emerald-400' : 'text-neutral-400'} />
+                  {hudVisible ? '已显示性能 HUD' : '显示性能 HUD'}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleCopyMacCmd}
+                  className="col-span-2 flex items-center justify-center gap-1.5 rounded-lg border border-neutral-700 bg-neutral-900/90 py-2 px-2 font-medium text-neutral-300 hover:bg-neutral-800 active:scale-95"
+                >
+                  {copiedMacCmd ? <LuCheck size={13} className="text-emerald-400" /> : <LuTerminal size={13} />}
+                  {copiedMacCmd ? '已复制命令' : '复制 Mac 终端实时监视命令'}
+                </button>
               </div>
             </div>
 

@@ -1,13 +1,15 @@
 'use client'
 
 import React, { useCallback, useEffect, useRef, useState } from 'react'
-import { LuGamepad2, LuMaximize2, LuRadio, LuRotateCw, LuScrollText, LuUnplug, LuVolume2, LuVolumeX } from 'react-icons/lu'
+import { LuActivity, LuGamepad2, LuMaximize2, LuRadio, LuRotateCw, LuScrollText, LuUnplug, LuVolume2, LuVolumeX } from 'react-icons/lu'
 
 import type { GameLinkMessage, RemoteInputKey } from '@/lib/runtime/game-link-protocol'
+import { initErudaMobileDevTools } from '@/lib/runtime/mobile-devtools'
 import { remotePlayLogger } from '@/lib/runtime/remote-play-logger'
 import { WebGameLink } from '@/lib/runtime/web-game-link'
 
 import { FloatingBall } from './FloatingBall'
+import { PerformanceHud } from './PerformanceHud'
 import { RemoteCheatDrawer } from './RemoteCheatDrawer'
 import { VirtualController } from './VirtualController'
 
@@ -23,6 +25,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [drawerTab, setDrawerTab] = useState<'cheat' | 'logs'>('cheat')
   const [videoResolution, setVideoResolution] = useState<{ width: number; height: number } | null>(null)
+  const [hudVisible, setHudVisible] = useState(false)
   const [controlsVisible, setControlsVisible] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
@@ -36,6 +39,15 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     remotePlayLogger.initEnvironmentDiagnostics()
     remotePlayLogger.installGlobalErrorHandlers()
     remotePlayLogger.info('远程游玩视图已挂载')
+    if (typeof window !== 'undefined') {
+      const q = new URLSearchParams(window.location.search)
+      if (q.get('debug') === '1' || q.get('eruda') === '1' || localStorage.getItem('chaya_remote_play_devtools') === '1') {
+        void initErudaMobileDevTools()
+      }
+      if (localStorage.getItem('chaya_remote_play_hud') === '1') {
+        setHudVisible(true)
+      }
+    }
   }, [])
 
   // 1. Resolve room ID if not provided
@@ -223,6 +235,18 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     }
   }
 
+  const handleToggleHud = () => {
+    setHudVisible((prev) => {
+      const next = !prev
+      try {
+        localStorage.setItem('chaya_remote_play_hud', next ? '1' : '0')
+      } catch {
+        /* ignore */
+      }
+      return next
+    })
+  }
+
   return (
     <main
       onPointerDown={handleGlobalPointerDown}
@@ -317,6 +341,21 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             <LuMaximize2 size={15} />
           </button>
 
+          {/* Performance HUD toggle */}
+          <button
+            type="button"
+            onClick={handleToggleHud}
+            className={`flex h-8 w-8 items-center justify-center rounded-full border shadow-md backdrop-blur-md transition-colors ${
+              hudVisible
+                ? 'border-emerald-400/50 bg-emerald-950/80 text-emerald-300'
+                : 'border-white/10 bg-neutral-900/80 text-neutral-400 hover:text-white hover:bg-neutral-800'
+            }`}
+            title="性能 HUD 监控 (FPS/延迟)"
+            aria-label="性能 HUD 监控"
+          >
+            <LuActivity size={15} />
+          </button>
+
           {/* Log / Diagnostics button */}
           <button
             type="button"
@@ -332,6 +371,16 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
           </button>
         </div>
       </header>
+
+      {/* Floating Performance HUD */}
+      <PerformanceHud
+        visible={hudVisible}
+        latencyMs={latencyMs}
+        videoResolution={videoResolution}
+        status={status}
+        muted={muted}
+        onClose={() => setHudVisible(false)}
+      />
 
       {/* Error or Connecting Overlay */}
       {status !== 'connected' && (
@@ -421,6 +470,8 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         status={status}
         latencyMs={latencyMs}
         videoResolution={videoResolution}
+        hudVisible={hudVisible}
+        onToggleHud={handleToggleHud}
       />
     </main>
   )
