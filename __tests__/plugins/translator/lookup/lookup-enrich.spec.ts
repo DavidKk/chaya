@@ -83,6 +83,24 @@ describe('createLookupEnrichment', () => {
     restore()
   })
 
+  it('refreshes cached glossary translations after a pair update or full reload', () => {
+    const restore = installDb({ $dataActors: [null, { name: 'アリス' }, { name: 'ボブ' }] })
+    try {
+      const enrich = createLookupEnrichment()
+      const lookup: Record<string, string> = { アリス: 'Alice', ボブ: 'Bob', アリスは笑った: 'Alice smiled' }
+      enrich.reindexAll(lookup)
+      expect(enrich.resolve(lookup, 'ボブは笑った')).toBe('Bob smiled')
+      lookup.ボブ = 'Bobby'
+      enrich.notePair('ボブ', 'Bobby', lookup)
+      expect(enrich.resolve(lookup, 'ボブは笑った')).toBe('Bobby smiled')
+      lookup.ボブ = 'Robert'
+      enrich.reindexAll(lookup)
+      expect(enrich.resolve(lookup, 'ボブは笑った')).toBe('Robert smiled')
+    } finally {
+      restore()
+    }
+  })
+
   it('matches text after runtime actor, party, variable and currency controls are expanded', () => {
     const game = globalThis as Record<string, unknown>
     const keys = ['$gameActors', '$gameParty', '$gameVariables', '$dataSystem', 'TextManager']

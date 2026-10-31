@@ -102,7 +102,11 @@ export function GameEditPage() {
     setError('')
     setLoading(false)
   }, [])
-  const { linked, connected, scene, sendCmd, runCmd, requestCatalog, mapUndo, runMapChanges, undoMapChange } = useGameEditLinkSync(setSession, setLiveError, receiveCatalog)
+  const { linked, connected, scene, sendCmd, runCmd, runAction, requestCatalog, mapUndo, runMapChanges, undoMapChange } = useGameEditLinkSync(
+    setSession,
+    setLiveError,
+    receiveCatalog
+  )
 
   const handlers = useMemo(() => buildOptimisticHandlers(setSession, sendCmd, (id) => catalog?.actors.find((a) => a.id === id)?.name), [sendCmd, catalog])
 
@@ -305,7 +309,7 @@ export function GameEditPage() {
         onGameSpeedChange={handlers.setGameSpeed}
         onExpRateChange={handlers.setExpRate}
         onRunFlagChange={handlers.setRunFlag}
-        onRunAction={handlers.runAction}
+        onRunAction={runAction}
         onHotkeysChange={(scope, hotkeys) => {
           if (scope === 'game') {
             saveGameStoredHotkeys(hotkeys)

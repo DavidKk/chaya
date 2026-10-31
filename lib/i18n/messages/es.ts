@@ -1,9 +1,11 @@
 import { playEs } from '@/lib/i18n/messages/parts/play'
 import { debugEs } from '@/lib/i18n/messages/parts/debug'
+import { floatingBallEs } from '@/lib/i18n/messages/parts/floating-ball'
 import { mcpGatewayEs } from '@/lib/i18n/messages/parts/mcp-gateway'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const es: MessageTree = {
+  floatingBall: floatingBallEs,
   debug: debugEs,
   play: playEs,
   locale: {

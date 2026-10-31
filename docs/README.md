@@ -22,6 +22,7 @@
 | 本波补齐、可恢复性、冻结清单 | [能力补齐](capability-supplement.md) §3–9 | [补齐设计](technical/capability-supplement.md)；排期才读 [backlog](backlog-2026-10-08.md) |
 | 数据修改、地图事件 | [数据](edit-save-data.md) / [地图](edit-map-events.md) | [数据设计](technical/edit-save-data.md) / [地图设计](technical/edit-map-events.md) |
 | 当前战斗、敌群 | [战斗](edit-battle.md) / [敌群](edit-troops.md) | [战斗设计](technical/edit-battle.md) / [敌群设计](technical/edit-troops.md) |
+| 自动战斗、情境感知、全技能菜单决策、防缴械卡死 | [自动战斗情境决策](auto-battle-smart-tactics.md) | [自动战斗技术方案](technical/auto-battle-smart-tactics.md) |
 | 存档、键鼠、迷你面板、寻路 | [存档](game-saves.md) / [键鼠](input-assistance.md) / [面板](mini-panels.md) / [寻路](smart-path.md) | 各需求页头链接到对应技术方案，仅选相关功能 |
 | RGSS、内嵌 WebView、WebRTC | [RGSS 重构](rgss-webview-overlay.md) | [宿主与通信](technical/rgss-webview-overlay.md) |
 | RGSS 游玩实时翻译、悬浮字幕 | [游玩翻译](rgss-play-realtime-translation.md) | [实时翻译技术设计](technical/rgss-play-realtime-translation.md) |

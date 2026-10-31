@@ -8,6 +8,7 @@ import { debugJa } from '@/lib/i18n/messages/parts/debug'
 import { downloadsJa } from '@/lib/i18n/messages/parts/downloads'
 import { editJa } from '@/lib/i18n/messages/parts/edit.ja'
 import { eventsJa } from '@/lib/i18n/messages/parts/events.ja'
+import { floatingBallJa } from '@/lib/i18n/messages/parts/floating-ball'
 import { integrationJa } from '@/lib/i18n/messages/parts/integration'
 import { legalJa } from '@/lib/i18n/messages/parts/legal'
 import { mcpGatewayJa } from '@/lib/i18n/messages/parts/mcp-gateway'
@@ -323,6 +324,7 @@ const base = {
 } as const
 
 export const ja: MessageTree = {
+  floatingBall: floatingBallJa,
   debug: debugJa,
   play: playJa,
   ...base,

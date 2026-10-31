@@ -11,7 +11,7 @@ import { LockEndAction } from '../lock-ui'
 
 export const tableClass = '[&_[data-list-cell]]:px-2 [&_[data-list-cell]]:py-1 [&_[data-list-heading]]:px-2 [&_[data-list-heading]]:py-2'
 /** 百分比列宽，整表留在卡片内，锁和操作图标不再被裁掉 */
-export const PARTY_COLS = { actor: '16%', hp: '26%', mp: '26%', tp: '14%', status: '8%', actions: '10%' } as const
+export const PARTY_COLS = { actor: '15%', hp: '24%', mp: '24%', tp: '19%', status: '8%', actions: '10%' } as const
 export const ENEMY_COLS = { enemy: '28%', hp: '34%', status: '14%', actions: '24%' } as const
 /** One card per side so enemies and party read as separate blocks */
 export const cardClass = 'shrink-0 overflow-hidden rounded-[0.35rem] border border-line bg-panel'
@@ -156,6 +156,7 @@ export function VitalInput({
   disabled,
   maxDisabled,
   disabledReason,
+  combinedLock,
   lock,
   maxLock,
   onValue,
@@ -171,6 +172,8 @@ export function VitalInput({
   /** 上限单独禁用；缺省时跟当前值一起禁用 */
   maxDisabled?: boolean
   disabledReason?: string
+  /** One row-level lock controlling both current and max */
+  combinedLock?: FieldLock
   lock?: FieldLock
   maxLock?: FieldLock
   onValue: (v: number) => void
@@ -178,10 +181,10 @@ export function VitalInput({
 }) {
   const current = useCommit(value, onValue)
   const cap = useCommit(max, onMax)
-  const currentDisabled = disabled || !!lock?.locked
-  const capDisabled = (maxDisabled ?? disabled) || !!maxLock?.locked
+  const currentDisabled = disabled || !!combinedLock?.locked || !!lock?.locked
+  const capDisabled = (maxDisabled ?? disabled) || !!combinedLock?.locked || !!maxLock?.locked
   const field = (
-    <span className="inline-flex items-center" onKeyDownCapture={(e) => (current.onKeyDownCapture(e), cap.onKeyDownCapture(e))}>
+    <span className="flex w-full min-w-0 items-center" onKeyDownCapture={(e) => (current.onKeyDownCapture(e), cap.onKeyDownCapture(e))}>
       <NumberSliderInput
         className="w-full min-w-0 max-w-full [&_input]:!min-w-0"
         value={current.value}
@@ -193,7 +196,7 @@ export function VitalInput({
         onSlideEnd={current.onSlideEnd}
         endAction={
           <span className="inline-flex h-8 items-center gap-0.5 text-ink-soft" data-slider-ignore>
-            {lock ? <LockEndAction locked={lock.locked} name={lock.name} disabled={lock.disabled} onChange={lock.onChange} /> : null}
+            {!combinedLock && lock ? <LockEndAction locked={lock.locked} name={lock.name} disabled={lock.disabled} onChange={lock.onChange} /> : null}
             <span aria-hidden>/</span>
             <NumberInput
               className="h-8 w-[2.75rem] min-w-0 rounded-none border-none bg-transparent px-0 text-ink-soft focus:border-none focus:text-ink"
@@ -205,7 +208,11 @@ export function VitalInput({
               tooltip=""
               {...cap.input}
             />
-            {maxLock ? <LockEndAction locked={maxLock.locked} name={maxLock.name} disabled={maxLock.disabled} onChange={maxLock.onChange} /> : null}
+            {combinedLock ? (
+              <LockEndAction locked={combinedLock.locked} name={combinedLock.name} disabled={combinedLock.disabled} onChange={combinedLock.onChange} />
+            ) : maxLock ? (
+              <LockEndAction locked={maxLock.locked} name={maxLock.name} disabled={maxLock.disabled} onChange={maxLock.onChange} />
+            ) : null}
           </span>
         }
         {...current.input}
@@ -233,7 +240,7 @@ export function PlainInput({
 }) {
   const commit = useCommit(value, onValue)
   return (
-    <span className="inline-flex items-center" onKeyDownCapture={commit.onKeyDownCapture}>
+    <span className="flex w-full min-w-0 items-center" onKeyDownCapture={commit.onKeyDownCapture}>
       <NumberSliderInput
         className="w-full min-w-0 max-w-full [&_input]:!min-w-0"
         value={commit.value}

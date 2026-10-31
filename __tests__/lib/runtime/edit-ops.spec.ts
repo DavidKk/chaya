@@ -32,10 +32,20 @@ describe('edit-ops', () => {
   })
 
   it('parses edit actions with their own params', () => {
+    expect(parseEditAction({ id: 'battle:start' })).toEqual({ id: 'battle:start' })
+    expect(parseEditAction({ id: 'battle:start', troopId: '35', canEscape: false, canLose: true, count: 2 })).toEqual({
+      id: 'battle:start',
+      troopId: 35,
+      canEscape: false,
+      canLose: true,
+      count: 2,
+    })
     expect(parseEditAction({ id: 'teleport', mapId: '3', x: 4, y: 5, direction: 8 })).toEqual({ id: 'teleport', mapId: 3, x: 4, y: 5, direction: 8 })
     expect(parseEditAction({ id: 'common_event', eventId: 7 })).toEqual({ id: 'common_event', eventId: 7 })
     expect(parseEditAction({ id: 'save' })).toEqual({ id: 'save', slot: 1 })
     expect(parseEditAction({ id: 'load', slot: 3 })).toEqual({ id: 'load', slot: 3 })
+    expect(() => parseEditAction({ id: 'battle:start', troopId: 0 })).toThrow('troopId')
+    expect(() => parseEditAction({ id: 'battle:start', count: 0 })).toThrow('count')
     expect(() => parseEditAction({ id: 'teleport', mapId: 1, x: 1, y: 1, direction: 5 })).toThrow('direction')
     expect(() => parseEditAction({ id: 'save', slot: 0 })).toThrow('slot')
     expect(() => parseEditAction({ id: 'teleport', mapId: 1 })).toThrow()

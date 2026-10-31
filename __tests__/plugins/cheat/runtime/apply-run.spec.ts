@@ -36,6 +36,7 @@ const fadeIn = jest.fn()
 const resumeAfterError = jest.fn()
 const setEnemyHp = jest.fn()
 const setPartyHp = jest.fn()
+const startTroopBattle = jest.fn()
 
 jest.mock('@/plugins/mv/src/cheat/runtime/cheats', () => ({
   Cheats: {
@@ -84,6 +85,9 @@ const canSettleBattleEnd = jest.fn(() => false)
 jest.mock('@/plugins/mv/src/cheat/session/live-battle', () => ({
   settleBattleEnd: (...a: unknown[]) => settleBattleEnd(...(a as [])),
   canSettleBattleEnd: (...a: unknown[]) => canSettleBattleEnd(...(a as [])),
+}))
+jest.mock('@/plugins/mv/src/cheat/session/live-troop', () => ({
+  startTroopBattle: (...a: unknown[]) => startTroopBattle(...a),
 }))
 
 import { applyRunAction, applyRunFlag, applySpeed, runActionNeedsClose } from '@/plugins/mv/src/cheat/runtime/apply-run'
@@ -174,6 +178,8 @@ describe('applyRunAction / runActionNeedsClose', () => {
     expect(clearInterpreter).toHaveBeenCalled()
     applyRunAction('fix:clearOverlay')
     expect(clearOverlay).toHaveBeenCalled()
+    applyRunAction('battle:start')
+    expect(startTroopBattle).toHaveBeenCalledWith({ interruptEvent: true })
     applyRunAction('battle:victory')
     expect(battleVictory).toHaveBeenCalled()
     applyRunAction('battle:enemyHp1')
@@ -192,7 +198,7 @@ describe('applyRunAction / runActionNeedsClose', () => {
     expect(runActionNeedsClose('scene:equip')).toBe(true)
     expect(runActionNeedsClose('fix:title')).toBe(true)
     expect(runActionNeedsClose('fix:map')).toBe(true)
-    for (const id of ['battle:victory', 'battle:escape', 'battle:defeat', 'battle:abort'] as const) expect(runActionNeedsClose(id)).toBe(true)
+    for (const id of ['battle:start', 'battle:victory', 'battle:escape', 'battle:defeat', 'battle:abort'] as const) expect(runActionNeedsClose(id)).toBe(true)
     expect(runActionNeedsClose('battle:enemyHp1')).toBe(false)
     expect(runActionNeedsClose('fix:fadeIn')).toBe(false)
   })

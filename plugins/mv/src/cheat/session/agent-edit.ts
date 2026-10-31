@@ -7,6 +7,7 @@ import { fieldsForEditCmd } from '@/lib/runtime/game-edit-sync'
 import type { GameEditCmd, GameEditCmdOp } from '@/lib/runtime/game-link-protocol'
 
 import { Cheats } from '../runtime/cheats'
+import { startTroopBattle } from './live-troop'
 import { applyEditCmd, buildStateMsg, pushRemoteState } from './remote-bridge'
 
 function state() {
@@ -25,6 +26,15 @@ function apply(raw: GameEditCmdOp) {
 async function action(raw: EditAction) {
   const act = parseEditAction(raw as unknown as Record<string, unknown>)
   switch (act.id) {
+    case 'battle:start':
+      startTroopBattle({
+        id: act.troopId,
+        canEscape: act.canEscape,
+        canLose: act.canLose,
+        count: act.count,
+        interruptEvent: true,
+      })
+      return { done: true, ...act }
     case 'teleport':
       if (!Cheats.teleport(act.mapId, act.x, act.y, act.direction)) throw new Error('传送失败：请在地图场景中重试')
       return { done: true, ...act }

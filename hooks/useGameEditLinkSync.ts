@@ -352,7 +352,14 @@ export function useGameEditLinkSync(setSession: SetSession, setLiveError: (msg: 
       /* The normal disconnect path already releases local waiters; a later reconnect retries status. */
     })
   }, [connected, roomId, refreshMapOperation])
-  return { linked: connected && synced, connected, scene, sendCmd, runCmd, requestCatalog, mapUndo, runMapChanges, undoMapChange, refreshMapOperation }
+  const runAction = useCallback(
+    (id: RunActionId) => {
+      void runCmd({ op: 'runAction', id }).catch((error) => setLiveError(error instanceof Error ? error.message : String(error)))
+    },
+    [runCmd, setLiveError]
+  )
+
+  return { linked: connected && synced, connected, scene, sendCmd, runCmd, runAction, requestCatalog, mapUndo, runMapChanges, undoMapChange, refreshMapOperation }
 }
 
 export function buildOptimisticHandlers(setSession: SetSession, sendCmd: (op: GameEditCmdOp) => void, catalogActorName?: (id: number) => string | undefined) {

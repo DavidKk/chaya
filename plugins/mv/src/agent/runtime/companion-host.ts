@@ -88,6 +88,7 @@ function nearbyUnopenedChest(details: Record<string, unknown> | undefined): bool
 type DomainCueKind = 'battle_win' | 'battle_loss' | 'danger' | 'chest' | 'battle_start'
 
 function eventKindFromDomain(domain: CompanionDomainEvent | null, view: FactView): DomainCueKind | null {
+  if (domain?.kind === 'battle_start') return 'battle_start'
   if (domain?.kind === 'battle_result') {
     if (domain.outcome === 'win') return 'battle_win'
     if (domain.outcome === 'lose') return 'battle_loss'
@@ -105,7 +106,6 @@ function eventKindFromDomain(domain: CompanionDomainEvent | null, view: FactView
   }
   const party = view.current.party.value ?? []
   if (party.some((member) => !member.isDead && member.hpMax > 0 && member.hp / member.hpMax <= 0.35)) return 'danger'
-  if (view.current.scene.value === 'battle' && view.current.encounterId.value) return 'battle_start'
   return null
 }
 

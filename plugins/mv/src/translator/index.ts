@@ -71,6 +71,8 @@ async function main() {
     return s
   }
 
+  const NON_TRANSLATABLE_RE = /^[\d\s+\-.,/\\:;%#!?()[\]<>=~'"*`^_]+$/
+
   const enrich = createLookupEnrichment()
 
   function applyPair(lookup: TransLookup, src: unknown, zh: unknown) {
@@ -273,6 +275,8 @@ async function main() {
   function translate(text: unknown): string {
     if (text == null || text === '') return text as string
     const raw = String(text)
+    if (NON_TRANSLATABLE_RE.test(raw)) return raw
+
     const { lead: metaLead, core: peeled, trail: metaTrail } = peelChoiceMetaShell(raw)
     if (!peeled && (metaLead || metaTrail)) return raw
     const body = peeled.length ? peeled : raw

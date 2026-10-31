@@ -3,7 +3,7 @@
  */
 
 import { writeMaxParam } from '../session/battle-param'
-import { closeBattleInputWindows } from '../session/battle-windows'
+import { closeBattleInputWindows, restoreBattleInputWindows } from '../session/battle-windows'
 import { ensureAutoBattleActorHook, tryAutoBattle } from './auto-battle'
 import { RunCheats } from './cheats-run'
 import { gameMap, gamePlayer, gameTroop } from './game-globals'
@@ -202,8 +202,10 @@ function disposeCheatsHooks() {
   godMode = false
   throughWalls = false
   autoWin = false
+  const wasAutoBattle = autoBattle
   autoBattle = false
   autoBattleScene = null
+  if (wasAutoBattle) restoreBattleInputWindows()
   wonScene = null
   writeSkipBattleResult(false)
   RunCheats.disposeHooks()
@@ -293,8 +295,12 @@ export const Cheats = {
   /** 开启后角色按引擎自动战斗特性行动，直到关闭 */
   setAutoBattle(on: boolean) {
     ensureHooks()
+    const wasAutoBattle = autoBattle
     autoBattle = !!on
-    if (!autoBattle) autoBattleScene = null
+    if (!autoBattle) {
+      autoBattleScene = null
+      if (wasAutoBattle) restoreBattleInputWindows()
+    }
     if (autoBattle) tickLocks()
     return autoBattle
   },

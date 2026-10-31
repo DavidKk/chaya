@@ -42,6 +42,7 @@ const MAX_COMMAND_KEYS = 12
 const current = new Map<string, CanvasText>()
 const recent = new Map<string, CanvasText>()
 const canvasIds = new WeakMap<object, number>()
+const activeCanvases = new Map<number, number>()
 let nextCanvasId = 0
 let scene: unknown
 
@@ -55,6 +56,7 @@ function resetForScene() {
   scene = next
   current.clear()
   recent.clear()
+  activeCanvases.clear()
 }
 
 function remember(target: Map<string, CanvasText>, canvas: object, value: unknown, x: unknown, y: unknown) {
@@ -71,22 +73,33 @@ function remember(target: Map<string, CanvasText>, canvas: object, value: unknow
   const px = Math.round(Number(x)) || 0
   const py = Math.round(Number(y)) || 0
   const key = `${canvasId}:${px}:${py}`
-  target.delete(key)
+  if (!target.delete(key)) activeCanvases.set(canvasId, (activeCanvases.get(canvasId) ?? 0) + 1)
   target.set(key, { text, at: Date.now(), canvas: canvasId, x: px, y: py })
-  if (target.size > MAX_LINES) target.delete(target.keys().next().value!)
+  if (target.size > MAX_LINES) removeLine(target, target.keys().next().value!)
+}
+
+function removeLine(source: Map<string, CanvasText>, key: string) {
+  const entry = source.get(key)
+  if (!entry) return
+  source.delete(key)
+  const remaining = (activeCanvases.get(entry.canvas) ?? 1) - 1
+  if (remaining > 0) activeCanvases.set(entry.canvas, remaining)
+  else activeCanvases.delete(entry.canvas)
 }
 
 function forget(canvas: number, x: number, y: number, w: number, h: number) {
   for (const source of [current, recent]) {
     for (const [key, entry] of source) {
-      if (entry.canvas === canvas && entry.x >= x && entry.x < x + w && entry.y >= y && entry.y <= y + h) source.delete(key)
+      if (entry.canvas === canvas && entry.x >= x && entry.x < x + w && entry.y >= y && entry.y <= y + h) {
+        removeLine(source, key)
+      }
     }
   }
 }
 
 function fresh(source: Map<string, CanvasText>, lifetime: number) {
   const now = Date.now()
-  for (const [key, entry] of source) if (now - entry.at > lifetime) source.delete(key)
+  for (const [key, entry] of source) if (now - entry.at > lifetime) removeLine(source, key)
   return [...source.values()]
 }
 
@@ -173,8 +186,10 @@ export function startRenderedTextCapture(): () => void {
     'clearRect',
     (original) =>
       function (this: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
-        const id = this.canvas ? canvasIds.get(this.canvas) : undefined
-        if (id) forget(id, x, y, w, h)
+        if (activeCanvases.size > 0) {
+          const id = this.canvas ? canvasIds.get(this.canvas) : undefined
+          if (id && activeCanvases.has(id)) forget(id, x, y, w, h)
+        }
         return original.call(this, x, y, w, h)
       }
   )
@@ -184,5 +199,6 @@ export function startRenderedTextCapture(): () => void {
     stopFill()
     current.clear()
     recent.clear()
+    activeCanvases.clear()
   }
 }

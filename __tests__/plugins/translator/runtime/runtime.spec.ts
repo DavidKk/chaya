@@ -16,6 +16,9 @@ import { bundledResourceSnapshot } from '@/services/translate/resources/defaults
 jest.mock('wordguard', () => ({ wordguard: () => ({ matchAll: () => [] }) }))
 
 jest.mock('@/plugins/mv/src/helpers/net/http', () => ({ chayaFetch: jest.fn() }))
+jest.mock('@/plugins/mv/src/helpers/net/logger', () => ({
+  ChayaLog: { info: jest.fn(), ok: jest.fn(), warn: jest.fn(), fail: jest.fn() },
+}))
 jest.mock('@/plugins/mv/src/translator/runtime/engine-fetch', () => ({ engineFetch: jest.fn() }))
 
 let root: string

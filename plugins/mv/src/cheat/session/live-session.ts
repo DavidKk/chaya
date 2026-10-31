@@ -88,7 +88,7 @@ function syncLocksIntoSession(prev: SessionState): Record<string, number> {
   return locks
 }
 
-function readRunFields(
+export function readRunFields(
   prev: SessionState
 ): Pick<
   SessionState,

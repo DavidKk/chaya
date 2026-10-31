@@ -2,9 +2,32 @@
  * @jest-environment node
  */
 import { emptySession } from '@/components/game-edit/types'
-import { diskStateFromSession, mergeDiskIntoSession } from '@/plugins/mv/src/cheat/session/persist'
+import { diskStateFromSession, mergeDiskIntoSession, scheduleSaveGameEditDisk, scheduleSaveRunFlag } from '@/plugins/mv/src/cheat/session/persist'
+import { pluginStorageCall } from '@/plugins/mv/src/helpers/storage/client'
+
+jest.mock('@/plugins/mv/src/helpers/storage/client', () => ({ pluginPublicGameDirectory: jest.fn(), pluginStorageCall: jest.fn() }))
+jest.mock('@/plugins/mv/src/helpers/game/game-identity', () => ({ detectGameIdentity: () => ({ contentRoot: '/test/game' }) }))
 
 describe('cheat/persist session↔disk', () => {
+  it('merges successive floating shortcuts with a pending save without replacing locks, speeds or hotkeys', () => {
+    jest.useFakeTimers()
+    const disk = diskStateFromSession({ ...emptySession(), walkRate: 3, locks: { 'item:1': 80 }, hotkeys: { 'flag:autoWin': 'KeyW' } })
+    scheduleSaveGameEditDisk(disk)
+    scheduleSaveRunFlag('autoBattle', true)
+    scheduleSaveRunFlag('autoWin', true)
+    jest.advanceTimersByTime(400)
+    expect(pluginStorageCall).toHaveBeenCalledWith('game.write', [
+      '/test/game',
+      'gameEdit',
+      expect.objectContaining({
+        run: expect.objectContaining({ walkRate: 3, autoBattle: true, autoWin: true }),
+        locks: { 'item:1': 80 },
+        hotkeys: disk.hotkeys,
+      }),
+    ])
+    jest.useRealTimers()
+  })
+
   it('diskStateFromSession only extracts persistable fields', () => {
     const session = {
       ...emptySession(),

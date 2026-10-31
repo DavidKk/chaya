@@ -80,6 +80,7 @@ module ChayaRGSS
 
         on_map = !!($game_map && $game_player)
         { 'type' => 'edit.state', 'ready' => true, 'session' => session, 'onMap' => on_map,
+          'inBattle' => !!EditRuntime.live_battle_scene,
           'mapId' => on_map ? $game_map.map_id : 0, 'playerX' => on_map ? $game_player.x : 0,
           'playerY' => on_map ? $game_player.y : 0, 'playerDir' => on_map && $game_player.respond_to?(:direction) ? $game_player.direction : 2 }
       end

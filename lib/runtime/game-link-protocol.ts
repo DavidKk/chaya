@@ -118,6 +118,8 @@ export type GameEditStateMsg = {
   error?: string
   /** On the map scene (common events can only run on the map) */
   onMap?: boolean
+  /** RGSS also publishes battle presence when no per-unit battle snapshot is available. */
+  inBattle?: boolean
   /** Current map and player tile; 0 when no map is loaded */
   mapId?: number
   playerX?: number

@@ -1,9 +1,11 @@
 import { playPtBR } from '@/lib/i18n/messages/parts/play'
 import { debugPtBR } from '@/lib/i18n/messages/parts/debug'
+import { floatingBallPtBR } from '@/lib/i18n/messages/parts/floating-ball'
 import { mcpGatewayPtBR } from '@/lib/i18n/messages/parts/mcp-gateway'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const ptBR: MessageTree = {
+  floatingBall: floatingBallPtBR,
   debug: debugPtBR,
   play: playPtBR,
   locale: {
