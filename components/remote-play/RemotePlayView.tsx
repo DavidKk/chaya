@@ -1694,14 +1694,14 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header: No dividing line, text-sm font-semibold matching content rhythm, clean icon button (Requirement 4) */}
-            <div className="relative flex items-center justify-between px-4 pt-3 pb-1 shrink-0">
-              <h3 id="menu-title" className="text-sm font-semibold text-white tracking-wide">
+            <div className="flex items-center justify-between px-4 py-2.5 shrink-0">
+              <h3 id="menu-title" className="text-sm font-semibold text-white tracking-wide leading-none flex items-center">
                 {t('play.consoleTitle')}
               </h3>
               <button
                 type="button"
                 onClick={() => setMenuOpen(false)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded text-neutral-400 hover:text-white hover:bg-white/5 active:scale-90 transition-all"
+                className="flex items-center justify-center p-1 rounded text-neutral-400 hover:text-white hover:bg-white/5 active:scale-90 transition-all shrink-0"
                 aria-label={t('common.close')}
               >
                 <LuX size={16} />
@@ -2159,14 +2159,14 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header: No dividing line, text-sm font-semibold matching content rhythm, clean icon button (Requirement 4) */}
-            <div className="relative flex items-center justify-between px-4 pt-3 pb-1 shrink-0">
-              <h3 id="game-select-title" className="text-sm font-semibold text-white tracking-wide">
+            <div className="flex items-center justify-between px-4 py-2.5 shrink-0">
+              <h3 id="game-select-title" className="text-sm font-semibold text-white tracking-wide leading-none flex items-center">
                 {t('play.gameSelectorTitle')}
               </h3>
               <button
                 type="button"
                 onClick={() => setGameSelectorOpen(false)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded text-neutral-400 hover:text-white hover:bg-white/5 active:scale-90 transition-all"
+                className="flex items-center justify-center p-1 rounded text-neutral-400 hover:text-white hover:bg-white/5 active:scale-90 transition-all shrink-0"
                 aria-label={t('common.close')}
               >
                 <LuX size={16} />

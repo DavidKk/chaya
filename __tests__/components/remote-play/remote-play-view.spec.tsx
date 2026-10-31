@@ -164,7 +164,7 @@ describe('RemotePlayView Launcher & UI refinements', () => {
     // Verify header title is centered and close button is an icon button
     const closeBtn = dialog.querySelector('button[aria-label="关闭"]') as HTMLButtonElement
     expect(closeBtn).not.toBeNull()
-    expect(closeBtn.className).toContain('absolute right-3')
+    expect(closeBtn.className).toContain('flex items-center justify-center')
   })
   it('renders unified ConfigRow with icon, label, and no mode descriptions', async () => {
     await act(async () => {
