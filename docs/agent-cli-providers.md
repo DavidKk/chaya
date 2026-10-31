@@ -1,5 +1,7 @@
 # Agent 实例接入 Cursor / GPT（Codex）/ Claude / Gemini 需求
 
+> 当前文本模型路径的按需启动、空闲容量与进程来源，以 [资源优化需求](agent-cli-resources.md) 为准；本页完整 CLI Run 方案不代表全部已实现。
+
 > 状态：**待开发**（需求已确认方向，未排期）
 > 日期：2026-10-11 · 修订：同日定为 **Cursor 只走本机登录，Codex / Claude / Gemini 只走远程授权**；不做 API Key；评审补充任务归属、意图分类、托管周期与同步兼容（§6.1、§6.2、§6.7、§4）；二次评审补充上下文与人设、授权变更收尾、工具集合对齐、隔离与资源（§5、§6.3、§6.5、§8、§12）
 > 基线：[`game-agent.md`](./game-agent.md)（Agent 配置与运行）、[`mcp-local.md`](./mcp-local.md)（本机 MCP）

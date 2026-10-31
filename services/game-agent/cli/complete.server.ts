@@ -1,5 +1,6 @@
 import { parseCliReply, renderCliPrompt } from '@/lib/game-agent/cli-tool-protocol'
 import { CLI_AUTO_MODEL, type CliAgentProvider, PROVIDER_META } from '@/lib/game-agent/providers'
+import { agentProxyHeadersKey, resolveAgentProxySlots } from '@/lib/game-agent/proxy'
 import type { RuntimeMessage, RuntimeTool } from '@/lib/game-agent/runtime'
 import { agentProxyEnv } from '@/services/game-agent/proxy/agent-proxy'
 
@@ -36,7 +37,7 @@ function joined(input: Prompt) {
 
 function warmKey(profile: CliCompleteProfile) {
   return {
-    key: `${profile.provider}:${profile.id}:${profile.proxy || ''}:${JSON.stringify(profile.proxyHeaders || {})}`,
+    key: JSON.stringify([profile.provider, profile.id, resolveAgentProxySlots(profile.proxy, profile.proxyProtocols), agentProxyHeadersKey(profile.proxyHeaders)]),
     profileId: profile.id,
     provider: profile.provider,
   }

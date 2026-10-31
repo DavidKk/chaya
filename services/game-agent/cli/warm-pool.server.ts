@@ -7,6 +7,7 @@ type Entry = WarmHandle<unknown> & Target & { epoch: string; timer?: ReturnType<
 
 /** Idle CLI processes die after this long; a busy companion keeps reusing one. */
 export const WARM_IDLE_MS = 5 * 60_000
+export const WARM_MAX_IDLE = 2
 
 const idle = new Map<string, Entry>()
 const epochs = new Map<string, number>()
@@ -26,6 +27,11 @@ function dispose(entry: Entry) {
 
 function park(entry: Entry) {
   if (!entry.alive() || idle.has(entry.key) || entry.epoch !== epochOf(entry)) return dispose(entry)
+  for (const previous of idle.values()) {
+    if (previous.provider === entry.provider && previous.profileId === entry.profileId) dispose(previous)
+  }
+  // Taking and parking entries updates Map order, so the first idle entry is the least recently used.
+  while (idle.size >= WARM_MAX_IDLE) dispose(idle.values().next().value!)
   entry.timer = setTimeout(() => dispose(entry), WARM_IDLE_MS)
   entry.timer.unref?.()
   idle.set(entry.key, entry)

@@ -14,6 +14,7 @@
 | Agent 配置、聊天、工具权限 | [助手基线](game-agent.md)：配置 §6.8–6.9，Prompt §7，权限 §9 | [Agent 实现](technical/game-agent.md)；先看页头的托管替代关系 |
 | 自主托管、连续目标 | [托管](game-assistance.md) | [托管实现](technical/game-assistance.md)；覆盖助手基线旧停止契约 |
 | CLI Agent、授权、供应商 | [CLI 接入](agent-cli-providers.md) | [CLI 设计](technical/agent-cli-providers.md)；仅相关供应商章节 |
+| CLI 按需启动、空闲回收、进程来源与资源占用 | [资源优化需求](agent-cli-resources.md) | [资源管理技术方案](technical/agent-cli-resources.md)；覆盖当前文本模型的空闲池与日志页 |
 | 活动日志、游戏操作轨迹 | [活动记录](agent-activity-log.md) / [操作轨迹](agent-gameplay-trace.md) | [日志实现](technical/agent-activity-log.md)；覆盖范围见轨迹页头 |
 | Agent 分层任务、batch | [助手](game-agent.md) / [托管](game-assistance.md) | [任务执行](technical/game-agent-jobs.md)；只覆盖执行层 |
 | 旅伴陪玩、反射引擎、情绪反馈 | [旅伴](companion.md) / [现状问题](companion-optimization.md) | [陪玩实现](technical/companion.md) |
