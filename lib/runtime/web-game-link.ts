@@ -1,6 +1,7 @@
 'use client'
 
 import { readCloudLinkToken } from '@/lib/browser/link-token'
+import type { LogLevel } from '@/lib/log/types'
 import { encodeGameLinkMessage, GAME_LINK_CHANNEL, GAME_LINK_TOKEN_HEADER, type GameLinkMessage, parseGameLinkMessage } from '@/lib/runtime/game-link-protocol'
 import { createChunkReceiver } from '@/lib/runtime/link-chunks'
 import { sendTranslationPacket } from '@/lib/runtime/translation-rpc'
@@ -13,6 +14,7 @@ type Handlers = {
   onTrack?: (stream: MediaStream) => void
   /** 不再主动协商且没连上：别的标签页占着链路，或等 answer 超时 */
   onIdle?: () => void
+  onLog?: (level: LogLevel, message: string, meta?: Record<string, unknown>) => void
 }
 
 const SIGNAL_URL = '/api/runtime/webrtc'
@@ -45,7 +47,7 @@ async function postSignal(body: { roomId: string } & Record<string, unknown>): P
   }
 }
 
-type Room = { answer?: RTCSessionDescriptionInit | null; webConnected?: boolean; updatedAt?: number }
+type Room = { offer?: RTCSessionDescriptionInit | null; answer?: RTCSessionDescriptionInit | null; webConnected?: boolean; updatedAt?: number }
 
 async function getRoom(roomId: string): Promise<Room | null | undefined> {
   const res = await fetch(`${SIGNAL_URL}?roomId=${encodeURIComponent(roomId)}`, { headers: signalHeaders(roomId) })
@@ -95,6 +97,10 @@ export class WebGameLink {
     this.handlers = handlers
   }
 
+  private log(level: LogLevel, message: string, meta?: Record<string, unknown>) {
+    this.handlers.onLog?.(level, message, meta)
+  }
+
   /**
    * Resets the room and posts a fresh offer, then polls for the game's answer for up to `ANSWER_WAIT_MS`.
    * `takeover: false` (background auto start) leaves a room alone while another tab holds a live link,
@@ -105,14 +111,21 @@ export class WebGameLink {
     this.closed = false
     const run = this.run
     const deadline = Date.now() + ANSWER_WAIT_MS
-    if (!takeover && !(await this.waitUntilFree(run, deadline))) return
+    this.log('info', `启动 WebGameLink 串流连接 (房间: ${this.roomId})`, { takeover, enableMedia })
+    if (!takeover && !(await this.waitUntilFree(run, deadline))) {
+      this.log('warn', '发现已有活动连接占用房间，已停止争抢')
+      return
+    }
     if (!this.live(run)) return
+    this.log('debug', '发送信令 reset 请求')
     if (!(await postSignal({ action: 'reset', roomId: this.roomId }))) {
+      this.log('fail', '向信令服务重置房间失败')
       throw new Error('signaling reset failed')
     }
 
     const pc = new RTCPeerConnection(defaultPeerConfig())
     this.pc = pc
+    this.log('debug', '已初始化 RTCPeerConnection 与 DataChannel')
     const dc = pc.createDataChannel(GAME_LINK_CHANNEL, { ordered: true })
     this.dc = dc
     this.bindChannel(dc)
@@ -130,6 +143,7 @@ export class WebGameLink {
             if (h264.length > 0) {
               trVideo.setCodecPreferences([...h264, ...others])
             }
+            this.log('info', '已注册音视频接收器并配置 H.264 首选编码')
           }
         }
       } catch {
@@ -145,11 +159,18 @@ export class WebGameLink {
         if (!remoteStream) remoteStream = new MediaStream()
         remoteStream.addTrack(ev.track)
       }
+      this.log('ok', `接收到远程媒体流轨道: ${ev.track.kind} (${ev.track.label || '默认'})`, { trackId: ev.track.id, readyState: ev.track.readyState })
       this.handlers.onTrack?.(remoteStream)
+    }
+
+    pc.oniceconnectionstatechange = () => {
+      const ice = pc.iceConnectionState
+      this.log(ice === 'failed' ? 'fail' : ice === 'connected' || ice === 'completed' ? 'ok' : 'info', `ICE 连接状态变迁: ${ice}`)
     }
 
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState
+      this.log(state === 'failed' ? 'fail' : state === 'connected' ? 'ok' : 'info', `WebRTC PeerConnection 状态变迁: ${state}`)
       if (state === 'failed' || state === 'closed') {
         this.clearDisconnectTimer()
         this.markDisconnected()
@@ -166,12 +187,16 @@ export class WebGameLink {
     }
 
     await pc.setLocalDescription(await pc.createOffer())
+    this.log('debug', '已生成 SDP Offer，正在等待本地 ICE 候选收集完成…')
     await waitForIceGathering(pc)
     if (!this.live(run) || this.pc !== pc) return
     const offer = normalizeLocalWebRtcDescription(pc.localDescription!.toJSON())
+    this.log('debug', '本地 ICE 收集完成，正在提交 SDP Offer')
     if (!(await postSignal({ action: 'offer', roomId: this.roomId, sdp: offer }))) {
+      this.log('fail', '向信令服务提交 SDP Offer 失败')
       throw new Error('signaling offer failed')
     }
+    this.log('info', 'SDP Offer 已发送至信令服务，正在等待游戏端 Answer')
     if (!this.live(run)) return
 
     void this.pollAnswer()
@@ -224,6 +249,7 @@ export class WebGameLink {
       const answer = room?.answer
       if (!answer?.type || !answer.sdp) return false
       await this.pc.setRemoteDescription(answer)
+      this.log('ok', '成功获取游戏端 SDP Answer 并设为远程描述')
       this.clearPoll()
       return true
     } catch {
@@ -233,6 +259,7 @@ export class WebGameLink {
 
   private bindChannel(dc: RTCDataChannel) {
     dc.onopen = () => {
+      this.log('ok', 'WebRTC DataChannel 数据通道建立成功')
       this.clearDisconnectTimer()
       this.connected = true
       void postSignal({ action: 'connected', roomId: this.roomId, connected: true })
@@ -240,8 +267,12 @@ export class WebGameLink {
       this.send({ type: 'hello', role: 'web', gameId: this.roomId })
       this.handlers.onConnected?.()
     }
-    dc.onclose = () => this.markDisconnected()
+    dc.onclose = () => {
+      this.log('warn', 'WebRTC DataChannel 数据通道关闭')
+      this.markDisconnected()
+    }
     dc.onerror = () => {
+      this.log('warn', 'WebRTC DataChannel 触发错误')
       /* onclose 会跟进；避免 error 与 close 双触发抖动 */
     }
     dc.onmessage = (ev) => {
@@ -310,6 +341,7 @@ export class WebGameLink {
     this.clearDisconnectTimer()
     this.clearKeepalive()
     const was = this.connected
+    this.log('warn', 'WebGameLink 标记为断开状态')
     this.connected = false
     void postSignal({ action: 'connected', roomId: this.roomId, connected: false })
     if (was) this.handlers.onDisconnected?.()
