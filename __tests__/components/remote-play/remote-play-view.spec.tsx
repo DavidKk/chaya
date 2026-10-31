@@ -228,6 +228,11 @@ describe('RemotePlayView Launcher & UI refinements', () => {
       b.textContent?.includes('触感震动')
     )
     expect(hapticRow).toBeDefined()
+
+    const opacityLabel = Array.from(host.querySelectorAll('*')).find((el) =>
+      el.textContent?.includes('按键透明度')
+    )
+    expect(opacityLabel).toBeDefined()
   })
 
   it('renders centered video element in portrait mode without hard top container', async () => {

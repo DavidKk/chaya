@@ -65,6 +65,10 @@ export type PlayMessages = {
   hapticFeedback: string
   enabled: string
   disabled: string
+  controllerOpacity: string
+  opacityHigh: string
+  opacityMedium: string
+  opacitySolid: string
 }
 
 export const playEn: PlayMessages = {
@@ -134,6 +138,10 @@ export const playEn: PlayMessages = {
   hapticFeedback: 'Haptics',
   enabled: 'ON',
   disabled: 'OFF',
+  controllerOpacity: 'Button Opacity',
+  opacityHigh: '40%',
+  opacityMedium: '65%',
+  opacitySolid: '90%',
 }
 
 export const playZh: PlayMessages = {
@@ -203,6 +211,10 @@ export const playZh: PlayMessages = {
   hapticFeedback: '触感震动',
   enabled: '开启',
   disabled: '关闭',
+  controllerOpacity: '按键透明度',
+  opacityHigh: '40%',
+  opacityMedium: '65%',
+  opacitySolid: '90%',
 }
 
 export const playCht: PlayMessages = {
@@ -272,6 +284,10 @@ export const playCht: PlayMessages = {
   hapticFeedback: '觸感震動',
   enabled: '開啟',
   disabled: '關閉',
+  controllerOpacity: '按鍵透明度',
+  opacityHigh: '40%',
+  opacityMedium: '65%',
+  opacitySolid: '90%',
 }
 
 export const playJa: PlayMessages = {
@@ -341,6 +357,10 @@ export const playJa: PlayMessages = {
   hapticFeedback: '振動フィードバック',
   enabled: 'オン',
   disabled: 'オフ',
+  controllerOpacity: 'ボタン透明度',
+  opacityHigh: '40%',
+  opacityMedium: '65%',
+  opacitySolid: '90%',
 }
 
 export const playKo: PlayMessages = { ...playEn, launchGame: '게임 시작', switchGame: '게임 변경', reconnect: '다시 연결' }

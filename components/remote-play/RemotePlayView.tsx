@@ -89,6 +89,30 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   // Control Mode: fixed, dynamic, single-left, single-right, touch
   const [controlMode, setControlMode] = useState<ControlMode>('fixed')
   const [hapticEnabled, setHapticEnabled] = useState<boolean>(() => haptic.isEnabled())
+  const [controllerOpacity, setControllerOpacity] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("chaya_remote_pad_opacity")
+        if (saved) {
+          const num = parseFloat(saved)
+          if (!isNaN(num) && num >= 0.2 && num <= 1) return num
+        }
+      } catch {
+        /* ignore */
+      }
+    }
+    return 0.65
+  })
+
+  const handleSelectOpacity = useCallback((val: number) => {
+    setControllerOpacity(val)
+    try {
+      localStorage.setItem("chaya_remote_pad_opacity", String(val))
+    } catch {
+      /* ignore */
+    }
+    remotePlayLogger.info(`Controller opacity set to: ${val}`)
+  }, [])
   const [clientMode, setClientMode] = useState<'auto' | 'desktop' | 'mobile'>('auto')
 
   const handleSelectClientMode = useCallback((mode: 'auto' | 'desktop' | 'mobile') => {
@@ -131,7 +155,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     if (idleTimerRef.current) clearTimeout(idleTimerRef.current)
     idleTimerRef.current = setTimeout(() => {
       setIsIdle(true)
-    }, 2800)
+    }, 8000)
   }, [])
 
   const showStatusToast = useCallback(
@@ -1030,6 +1054,48 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                 setHapticEnabled(next)
               }}
             />
+
+            <ConfigRow
+              icon={<LuSlidersHorizontal size={16} className="text-sky-400" />}
+              label={t('play.controllerOpacity')}
+              control={
+                <div className="flex items-center gap-1 rounded-md border border-white/10 bg-neutral-950 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => handleSelectOpacity(0.4)}
+                    className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${
+                      controllerOpacity === 0.4
+                        ? "bg-sky-500/30 text-sky-200 border border-sky-400/40"
+                        : "text-neutral-400 hover:text-white"
+                    }`}
+                  >
+                    {t('play.opacityHigh')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectOpacity(0.65)}
+                    className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${
+                      controllerOpacity === 0.65
+                        ? "bg-emerald-500/30 text-emerald-200 border border-emerald-400/40"
+                        : "text-neutral-400 hover:text-white"
+                    }`}
+                  >
+                    {t('play.opacityMedium')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSelectOpacity(0.9)}
+                    className={`px-2 py-1 rounded text-[10px] font-medium transition-all ${
+                      controllerOpacity === 0.9
+                        ? "bg-amber-500/30 text-amber-200 border border-amber-400/40"
+                        : "text-neutral-400 hover:text-white"
+                    }`}
+                  >
+                    {t('play.opacitySolid')}
+                  </button>
+                </div>
+              }
+            />
           </div>
         )
       case 'quick':
@@ -1333,6 +1399,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
               idle={effectiveIdle}
               isPortrait={true}
               mode={controlMode}
+              opacity={controllerOpacity}
             />
           )}
         </div>
@@ -1479,7 +1546,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                     right: 'max(0.75rem, env(safe-area-inset-right))',
                   }}
                   className={`pointer-events-auto fixed z-40 flex h-8 w-8 items-center justify-center rounded-md border border-white/15 bg-neutral-900/85 text-neutral-300 shadow-xl backdrop-blur-md transition-all duration-300 hover:bg-neutral-800 active:scale-95 shrink-0 ${
-                    effectiveIdle ? 'opacity-35 hover:opacity-100' : 'opacity-90 hover:opacity-100'
+                    'opacity-85 hover:opacity-100'
                   }`}
                   title={t('play.consoleTitle')}
                   aria-label={t('play.consoleTitle')}
@@ -1496,6 +1563,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
                   idle={effectiveIdle}
                   isPortrait={false}
                   mode={controlMode}
+                  opacity={controllerOpacity}
                 />
               )}
             </>

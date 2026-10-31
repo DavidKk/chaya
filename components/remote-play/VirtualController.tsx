@@ -14,6 +14,7 @@ type VirtualControllerProps = {
   idle?: boolean
   isPortrait?: boolean
   mode?: ControlMode
+  opacity?: number
 }
 
 type Direction = 'up' | 'down' | 'left' | 'right'
@@ -27,6 +28,7 @@ export function VirtualController({
   idle = false,
   isPortrait = false,
   mode = 'fixed',
+  opacity = 0.65,
 }: VirtualControllerProps) {
   const [knobOffset, setKnobOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 })
   const [isDragging, setIsDragging] = useState(false)
@@ -272,10 +274,9 @@ export function VirtualController({
           paddingLeft: 'max(1.25rem, env(safe-area-inset-left))',
           paddingRight: 'max(1.25rem, env(safe-area-inset-right))',
           paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+          opacity,
         }}
-        className={`pointer-events-none fixed inset-0 z-40 flex select-none flex-col justify-end transition-opacity duration-300 ${
-          idle && !isDragging ? 'opacity-25 hover:opacity-90' : 'opacity-85 hover:opacity-100'
-        }`}
+        className="pointer-events-none fixed inset-0 z-40 flex select-none flex-col justify-end transition-opacity duration-200"
       >
         {(() => {
           const renderJoystick = (sizeClass?: string) => (
