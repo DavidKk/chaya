@@ -33,10 +33,12 @@ import {
   upsertLibraryEntry,
 } from '@/services/game'
 import { acceptGameBindEpoch, peekGameBindEpoch } from '@/services/game/bind-epoch'
-import { isAnyGameProcessRunning, terminateAllRunningGameProcesses } from '@/services/game/game-process'
+import { isAnyGameProcessRunning } from '@/services/game/game-process'
 import { detectRgssPlugins, detectRgssPluginsOutdated } from '@/services/game/rgss-plugins'
 import { rgssRuntimeStatus } from '@/services/game/rgss-runtime'
 import { anyWebConnected, detectLanApiBases, getGamePresence, preferredPluginApiBase, toolkitListenPort } from '@/services/runtime'
+import { terminateCloudGameInstance } from '@/services/runtime/game-instance-manager'
+import { playableGamesSnapshot } from '@/services/runtime/playable-games'
 import { getSharedTranslateCacheStats } from '@/services/translate'
 import { gameCacheFileStats } from '@/services/translate/cache-file-stats'
 
@@ -99,6 +101,9 @@ export const GET = defineApiRoute('get:/api/status', async ({ request }) => {
   const service = serviceModePayload()
   if (!canUseDisk(service.serviceMode)) {
     return remoteOnlyStatus()
+  }
+  if (new URL(request.url).searchParams.get('scope') === 'play') {
+    return playableGamesSnapshot()
   }
 
   try {
@@ -217,7 +222,13 @@ export const GET = defineApiRoute('get:/api/status', async ({ request }) => {
     pluginsOutdated: pluginsReady >= plugins.length && (rgss ? detectRgssPluginsOutdated(resolved.contentRoot) : detectPluginsOutdated(resolved.contentRoot)),
     translateSwitches: switches,
     nwPackage,
-    runtime: rgss ? { ...runtimePayload(resolved.contentRoot), gameOnline: rgssRuntimeStatus(resolved.contentRoot).running, native: rgssRuntimeStatus(resolved.contentRoot) } : runtimePayload(resolved.contentRoot),
+    runtime: rgss
+      ? {
+          ...runtimePayload(resolved.contentRoot),
+          gameOnline: rgssRuntimeStatus(resolved.contentRoot).running || isAnyGameProcessRunning(resolved.contentRoot),
+          native: rgssRuntimeStatus(resolved.contentRoot),
+        }
+      : runtimePayload(resolved.contentRoot),
     host: platformPayload(),
   }
 })
@@ -319,9 +330,12 @@ export const PUT = defineApiRoute('put:/api/status', async ({ request }) => {
         unchanged: true,
       })
     }
-    // 切换游戏不能再运行，必须关闭之前的游戏
-    if (!pathEquals(prev.gameRoot, check.selected)) {
-      await terminateAllRunningGameProcesses()
+    // 切换游戏：只回收旧游戏的后台云实例，严禁关闭本地开发/测试中的前台游戏
+    if (prev.gameRoot && !pathEquals(prev.gameRoot, check.selected)) {
+      const prevResolved = resolveGame(prev.gameRoot)
+      if (prevResolved.ok && prevResolved.contentRoot) {
+        await terminateCloudGameInstance({ contentRoot: prevResolved.contentRoot })
+      }
     }
     const fingerprint = getGameFingerprint(check)
     const name = resolveDisplayName(check.contentRoot, input, fingerprint?.system?.gameTitle)

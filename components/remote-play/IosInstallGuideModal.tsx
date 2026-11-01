@@ -1,12 +1,6 @@
 'use client'
 
-import {
-  LuCheck,
-  LuShare,
-  LuSparkles,
-  LuSquarePlus,
-  LuX,
-} from 'react-icons/lu'
+import { LuCheck, LuShare, LuSparkles, LuSquarePlus, LuX } from 'react-icons/lu'
 
 type IosInstallGuideModalProps = {
   open: boolean
@@ -14,11 +8,7 @@ type IosInstallGuideModalProps = {
   isStandalone?: boolean
 }
 
-export function IosInstallGuideModal({
-  open,
-  onClose,
-  isStandalone = false,
-}: IosInstallGuideModalProps) {
+export function IosInstallGuideModal({ open, onClose, isStandalone = false }: IosInstallGuideModalProps) {
   if (!open) return null
 
   return (
@@ -81,12 +71,8 @@ export function IosInstallGuideModal({
                     <LuShare size={15} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-white text-[12px]">
-                      1. 点击 Safari「分享」按钮
-                    </div>
-                    <div className="text-[11px] text-neutral-400 leading-normal mt-0.5">
-                      位于 Safari 底部工具栏（竖屏）或顶部栏（横屏）的方框向上箭头图标。
-                    </div>
+                    <div className="font-semibold text-white text-[12px]">1. 点击 Safari「分享」按钮</div>
+                    <div className="text-[11px] text-neutral-400 leading-normal mt-0.5">位于 Safari 底部工具栏（竖屏）或顶部栏（横屏）的方框向上箭头图标。</div>
                   </div>
                 </div>
 
@@ -96,12 +82,8 @@ export function IosInstallGuideModal({
                     <LuSquarePlus size={15} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="font-semibold text-white text-[12px]">
-                      2. 选择「添加到主屏幕」
-                    </div>
-                    <div className="text-[11px] text-neutral-400 leading-normal mt-0.5">
-                      在弹出的操作列表中向下滑动，找到带有加号的「添加到主屏幕」。
-                    </div>
+                    <div className="font-semibold text-white text-[12px]">2. 选择「添加到主屏幕」</div>
+                    <div className="text-[11px] text-neutral-400 leading-normal mt-0.5">在弹出的操作列表中向下滑动，找到带有加号的「添加到主屏幕」。</div>
                   </div>
                 </div>
 
@@ -109,19 +91,13 @@ export function IosInstallGuideModal({
                 <div className="flex items-start gap-2.5 rounded-lg border border-white/5 bg-white/[0.03] p-2.5">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg overflow-hidden bg-neutral-950 border border-white/10 shadow-sm mt-0.5">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img
-                      src="/brand/chaya-app-icon.png"
-                      alt="Chaya Play 图标"
-                      className="h-full w-full object-cover"
-                    />
+                    <img src="/brand/chaya-app-icon.png" alt="Chaya Play 图标" className="h-full w-full object-cover" />
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="font-semibold text-white text-[12px] flex items-center gap-1.5">
                       <span>3. 确认名称为「Chaya Play」</span>
                     </div>
-                    <div className="text-[11px] text-neutral-400 leading-normal mt-0.5">
-                      点击添加后从手机主屏打开，将直接以全屏 App 状态运行。
-                    </div>
+                    <div className="text-[11px] text-neutral-400 leading-normal mt-0.5">点击添加后从手机主屏打开，将直接以全屏 App 状态运行。</div>
                   </div>
                 </div>
               </div>

@@ -8,11 +8,12 @@ import type { SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { padXDense } from '@/components/layoutClasses'
 import { useNavigationBooleanState, useNavigationJsonState, useNavigationViewState } from '@/components/navigation/useNavigationViewState'
-import { Button, EmptyState, FilterToggle, ScrollArea, SegmentedNav, TruncateText } from '@/components/sk'
+import { Badge, Button, EmptyState, FilterToggle, ScrollArea, SegmentedNav, TruncateText } from '@/components/sk'
 import { type CommonEventFilter, type CommonEventInfo, filterCommonEventGroups } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
 import { CommonEventDetail } from './CommonEventDetail'
+import { CurrentEventsPanel } from './CurrentEventsPanel'
 import { EventsPaneSkeleton, type EventsSkeletonHead } from './EventsSkeleton'
 import { commonEventName } from './labels'
 import type { EventsSlot } from './types'
@@ -113,8 +114,13 @@ function EventRow({
       {ev.trigger !== 0 ? (
         <span className={cn('shrink-0 text-[0.65rem]', ev.trigger === 1 ? 'text-warn' : 'text-info')}>
           {t(ev.trigger === 1 ? 'events.trigger1' : 'events.trigger2')}
-          {live ? ` · ${running ? t('events.running') : switchOn ? t('events.stateOn') : t('events.stateOff')}` : ''}
+          {live && !running ? ` · ${switchOn ? t('events.stateOn') : t('events.stateOff')}` : ''}
         </span>
+      ) : null}
+      {live && running ? (
+        <Badge dot={false} tone="ok">
+          {t('events.running')}
+        </Badge>
       ) : null}
     </button>
   )
@@ -143,7 +149,13 @@ export function CommonEventsPane({ slot, filter, session, headSlot }: Props) {
   const visibleCount = groups.reduce((n, g) => n + g.events.length, 0)
   const selected = data && slot.commonId != null ? (data.events.find((ev) => ev.id === slot.commonId) ?? null) : null
 
-  if (!data || !data.events.length) return <EventsDataState slot={slot} head="common" />
+  if (!data || !data.events.length)
+    return (
+      <div className="flex min-h-0 flex-1 flex-col">
+        <CurrentEventsPanel slot={slot} />
+        <EventsDataState slot={slot} head="common" />
+      </div>
+    )
 
   const triggerItems = [
     { id: 'all' as const, label: t('events.filterAll') },
@@ -168,6 +180,7 @@ export function CommonEventsPane({ slot, filter, session, headSlot }: Props) {
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
+      <CurrentEventsPanel slot={slot} />
       <div className="flex min-h-0 flex-1">
         <aside
           className={cn('min-h-0 w-full flex-col @4xl:w-[17rem] @4xl:shrink-0 @4xl:border-r @4xl:border-line', selected ? 'hidden @4xl:flex' : 'flex')}

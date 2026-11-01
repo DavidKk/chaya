@@ -1,12 +1,13 @@
 'use client'
 
-import { useMemo, useState } from 'react'
-import { IoPlayOutline } from 'react-icons/io5'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { IoLocateOutline, IoPlayOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell } from '@/components/layoutClasses'
 import { Badge, type BadgeTone, Button, TextInput, Tooltip } from '@/components/sk'
 import { analyzeFlow, type EventCommand, type EventNames, type FlowMark, interpretCommands, type ScriptTone } from '@/lib/game/events'
+import type { CurrentEvent } from '@/lib/game/events/runtime'
 import type { MessageKey } from '@/lib/i18n'
 import { cn } from '@/lib/utils'
 
@@ -52,18 +53,26 @@ type Props = {
   busy?: boolean
   /** Live values: decide which branches run and allow editing switches / variables in place */
   live?: ScriptLive | null
+  current?: CurrentEvent
 }
 
 /**
  * Interpreted command list as flat numbered rows. Branch headers say whether their lines run with the
  * current values; lines that won't run are dimmed, undecidable ones greyed. Run from any row.
  */
-export function EventScript({ list, names, texts, onOpenCommon, onOpenMap, onRunFrom, runBlocked, busy, live }: Props) {
+export function EventScript({ list, names, texts, onOpenCommon, onOpenMap, onRunFrom, runBlocked, busy, live, current }: Props) {
   const t = useT()
   const lines = useMemo(() => interpretCommands(list, names, texts), [list, names, texts])
   const flow = useMemo(() => analyzeFlow(list, live?.state ?? null), [list, live?.state])
   const [query, setQuery] = useState('')
   const needle = query.trim().toLocaleLowerCase()
+  const script = useRef<HTMLDivElement>(null)
+  const currentAt = current ? (current.waiting || current.waitMode || current.child ? Math.max(0, current.index - 1) : current.index) : -1
+  const currentLine = lines.reduce((found, line, index) => (line.at <= currentAt ? index : found), -1)
+  const locate = () => script.current?.querySelector('[data-current-command]')?.scrollIntoView?.({ block: 'nearest' })
+  useEffect(() => {
+    script.current?.querySelector('[data-current-command]')?.scrollIntoView?.({ block: 'nearest' })
+  }, [current?.token])
 
   if (!lines.length) return <p className="m-0 px-3 py-2 text-xs text-ink-soft">{t('events.scriptEmpty')}</p>
 
@@ -72,7 +81,7 @@ export function EventScript({ list, names, texts, onOpenCommon, onOpenMap, onRun
     const key: MessageKey = line.key === 'text' && args.speaker ? 'events.cmd.textBy' : (`events.cmd.${line.key}` as MessageKey)
     return { line, index, args, label: t(key, args) }
   })
-  const shown = needle ? rows.filter((r) => [r.label, r.line.body, r.line.source].some((s) => s?.toLocaleLowerCase().includes(needle))) : rows
+  const shown = needle ? rows.filter((r) => r.index === currentLine || [r.label, r.line.body, r.line.source].some((s) => s?.toLocaleLowerCase().includes(needle))) : rows
 
   return (
     <>
@@ -87,8 +96,13 @@ export function EventScript({ list, names, texts, onOpenCommon, onOpenMap, onRun
           onChange={(e) => setQuery(e.target.value)}
         />
         {needle ? <span className="shrink-0 text-[0.7rem] tabular-nums text-ink-soft">{`${shown.length} / ${rows.length}`}</span> : null}
+        {current ? (
+          <Button size="icon" variant="ghost" tooltip={t('events.current.title')} aria-label={t('events.current.title')} onClick={locate}>
+            <IoLocateOutline size={15} aria-hidden />
+          </Button>
+        ) : null}
       </div>
-      <div className="border-t border-line text-[0.78rem] leading-[1.6]" role="list" aria-label={t('events.script')}>
+      <div ref={script} className="border-t border-line text-[0.78rem] leading-[1.6]" role="list" aria-label={t('events.script')}>
         <div className="grid items-center border-b border-line bg-paper-2" style={gridCols} role="presentation">
           <div className={editHeadCell} data-list-heading="">
             {t('events.scriptColId')}
@@ -109,11 +123,13 @@ export function EventScript({ list, names, texts, onOpenCommon, onOpenMap, onRun
               <div
                 key={index}
                 data-navigation-id={`script:${line.at}`}
+                data-current-command={index === currentLine ? '' : undefined}
                 style={gridCols}
                 className={cn(
                   'group grid items-start border-t border-line transition-colors hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]',
                   i === 0 && 'border-t-0',
-                  line.indent > 0 && MARK_BAR[mark]
+                  line.indent > 0 && MARK_BAR[mark],
+                  index === currentLine && 'bg-[color-mix(in_oklab,var(--accent)_12%,transparent)]'
                 )}
                 role="listitem"
               >
@@ -135,6 +151,11 @@ export function EventScript({ list, names, texts, onOpenCommon, onOpenMap, onRun
                           {t(MARK_BADGE[body].key)}
                         </Badge>
                       </Tooltip>
+                    ) : null}
+                    {index === currentLine ? (
+                      <Badge dot={false} tone="ok">
+                        {t('events.running')}
+                      </Badge>
                     ) : null}
                   </div>
                   {line.body ? <ScriptBody body={line.body} source={line.source} originalLabel={t('events.original')} /> : null}

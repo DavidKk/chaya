@@ -25,8 +25,27 @@ export function getGameCanvas(): HTMLCanvasElement | null {
 }
 
 let cachedStream: MediaStream | null = null
-let audioConnected = false
+let cachedCanvas: HTMLCanvasElement | null = null
+let cachedAudioContext: AudioContext | null = null
 let cachedAudioDest: MediaStreamAudioDestinationNode | null = null
+const mediaPeers = new Set<RTCPeerConnection>()
+let stopRenderKeepalive: (() => void) | null = null
+
+export function closeGameMediaPeer(peer: RTCPeerConnection | null): void {
+  if (!peer) return
+  mediaPeers.delete(peer)
+  try {
+    peer.close()
+  } catch {
+    /* The runtime may already have disposed this peer. */
+  }
+  if (mediaPeers.size) return
+  cachedStream?.getVideoTracks().forEach((track) => track.stop())
+  cachedStream = null
+  cachedCanvas = null
+  stopRenderKeepalive?.()
+  stopRenderKeepalive = null
+}
 
 /**
  * Isolates WebAudio: disconnects host machine physical speakers (ctx.destination)
@@ -40,17 +59,21 @@ export function isolateHostAudio(unmuteHost = false): void {
     const gain = WebAudio?._masterGainNode as GainNode | undefined
     if (!ctx || !gain) return
 
-    // 1. Unless explicit unmute is requested, disconnect from host speakers (Mac 0 dB silence)
+    // Only remove the physical output edge; preserve plugin and streaming connections.
     if (!unmuteHost) {
       try {
-        gain.disconnect()
+        gain.disconnect(ctx.destination)
       } catch {
         /* ignore if already disconnected or not supported */
       }
     }
 
     // 2. Connect to WebRTC MediaStream destination
-    if (!cachedAudioDest && typeof ctx.createMediaStreamDestination === "function") {
+    if (cachedAudioContext !== ctx || cachedAudioDest?.stream.getAudioTracks().some((track) => track.readyState === 'ended')) {
+      cachedAudioDest = null
+      cachedAudioContext = ctx
+    }
+    if (!cachedAudioDest && typeof ctx.createMediaStreamDestination === 'function') {
       cachedAudioDest = ctx.createMediaStreamDestination()
     }
 
@@ -59,6 +82,18 @@ export function isolateHostAudio(unmuteHost = false): void {
         gain.connect(cachedAudioDest)
       } catch {
         /* already connected */
+      }
+      const audio = cachedAudioDest.stream.getAudioTracks().find((track) => track.readyState !== 'ended')
+      if (cachedStream && audio) {
+        for (const track of cachedStream.getAudioTracks()) if (track !== audio) cachedStream.removeTrack(track)
+        if (!cachedStream.getAudioTracks().includes(audio)) cachedStream.addTrack(audio)
+        for (const peer of mediaPeers) {
+          for (const sender of peer.getSenders?.() || []) {
+            if (sender.track?.kind === 'audio' && sender.track !== audio) {
+              void sender.replaceTrack(audio).catch((error) => ChayaLog.warn('RemoteStream', 'Audio track replacement failed', error))
+            }
+          }
+        }
       }
     }
 
@@ -71,7 +106,7 @@ export function isolateHostAudio(unmuteHost = false): void {
       }
     }
   } catch (err) {
-    ChayaLog.warn("RemoteStream", "isolateHostAudio failed", err)
+    ChayaLog.warn('RemoteStream', 'isolateHostAudio failed', err)
   }
 }
 
@@ -90,7 +125,7 @@ export function hookWebAudioMuting(): void {
     const WebAudio = g.WebAudio
     if (!WebAudio) return
 
-    if (typeof WebAudio.initialize === "function" && !WebAudio.__chaya_audio_hooked) {
+    if (typeof WebAudio.initialize === 'function' && !WebAudio.__chaya_audio_hooked) {
       WebAudio.__chaya_audio_hooked = true
       const origInit = WebAudio.initialize
       WebAudio.initialize = function (...args: any[]) {
@@ -123,9 +158,9 @@ export function applySilentWindowHiding(): void {
 
     const nw = g.nw
     const win = nw?.Window?.get?.()
-    if (win && typeof win.hide === "function") {
+    if (win && typeof win.hide === 'function') {
       win.hide()
-      if (typeof win.setShowInTaskbar === "function") {
+      if (typeof win.setShowInTaskbar === 'function') {
         win.setShowInTaskbar(false)
       }
     }
@@ -139,17 +174,10 @@ export function captureGameMediaStream(): MediaStream | null {
     const canvas = getGameCanvas()
     if (!canvas || typeof canvas.captureStream !== 'function') return null
 
-    if (
-      cachedStream &&
-      cachedStream.active &&
-      cachedStream.getVideoTracks().length > 0 &&
-      cachedStream.getVideoTracks()[0].readyState === 'live'
-    ) {
-      return cachedStream
-    }
-
-    const stream = canvas.captureStream(60)
+    const reuse = cachedCanvas === canvas && cachedStream?.active && cachedStream.getVideoTracks()[0]?.readyState === 'live'
+    const stream = reuse ? cachedStream! : canvas.captureStream(60)
     cachedStream = stream
+    cachedCanvas = canvas
 
     // Pipe game WebAudio if audio context is available
     try {
@@ -157,15 +185,18 @@ export function captureGameMediaStream(): MediaStream | null {
       const ctx = g.WebAudio?._context as AudioContext | undefined
       if (ctx) {
         isolateHostAudio(Boolean(g.__CHAYA_UNMUTE_HOST__))
-        if (cachedAudioDest && !audioConnected) {
-          audioConnected = true
-          for (const track of cachedAudioDest.stream.getAudioTracks()) {
-            stream.addTrack(track)
+        if (cachedAudioDest) {
+          const tracks = cachedAudioDest.stream.getAudioTracks()
+          for (const old of stream.getAudioTracks()) {
+            if (!tracks.includes(old)) stream.removeTrack(old)
+          }
+          for (const track of tracks) {
+            if (track.readyState !== 'ended' && !stream.getAudioTracks().includes(track)) stream.addTrack(track)
           }
         }
       }
     } catch (err) {
-      ChayaLog.warn("RemoteStream", "WebAudio capture skipped", err)
+      ChayaLog.warn('RemoteStream', 'WebAudio capture skipped', err)
     }
 
     return stream
@@ -194,51 +225,72 @@ function preferH264(tr: RTCRtpTransceiver) {
 }
 
 /**
- * Ensures game render loop continues ticking when host computer locks screen or minimizes.
- * Chromium suspends requestAnimationFrame when screen is locked or window is hidden,
- * which halts canvas rendering and freezes WebRTC video capture.
+ * Supplements stalled native rendering without adding a second animation loop.
+ * OS sleep and compositor suspension remain outside the plugin's control.
  */
 export function ensureGameRenderKeepalive(): void {
   hookWebAudioMuting()
   applySilentWindowHiding()
   try {
-    const g = globalThis as unknown as { SceneManager?: any }
+    const g = globalThis as any
     const sm = g.SceneManager
     if (!sm) return
     if (sm.__chaya_stream_keepalive) return
+
+    // MV owns its animation loop; MZ delegates updates and rendering to PIXI.
+    const usesSceneLoop = typeof sm.requestUpdate === 'function'
+    const ticker = g.Graphics?._app?.ticker
+    const loop = usesSceneLoop ? sm : ticker
+    if (typeof loop?.update !== 'function') return
     sm.__chaya_stream_keepalive = true
 
-    // 1. Prevent RPG Maker from sleeping or pausing when window loses focus or screen locks
-    if (typeof sm.isGameActive === "function") {
-      sm.isGameActive = () => true
+    const originalIsActive = sm.isGameActive
+    const isActive = () => true
+    if (typeof originalIsActive === 'function') sm.isGameActive = isActive
+
+    let fallbackUpdating = false
+    let lastNativeUpdate = performance.now()
+    let lastAnyUpdate = lastNativeUpdate
+    const updateMethod = usesSceneLoop && typeof sm.renderScene === 'function' ? 'renderScene' : 'update'
+    const originalUpdate = loop[updateMethod]
+    const update = function (this: any, ...args: any[]) {
+      lastAnyUpdate = performance.now()
+      if (!fallbackUpdating) lastNativeUpdate = lastAnyUpdate
+      return originalUpdate.apply(this, args)
+    }
+    loop[updateMethod] = update
+
+    const originalRequestUpdate = sm.requestUpdate
+    let requestUpdate: ((...args: any[]) => void) | undefined
+    if (usesSceneLoop) {
+      requestUpdate = function (this: any, ...args: any[]) {
+        // A timer-driven MV update must not enqueue another native animation loop.
+        if (!fallbackUpdating) return originalRequestUpdate.apply(this, args)
+      }
+      sm.requestUpdate = requestUpdate
     }
 
-    // 2. Track last frame render time
-    let lastRenderTime = Date.now()
-    const origRenderScene = sm.renderScene
-    if (typeof origRenderScene === "function") {
-      sm.renderScene = function (...args: any[]) {
-        lastRenderTime = Date.now()
-        return origRenderScene.apply(this, args)
+    // Native frames take priority. Keep a 60 Hz timer only for suspended RAF.
+    const timer = setInterval(() => {
+      const now = performance.now()
+      if (sm._stopped || (!usesSceneLoop && !ticker.started) || now - lastNativeUpdate < 50 || now - lastAnyUpdate < 16) return
+      fallbackUpdating = true
+      try {
+        if (usesSceneLoop) sm.update()
+        else ticker.update(now)
+      } catch {
+        /* The engine handles its own render errors. */
+      } finally {
+        fallbackUpdating = false
       }
+    }, 1000 / 60)
+    stopRenderKeepalive = () => {
+      clearInterval(timer)
+      if (loop[updateMethod] === update) loop[updateMethod] = originalUpdate
+      if (sm.requestUpdate === requestUpdate) sm.requestUpdate = originalRequestUpdate
+      if (sm.isGameActive === isActive) sm.isGameActive = originalIsActive
+      sm.__chaya_stream_keepalive = false
     }
-
-    // 3. Fallback ticker: if requestAnimationFrame is suspended for > 65ms,
-    // invoke sm.update() or sm.renderScene() to ensure canvas has fresh pixels
-    setInterval(() => {
-      if (!sm._stopped && Date.now() - lastRenderTime > 65) {
-        lastRenderTime = Date.now()
-        try {
-          if (typeof sm.update === "function") {
-            sm.update()
-          } else if (typeof sm.renderScene === "function") {
-            sm.renderScene()
-          }
-        } catch {
-          /* */
-        }
-      }
-    }, 40)
   } catch {
     /* */
   }
@@ -254,16 +306,17 @@ export function handleRequestKeyframe(): void {
 }
 
 export async function attachGameMediaStream(peer: RTCPeerConnection): Promise<void> {
-  ensureGameRenderKeepalive()
   const stream = captureGameMediaStream()
   if (!stream) return
+  mediaPeers.add(peer)
+  ensureGameRenderKeepalive()
 
   const videoTrack = stream.getVideoTracks()[0]
   const audioTrack = stream.getAudioTracks()[0]
 
   if (videoTrack) {
     try {
-      (videoTrack as any).contentHint = 'motion'
+      ;(videoTrack as any).contentHint = 'motion'
     } catch {}
   }
 
@@ -275,12 +328,16 @@ export async function attachGameMediaStream(peer: RTCPeerConnection): Promise<vo
     const kind = tr.receiver?.track?.kind
     if (kind === 'video' && videoTrack) {
       tr.direction = 'sendonly'
-      try { await tr.sender.replaceTrack(videoTrack) } catch {}
+      try {
+        await tr.sender.replaceTrack(videoTrack)
+      } catch {}
       preferH264(tr)
       attachedVideo = true
     } else if (kind === 'audio' && audioTrack) {
       tr.direction = 'sendonly'
-      try { await tr.sender.replaceTrack(audioTrack) } catch {}
+      try {
+        await tr.sender.replaceTrack(audioTrack)
+      } catch {}
       attachedAudio = true
     }
   }
@@ -294,13 +351,13 @@ export async function attachGameMediaStream(peer: RTCPeerConnection): Promise<vo
     peer.addTrack(audioTrack, stream)
   }
 
-  // 局域网超低延迟与 60 帧锁定优化
+  // Sender limits remain adaptive; they do not guarantee throughput or frame rate.
   for (const sender of peer.getSenders?.() || []) {
     if (sender.track?.kind === 'video' && typeof sender.getParameters === 'function') {
       try {
         const p = sender.getParameters()
         if (!p.encodings || p.encodings.length === 0) p.encodings = [{}]
-        p.encodings[0].maxBitrate = 12_000_000 // 12 Mbps
+        p.encodings[0].maxBitrate = 16_000_000
         p.encodings[0].maxFramerate = 60
         p.encodings[0].networkPriority = 'high'
         p.degradationPreference = 'maintain-framerate'
@@ -372,8 +429,8 @@ function applyInputState(key: RemoteInputKey, action: 'down' | 'up'): void {
         }
         if (typeof TouchInput._onCancel === 'function') {
           const g = (globalThis as unknown as { Graphics?: { boxWidth?: number; boxHeight?: number } }).Graphics
-          const cx = g?.boxWidth ? g.boxWidth / 2 : (TouchInput._x || 0)
-          const cy = g?.boxHeight ? g.boxHeight / 2 : (TouchInput._y || 0)
+          const cx = g?.boxWidth ? g.boxWidth / 2 : TouchInput._x || 0
+          const cy = g?.boxHeight ? g.boxHeight / 2 : TouchInput._y || 0
           TouchInput._onCancel(cx, cy)
         }
       }
@@ -475,12 +532,12 @@ export function handleRemoteTap(normX: number, normY: number, phase: 'down' | 'm
   }
 }
 
-if (typeof window !== "undefined") {
+if (typeof window !== 'undefined') {
   hookWebAudioMuting()
   applySilentWindowHiding()
-  if (typeof document !== "undefined") {
-    if (document.readyState === "loading") {
-      document.addEventListener("DOMContentLoaded", () => {
+  if (typeof document !== 'undefined') {
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => {
         hookWebAudioMuting()
         applySilentWindowHiding()
       })

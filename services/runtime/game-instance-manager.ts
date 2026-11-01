@@ -2,10 +2,21 @@
  * 云游戏实例管理与闲置自动回收服务
  * 管理正在运行的游戏进程、WebRTC 连接态与监看截图，并提供无连接超时自动清理机制。
  */
+import fs from 'node:fs'
+import path from 'node:path'
+
+import { toolkitDataDir } from '@/lib/game/toolkit-data'
+import { DEFAULT_REMOTE_PLAY_HOST_SETTINGS, parseRemotePlayHostSettings, type RemotePlayHostSettings } from '@/lib/runtime/remote-play-settings'
 import { getResolvedFromConfig } from '@/services/game/binding'
-import { findRunningGameProcesses, terminateAllRunningGameProcesses, type RunningGameProcess } from '@/services/game/game-process'
-import { displayNameFromPath, pathEquals } from '@/services/game/library'
-import { callAgentGame, listAgentGames } from './agent-bridge'
+import { loadConfig } from '@/services/game/config'
+import { findRunningGameProcesses, type RunningGameProcess, terminateAllRunningGameProcesses } from '@/services/game/game-process'
+import { displayNameFromPath, findLibraryEntry } from '@/services/game/library'
+import { rgssRuntimeStatus } from '@/services/game/rgss-runtime'
+
+import { listAgentGames } from './agent-bridge'
+import { clearGamePreviews } from './game-preview'
+import { gameRunMode } from './playable-games'
+export { captureGamePreview as captureGameScreenshot } from './game-preview'
 import { listAllSignalingRooms, resetSignalingRoom } from './webrtc-signaling'
 
 export type CloudGameInstance = {
@@ -16,6 +27,7 @@ export type CloudGameInstance = {
   contentRoot?: string
   gameTitle: string
   roomId: string
+  libraryId?: string
   startedAt: number
   webConnected: boolean
   clientIp?: string
@@ -23,6 +35,7 @@ export type CloudGameInstance = {
   idleSeconds: number
   idleTimeoutSeconds: number
   remainingIdleSeconds: number
+  runMode: 'local' | 'cloud'
   screenshotUrl: string
   streamUrl: string
 }
@@ -31,12 +44,25 @@ export const DEFAULT_IDLE_TIMEOUT_SECONDS = 300 // 5 分钟无连接自动释放
 
 // 跨 HMR 保持实例生命周期记录
 type InstanceRuntimeState = {
+  pid?: number
   startedAt: number
   lastClientConnectedAt: number
 }
 
 const GLOBAL_KEY = '__chaya_game_instances_state_v1__'
 const CLEANER_TIMER_KEY = '__chaya_idle_cleaner_timer_v1__'
+
+export function readConfiguredRemotePlayHostSettings(): RemotePlayHostSettings {
+  try {
+    const file = path.join(toolkitDataDir(), 'remote-play/settings.json')
+    if (fs.existsSync(file)) {
+      return parseRemotePlayHostSettings(JSON.parse(fs.readFileSync(file, 'utf8')))
+    }
+  } catch {
+    /* fallback */
+  }
+  return { ...DEFAULT_REMOTE_PLAY_HOST_SETTINGS }
+}
 
 function getStateStore(): Map<string, InstanceRuntimeState> {
   const g = globalThis as typeof globalThis & { [GLOBAL_KEY]?: Map<string, InstanceRuntimeState> }
@@ -73,29 +99,50 @@ export function listCloudGameInstances(): CloudGameInstance[] {
   return effectiveProcesses.map((proc) => {
     const key = resolveInstanceKey(proc)
     let state = store.get(key)
-    if (!state) {
-      state = { startedAt: now, lastClientConnectedAt: now }
+    if (!state || state.pid !== proc.pid) {
+      state = { pid: proc.pid, startedAt: now, lastClientConnectedAt: now }
       store.set(key, state)
     }
 
     // 匹配信令房间
     const matchedRoom = rooms.find((r) => r.roomId !== 'default' && !r.roomId.endsWith(':observer')) || rooms.find((r) => !r.roomId.endsWith(':observer')) || rooms[0]
-    const roomId = matchedRoom?.roomId || (agentGames[0]?.gameId ?? 'default')
+    let roomId = matchedRoom?.roomId || (agentGames[0]?.gameId ?? 'default')
+    let isWebActive = Boolean(matchedRoom?.webConnected && now - matchedRoom.updatedAt <= 35_000)
 
-    // 检查是否有 Web 客户端处于连接中（35s 新鲜度）
-    const isWebActive = Boolean(matchedRoom?.webConnected && now - matchedRoom.updatedAt <= 35_000)
+    let title = defaultTitle
+    let libraryId: string | undefined
+    if (proc.contentRoot) {
+      title = displayNameFromPath(proc.contentRoot, { skipGeneric: true })
+      try {
+        const cfg = loadConfig()
+        const entry = findLibraryEntry(cfg.library, proc.contentRoot)
+        if (entry?.id) libraryId = entry.id
+      } catch {}
+    }
+
+    // 若为 RGSS 原生进程，优先使用其绑定的专属信令房间与就绪状态
+    if (proc.contentRoot) {
+      const rgss = rgssRuntimeStatus(proc.contentRoot)
+      if (rgss.roomId) {
+        roomId = rgss.roomId
+      } else if (libraryId) {
+        roomId = libraryId
+      }
+      const obsRoom = rooms.find((r) => r.roomId === `${roomId}:observer`)
+      const mainRoom = rooms.find((r) => r.roomId === roomId)
+      if (rgss.bridgeConnected || (mainRoom?.webConnected && now - mainRoom.updatedAt <= 35_000) || (obsRoom?.webConnected && now - obsRoom.updatedAt <= 35_000)) {
+        isWebActive = true
+      }
+    }
 
     if (isWebActive) {
       state.lastClientConnectedAt = now
     }
 
+    const hostSettings = readConfiguredRemotePlayHostSettings()
+    const configuredTimeout = hostSettings.idleTimeoutSeconds ?? DEFAULT_IDLE_TIMEOUT_SECONDS
     const idleSeconds = isWebActive ? 0 : Math.max(0, Math.floor((now - state.lastClientConnectedAt) / 1000))
-    const remainingIdleSeconds = Math.max(0, DEFAULT_IDLE_TIMEOUT_SECONDS - idleSeconds)
-
-    let title = defaultTitle
-    if (proc.contentRoot) {
-      title = displayNameFromPath(proc.contentRoot, { skipGeneric: true })
-    }
+    const remainingIdleSeconds = configuredTimeout > 0 ? Math.max(0, configuredTimeout - idleSeconds) : 0
 
     return {
       instanceId: `inst_${proc.pid}`,
@@ -105,13 +152,15 @@ export function listCloudGameInstances(): CloudGameInstance[] {
       contentRoot: proc.contentRoot,
       gameTitle: title,
       roomId,
+      libraryId,
       startedAt: state.startedAt,
       webConnected: isWebActive,
       clientIp: matchedRoom?.clientIp,
       lastActiveAt: state.lastClientConnectedAt,
       idleSeconds,
-      idleTimeoutSeconds: DEFAULT_IDLE_TIMEOUT_SECONDS,
+      idleTimeoutSeconds: configuredTimeout,
       remainingIdleSeconds,
+      runMode: gameRunMode(proc),
       screenshotUrl: `/api/remote/screenshot?roomId=${encodeURIComponent(roomId)}`,
       streamUrl: `/play?room=${encodeURIComponent(roomId)}`,
     }
@@ -119,22 +168,25 @@ export function listCloudGameInstances(): CloudGameInstance[] {
 }
 
 /** 检查并回收超时未被任何玩家连接的闲置游戏进程 */
-export async function checkAndReclaimIdleInstances(): Promise<{ reclaimed: number[] }> {
+export async function checkAndReclaimIdleInstances(timeoutOverride?: number): Promise<{ reclaimed: number[] }> {
+  const hostSettings = timeoutOverride !== undefined ? { ...readConfiguredRemotePlayHostSettings(), idleTimeoutSeconds: timeoutOverride } : readConfiguredRemotePlayHostSettings()
+  const configuredTimeout = hostSettings.idleTimeoutSeconds ?? DEFAULT_IDLE_TIMEOUT_SECONDS
+  if (configuredTimeout <= 0) return { reclaimed: [] }
+
   const instances = listCloudGameInstances()
   if (!instances.length) return { reclaimed: [] }
 
   const reclaimed: number[] = []
   for (const inst of instances) {
-    if (inst.idleSeconds >= inst.idleTimeoutSeconds) {
-      console.warn(
-        `[GameInstanceManager] 云游戏实例 (PID: ${inst.pid}, Root: ${inst.contentRoot || 'unknown'}) 已闲置 ${inst.idleSeconds}s（无人连接），正在自动清理以释放系统资源...`
-      )
+    if (inst.runMode === 'cloud' && inst.idleTimeoutSeconds > 0 && inst.idleSeconds >= inst.idleTimeoutSeconds) {
+      process.emitWarning(`[GameInstanceManager] Reclaiming idle game instance (PID: ${inst.pid}, root: ${inst.contentRoot || 'unknown'}, idle: ${inst.idleSeconds}s)`)
       const res = await terminateAllRunningGameProcesses(inst.contentRoot)
       reclaimed.push(...res.killed)
       if (inst.roomId) {
         resetSignalingRoom(inst.roomId)
       }
       getStateStore().delete(inst.contentRoot || String(inst.pid))
+      clearGamePreviews()
     }
   }
 
@@ -144,6 +196,7 @@ export async function checkAndReclaimIdleInstances(): Promise<{ reclaimed: numbe
 /** 手动结束游戏实例 */
 export async function terminateCloudGameInstance(options?: { pid?: number; contentRoot?: string }): Promise<{ killed: number[] }> {
   const res = await terminateAllRunningGameProcesses(options?.contentRoot)
+  clearGamePreviews()
   if (options?.contentRoot) {
     getStateStore().delete(options.contentRoot)
   } else if (options?.pid) {
@@ -152,27 +205,6 @@ export async function terminateCloudGameInstance(options?: { pid?: number; conte
     getStateStore().clear()
   }
   return res
-}
-
-/** 抓取游戏当前画面的快照（通过局内 ChayaAgent 的 game.snap 指令） */
-export async function captureGameScreenshot(
-  gameId = 'default',
-  maxWidth = 800
-): Promise<{ mimeType: string; data: string; width: number; height: number } | null> {
-  try {
-    const snap = (await callAgentGame(gameId, 'game.snap', { maxWidth }, 3000)) as {
-      mimeType: string
-      data: string
-      width: number
-      height: number
-    }
-    if (snap && snap.data && snap.mimeType) {
-      return snap
-    }
-  } catch {
-    /* ignore fallback to null */
-  }
-  return null
 }
 
 /** 启动后台定期巡检定时器（每 15 秒检查一次闲置状态） */
@@ -194,6 +226,6 @@ export function stopIdleCleaner(): void {
   }
 }
 
-if (typeof window === "undefined" && process.env?.NODE_ENV !== "test") {
+if (typeof window === 'undefined' && process.env?.NODE_ENV !== 'test') {
   ensureIdleCleanerStarted()
 }

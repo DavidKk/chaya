@@ -84,21 +84,6 @@ function liveBlockedMask(): string | null {
   return blockedMask(w, h, (x, y) => ![2, 4, 6, 8].some((d) => map.isPassable(x, y, d)))
 }
 
-/** Parallel common events whose switch is ON (`$gameMap._commonEvents` holds parallel ones only) */
-export function runningCommonEvents(): number[] {
-  const list = gameMap()?._commonEvents
-  if (!Array.isArray(list)) return []
-  const out: number[] = []
-  for (const ce of list) {
-    try {
-      if (ce && typeof ce.isActive === 'function' && ce.isActive()) out.push(Math.floor(Number(ce._commonEventId) || 0))
-    } catch {
-      /* skip broken entries */
-    }
-  }
-  return out.filter((id) => id > 0)
-}
-
 export function playerSpot(): PlayerSpot {
   const player = gamePlayer() as ({ x?: number; y?: number; direction?: () => number } & object) | null
   const direction = Math.floor(Number(player?.direction?.()) || 0)

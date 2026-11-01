@@ -1,6 +1,6 @@
 import './globals.css'
 
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import localFont from 'next/font/local'
 
 import { AmbientBackground } from '@/components/AmbientBackground'
@@ -35,6 +35,14 @@ const mono = localFont({
 export const metadata: Metadata = {
   title: 'Chaya',
   description: '本机 RPG Maker 翻译与游戏管理工具',
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+  viewportFit: 'cover',
 }
 
 export default async function RootLayout({ children }: LayoutProps<'/'>) {

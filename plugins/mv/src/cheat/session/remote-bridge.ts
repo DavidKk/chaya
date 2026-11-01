@@ -10,9 +10,10 @@ import { sendChunked } from '@/lib/runtime/link-chunks'
 import { applyGameSpeed, applyRunAction, applyRunFlag, applySpeed } from '../runtime/apply-run'
 import { Cheats } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
+import { controlCurrentEvent, readEventActivity } from './event-control'
 import { addEnemy, killEnemy, readBattleState, recoverEnemy, reviveEnemy, transformEnemy, writeEnemyHp, writeEnemyMhp } from './live-battle'
 import { buildLiveCommonEventsData, isOnMapScene, runCommonEventOnMap } from './live-events'
-import { buildLiveMapDetail, playerSpot, runMapEvent, runningCommonEvents, setSelfSwitch, teleportPlayer } from './live-map'
+import { buildLiveMapDetail, playerSpot, runMapEvent, setSelfSwitch, teleportPlayer } from './live-map'
 import { joinActor, recoverActor, reviveActor, writeActorVital } from './live-party'
 import { buildLiveCatalog, readLiveSession, setItemCount, setPartyGold } from './live-session'
 import { startTroopBattle } from './live-troop'
@@ -145,6 +146,9 @@ export function applyEditCmd(cmd: GameEditCmd): void {
     case 'commonEvent':
       runCommonEventOnMap(cmd.id, cmd.from)
       return
+    case 'eventControl':
+      controlCurrentEvent(cmd.action, cmd.target)
+      return
     case 'selfSwitch':
       setSelfSwitch(cmd.mapId, cmd.eventId, cmd.letter, cmd.value)
       return
@@ -206,6 +210,7 @@ export function buildStateMsg(): GameEditStateMsg {
   const { hotkeys: _hotkeys, hotkeysGlobal: _hotkeysGlobal, ...session } = mirror
   const spot = playerSpot()
   const battle = readBattleState()
+  const eventActivity = readEventActivity()
   return {
     type: 'edit.state',
     ready: true,
@@ -216,7 +221,8 @@ export function buildStateMsg(): GameEditStateMsg {
     playerY: spot.y,
     playerDir: spot.direction,
     recentMaps: recentMaps(),
-    runningCommon: runningCommonEvents(),
+    runningCommon: [...new Set(eventActivity.entries.flatMap((entry) => (entry.commonEventId ? [entry.commonEventId] : [])))],
+    eventActivity,
     ...(battle ? { battle } : {}),
   }
 }

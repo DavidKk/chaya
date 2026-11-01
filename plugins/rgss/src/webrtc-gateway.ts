@@ -8,6 +8,9 @@ import { encodeGameLinkMessage, GAME_LINK_TOKEN_HEADER, type GameLinkMessage, pa
 import { createChunkReceiver, sendChunked } from '@/lib/runtime/link-chunks'
 import { defaultPeerConfig, normalizeLocalWebRtcDescription, waitForIceGathering } from '@/lib/runtime/webrtc-ice'
 
+import { type SpectatorOffer, SpectatorPeers } from './spectator-peers'
+import { WindowFrameSource } from './window-frame-source'
+
 export type GatewayHandlers = {
   onConnected?: () => void
   onDisconnected?: () => void
@@ -15,7 +18,7 @@ export type GatewayHandlers = {
 }
 
 const POLL_IDLE_MS = 6_000
-const POLL_LINKED_MS = 20_000
+const POLL_LINKED_MS = 2_000
 const RECONNECT_POLL_MS = 1_000
 
 export class RgssWebRtcGateway {
@@ -32,13 +35,93 @@ export class RgssWebRtcGateway {
   private chunks = createChunkReceiver((message) => this.handlers.onMessage?.(message as GameLinkMessage))
   private apiBase: string
 
+  private observerPc: RTCPeerConnection | null = null
+  private lastObserverOfferSdp: string | null = null
+  private observerAnswering = false
+  private frameSource = new WindowFrameSource((message) => {
+    console.warn('[RGSS capture]', message)
+    this.closePeer()
+    this.closeObserver()
+    this.spectators?.stop()
+    this.schedule(RECONNECT_POLL_MS)
+  })
+  private mediaPeers = new Set<RTCPeerConnection>()
+  private spectators: SpectatorPeers
+
+  private releaseMedia(peer: RTCPeerConnection | null) {
+    if (peer) this.mediaPeers.delete(peer)
+    if (!this.mediaPeers.size) this.frameSource.stop()
+  }
+
+  private preferH264(peer: RTCPeerConnection) {
+    try {
+      const RTCSender = (globalThis as unknown as { RTCRtpSender?: { getCapabilities?: (kind: string) => { codecs?: { mimeType: string }[] } } }).RTCRtpSender
+      if (typeof RTCSender?.getCapabilities === 'function') {
+        const caps = RTCSender.getCapabilities('video')
+        if (caps?.codecs) {
+          const h264 = caps.codecs.filter((codec) => codec.mimeType?.toLowerCase() === 'video/h264')
+          const others = caps.codecs.filter((codec) => codec.mimeType?.toLowerCase() !== 'video/h264')
+          if (h264.length > 0) {
+            for (const tr of peer.getTransceivers?.() || []) {
+              if (tr.receiver?.track?.kind === 'video' && typeof tr.setCodecPreferences === 'function') {
+                tr.setCodecPreferences([...h264, ...others] as any)
+              }
+            }
+          }
+        }
+      }
+    } catch {}
+  }
+
+  private async attachVideoTrack(peer: RTCPeerConnection) {
+    this.mediaPeers.add(peer)
+    try {
+      const stream = await this.frameSource.start()
+      if (!this.started || !this.mediaPeers.has(peer)) return
+      for (const track of stream.getVideoTracks()) {
+        track.contentHint = 'motion'
+        peer.addTrack(track, stream)
+      }
+      this.preferH264(peer)
+      for (const sender of peer.getSenders?.() || []) {
+        if (sender.track?.kind !== 'video') continue
+        try {
+          const parameters = sender.getParameters()
+          if (!parameters.encodings?.length) parameters.encodings = [{}]
+          parameters.encodings[0].maxBitrate = 8_000_000
+          parameters.encodings[0].maxFramerate = 30
+          parameters.degradationPreference = 'maintain-framerate'
+          await sender.setParameters(parameters)
+        } catch {
+          /* Encoder limits are optional on older WebKit versions. */
+        }
+      }
+    } catch (error) {
+      this.releaseMedia(peer)
+      throw error
+    }
+  }
+
   constructor(
     readonly roomId: string,
     apiBase: string,
     private handlers: GatewayHandlers = {},
-    private credentials: { linkToken?: string; launchToken?: string } = {}
+    private credentials: { linkToken?: string; launchToken?: string; enableObserver?: boolean } = {}
   ) {
     this.apiBase = String(apiBase || '').replace(/\/+$/, '')
+    this.spectators = new SpectatorPeers(
+      roomId,
+      (peer) => this.attachVideoTrack(peer),
+      (peer) => this.releaseMedia(peer),
+      async (peerId, sdp) => {
+        const response = await fetch(`${this.apiBase}/api/runtime/webrtc`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...this.signalHeaders() },
+          body: JSON.stringify({ action: 'answer', roomId, peerId, sdp }),
+        })
+        return response.ok
+      }
+    )
   }
 
   setHandlers(handlers: GatewayHandlers) {
@@ -60,6 +143,20 @@ export class RgssWebRtcGateway {
       this.timer = null
     }
     this.closePeer()
+    this.closeObserver()
+    this.spectators.stop()
+    this.frameSource.stop()
+  }
+
+  private closeObserver() {
+    const peer = this.observerPc
+    this.observerPc = null
+    this.lastObserverOfferSdp = null
+    if (peer) {
+      peer.onconnectionstatechange = null
+      peer.close()
+    }
+    this.releaseMedia(peer)
   }
 
   private closePeer() {
@@ -70,6 +167,7 @@ export class RgssWebRtcGateway {
     this.pc = null
     this.linkOpen = false
     this.lastOfferSdp = null
+    this.releaseMedia(pc)
     if (dc) {
       dc.onopen = dc.onclose = dc.onmessage = dc.onerror = null
       try {
@@ -146,25 +244,35 @@ export class RgssWebRtcGateway {
       console.warn('[RGSS WebRTC Gateway] Handshake failed:', err)
       if (generation === this.generation) this.closePeer()
     }
+    if (this.started && generation === this.generation && this.credentials.enableObserver) {
+      try {
+        await this.tryAnswerObserver()
+      } catch (error) {
+        console.warn('[RGSS WebRTC Gateway] Observer handshake failed:', error)
+        if (generation === this.generation) this.closeObserver()
+      }
+    }
     if (generation !== this.generation) return
-    this.schedule(this.linkOpen ? POLL_LINKED_MS : POLL_IDLE_MS)
+    this.schedule(this.linkOpen || this.observerPc ? POLL_LINKED_MS : POLL_IDLE_MS)
   }
 
   private async tryAnswer(): Promise<boolean> {
     if (this.answering || !this.roomId) return false
     const generation = this.generation
-    let roomData: { offer?: RTCSessionDescriptionInit | null } | null = null
+    type Room = { offer?: RTCSessionDescriptionInit | null; spectators?: SpectatorOffer[] }
+    let roomData: Room | null = null
 
     try {
       const res = await fetch(`${this.apiBase}/api/runtime/webrtc?roomId=${encodeURIComponent(this.roomId)}`, { headers: this.signalHeaders() })
-      if (res.ok) {
-        const body = (await res.json()) as { room?: { offer?: RTCSessionDescriptionInit | null } | null }
-        roomData = body?.room || null
-      }
+      if (!res.ok) return false
+      const body = (await res.json()) as { room?: Room | null }
+      roomData = body?.room || null
     } catch {
       return false
     }
 
+    if (!this.started || generation !== this.generation) return false
+    await this.spectators.sync(roomData?.spectators || [], () => this.started && generation === this.generation)
     if (!this.started || generation !== this.generation) return false
     const offer = roomData?.offer
     if (!offer?.type || !offer.sdp) return false
@@ -191,6 +299,9 @@ export class RgssWebRtcGateway {
       }
 
       await peer.setRemoteDescription(offer)
+      if (!this.started || this.pc !== peer) return false
+      if (offer.sdp.includes('m=video')) await this.attachVideoTrack(peer)
+      if (!this.started || this.pc !== peer) return false
       await peer.setLocalDescription(await peer.createAnswer())
       await waitForIceGathering(peer)
 
@@ -207,6 +318,67 @@ export class RgssWebRtcGateway {
       return postRes.ok
     } finally {
       this.answering = false
+    }
+  }
+
+  private async tryAnswerObserver(): Promise<boolean> {
+    if (this.observerAnswering || !this.roomId) return false
+    const obsRoomId = `${this.roomId}:observer`
+    const generation = this.generation
+    let roomData: { offer?: RTCSessionDescriptionInit | null } | null = null
+
+    try {
+      const res = await fetch(`${this.apiBase}/api/runtime/webrtc?roomId=${encodeURIComponent(obsRoomId)}`, { headers: this.signalHeaders() })
+      if (res.ok) {
+        const body = (await res.json()) as { room?: { offer?: RTCSessionDescriptionInit | null } | null }
+        roomData = body?.room || null
+      }
+    } catch {
+      return false
+    }
+
+    const offer = roomData?.offer
+    if (!offer?.type || !offer.sdp) return false
+    if (offer.sdp === this.lastObserverOfferSdp && this.observerPc) return false
+
+    if (!this.started || generation !== this.generation) return false
+    this.observerAnswering = true
+    try {
+      this.closeObserver()
+
+      const peer = new RTCPeerConnection(defaultPeerConfig())
+      this.observerPc = peer
+      this.lastObserverOfferSdp = offer.sdp
+
+      peer.onconnectionstatechange = () => {
+        const state = peer.connectionState
+        if (this.observerPc === peer && (state === 'failed' || state === 'closed')) {
+          this.closeObserver()
+        }
+      }
+
+      await peer.setRemoteDescription(offer)
+      if (!this.started || this.observerPc !== peer) return false
+      if (offer.sdp.includes('m=video')) await this.attachVideoTrack(peer)
+      if (!this.started || this.observerPc !== peer) return false
+      await peer.setLocalDescription(await peer.createAnswer())
+      await waitForIceGathering(peer)
+
+      if (!this.started || this.observerPc !== peer) return false
+      const answer = normalizeLocalWebRtcDescription(peer.localDescription!.toJSON())
+
+      const postRes = await fetch(`${this.apiBase}/api/runtime/webrtc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...this.signalHeaders() },
+        body: JSON.stringify({ action: 'answer', roomId: obsRoomId, sdp: answer }),
+      })
+
+      if (!postRes.ok && this.observerPc === peer) {
+        this.closeObserver()
+      }
+      return postRes.ok
+    } finally {
+      this.observerAnswering = false
     }
   }
 

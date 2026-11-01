@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useState } from 'react'
 import { LuActivity, LuChevronRight, LuX } from 'react-icons/lu'
 
 type PerformanceHudProps = {
@@ -8,69 +8,27 @@ type PerformanceHudProps = {
   idle?: boolean
   isStandalone?: boolean
   latencyMs?: number | null
+  fps?: number | null
   videoResolution?: { width: number; height: number } | null
   status: 'connecting' | 'connected' | 'disconnected'
   muted: boolean
   onClose?: () => void
 }
 
-export function PerformanceHud({
-  visible,
-  idle = false,
-  isStandalone = false,
-  latencyMs,
-  videoResolution,
-  status,
-  muted,
-  onClose,
-}: PerformanceHudProps) {
-  const [fps, setFps] = useState<number>(60)
+export function PerformanceHud({ visible, idle = false, isStandalone = false, latencyMs, fps = null, videoResolution, status, muted, onClose }: PerformanceHudProps) {
   const [expanded, setExpanded] = useState<boolean>(false)
-  const frameCountRef = useRef(0)
-  const lastTimeRef = useRef(performance.now())
-  const rafRef = useRef<number | null>(null)
-
-  useEffect(() => {
-    if (!visible) return
-    let active = true
-
-    const loop = (time: number) => {
-      if (!active) return
-      frameCountRef.current += 1
-      if (time - lastTimeRef.current >= 1000) {
-        const currentFps = Math.round((frameCountRef.current * 1000) / (time - lastTimeRef.current))
-        setFps(Math.min(120, currentFps))
-        frameCountRef.current = 0
-        lastTimeRef.current = time
-      }
-      rafRef.current = requestAnimationFrame(loop)
-    }
-
-    rafRef.current = requestAnimationFrame(loop)
-    return () => {
-      active = false
-      if (rafRef.current) cancelAnimationFrame(rafRef.current)
-    }
-  }, [visible])
 
   if (!visible) return null
 
-  const latencyColor =
-    latencyMs == null
-      ? 'text-neutral-400'
-      : latencyMs < 35
-      ? 'text-emerald-400'
-      : latencyMs < 80
-      ? 'text-amber-400'
-      : 'text-rose-400'
+  const latencyColor = latencyMs == null ? 'text-neutral-400' : latencyMs < 35 ? 'text-emerald-400' : latencyMs < 80 ? 'text-amber-400' : 'text-rose-400'
 
-  const fpsColor = fps >= 55 ? 'text-emerald-400' : fps >= 30 ? 'text-amber-400' : 'text-rose-400'
+  const fpsColor = fps == null ? 'text-neutral-400' : fps >= 55 ? 'text-emerald-400' : fps >= 30 ? 'text-amber-400' : 'text-rose-400'
 
   return (
     <div
       style={{
-        left: "max(0.625rem, env(safe-area-inset-left))",
-        top: "max(0.5rem, env(safe-area-inset-top))",
+        left: 'max(0.625rem, env(safe-area-inset-left))',
+        top: 'max(0.5rem, env(safe-area-inset-top))',
       }}
       className={`pointer-events-auto fixed z-40 select-none transition-all duration-300 ${
         idle && !expanded ? 'opacity-35 hover:opacity-100 active:opacity-100' : 'opacity-85 hover:opacity-100 active:opacity-100'
@@ -85,12 +43,10 @@ export function PerformanceHud({
           title="点击展开实时性能监控 (FPS / 延迟 / 分辨率)"
         >
           <span className={`${fpsColor} font-semibold whitespace-nowrap shrink-0`}>
-            {fps} <span className="text-[9px] text-neutral-400 font-sans">FPS</span>
+            {fps ?? '--'} <span className="text-[9px] text-neutral-400 font-sans">FPS</span>
           </span>
           <span className="text-white/20">·</span>
-          <span className={`${latencyColor} whitespace-nowrap shrink-0`}>
-            {latencyMs != null ? `${latencyMs}ms` : '--'}
-          </span>
+          <span className={`${latencyColor} whitespace-nowrap shrink-0`}>{latencyMs != null ? `${latencyMs}ms` : '--'}</span>
           <LuChevronRight size={10} className="text-neutral-500 group-hover:text-white transition-colors shrink-0" />
         </button>
       ) : (
@@ -104,7 +60,7 @@ export function PerformanceHud({
           <span className="h-3 w-[1px] bg-white/10 shrink-0" />
 
           <span className={`${fpsColor} whitespace-nowrap shrink-0`} title="实时渲染帧率">
-            {fps} <span className="text-[10px] text-neutral-500 font-sans">FPS</span>
+            {fps ?? '--'} <span className="text-[10px] text-neutral-500 font-sans">FPS</span>
           </span>
 
           <span className="h-3 w-[1px] bg-white/10 shrink-0" />
@@ -127,8 +83,10 @@ export function PerformanceHud({
 
           <span className="h-3 w-[1px] bg-white/10 shrink-0" />
 
-          <span className={isStandalone ? "text-emerald-400 text-[10px] font-sans whitespace-nowrap shrink-0" : "text-neutral-400 text-[10px] font-sans whitespace-nowrap shrink-0"}>
-            {isStandalone ? "PWA" : "网页"}
+          <span
+            className={isStandalone ? 'text-emerald-400 text-[10px] font-sans whitespace-nowrap shrink-0' : 'text-neutral-400 text-[10px] font-sans whitespace-nowrap shrink-0'}
+          >
+            {isStandalone ? 'PWA' : '网页'}
           </span>
 
           <button

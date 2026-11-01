@@ -2,12 +2,7 @@ import { NextResponse } from 'next/server'
 
 import { defineApiRoute } from '@/initializer/controller'
 import { json } from '@/initializer/response'
-import {
-  checkAndReclaimIdleInstances,
-  DEFAULT_IDLE_TIMEOUT_SECONDS,
-  listCloudGameInstances,
-  terminateCloudGameInstance,
-} from '@/services/runtime/game-instance-manager'
+import { checkAndReclaimIdleInstances, DEFAULT_IDLE_TIMEOUT_SECONDS, listCloudGameInstances, terminateCloudGameInstance } from '@/services/runtime/game-instance-manager'
 
 export const runtime = 'nodejs'
 

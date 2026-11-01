@@ -27,12 +27,7 @@ export function RemoteShell({ children }: { children: ReactNode }) {
               return (
                 <li key={item.id}>
                   <Tooltip content={label} placement="right">
-                    <Link
-                      href={item.href}
-                      aria-label={label}
-                      aria-current={active ? 'page' : undefined}
-                      className={sectionSideNavItemClass(active)}
-                    >
+                    <Link href={item.href} aria-label={label} aria-current={active ? 'page' : undefined} className={sectionSideNavItemClass(active)}>
                       <SectionSideNavItemContent active={active} icon={<Icon size={17} />} />
                     </Link>
                   </Tooltip>

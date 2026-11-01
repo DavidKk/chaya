@@ -5,9 +5,9 @@ import { type ActorDraft, countKey, GOLD_LOCK_KEY, type ItemKind, lockKeyForActo
 import type { CatalogEntry, GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 
 import { itemLabel, tName } from '../console/item-label'
+import { getAutoTalk } from '../runtime/auto-talk'
 import { Cheats } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
-import { getAutoTalk } from '../runtime/auto-talk'
 
 /** 局内面板只读当前页。`items` / `events` / `full` 仍扫三类持有数；单页用 `item` / `weapon` / `armor`。 */
 export type LiveSessionScope = 'run' | 'item' | 'weapon' | 'armor' | 'items' | 'vars' | 'switches' | 'actors' | 'events' | 'full'

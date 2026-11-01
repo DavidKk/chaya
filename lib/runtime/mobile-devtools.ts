@@ -36,6 +36,7 @@ export async function initErudaMobileDevTools(): Promise<boolean> {
     return true
   } catch (err) {
     if (process.env.NODE_ENV !== 'test') {
+      // eslint-disable-next-line no-console
       console.error('Failed to initialize eruda mobile devtools', err)
     }
     return false

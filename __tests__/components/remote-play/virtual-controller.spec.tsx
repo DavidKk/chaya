@@ -69,15 +69,7 @@ describe('VirtualController (analog joystick & action buttons)', () => {
     const onAction = jest.fn()
     const onOpenDrawer = jest.fn()
     act(() => {
-      root.render(
-        <VirtualController
-          onInput={onInput}
-          onAction={onAction}
-          onOpenDrawer={onOpenDrawer}
-          visible={true}
-          mode="fixed"
-        />
-      )
+      root.render(<VirtualController onInput={onInput} onAction={onAction} onOpenDrawer={onOpenDrawer} visible={true} mode="fixed" />)
     })
 
     // Initially collapsed
@@ -242,10 +234,10 @@ describe('VirtualController (analog joystick & action buttons)', () => {
 
     const joystick = host.querySelector('[role="slider"][aria-label="虚拟摇杆"]')
     expect(joystick).not.toBeNull()
-    expect(joystick?.className).toContain('h-32 w-32')
+    expect(joystick?.className).toContain('h-28 w-28')
 
     const confirmBtn = host.querySelector('button[aria-label="确认"]')
-    expect(confirmBtn?.className).toContain('h-12 w-12')
+    expect(confirmBtn?.className).toContain('h-11 w-11')
   })
 
   it('renders single-right mode with comfortable margins away from screen edge', () => {

@@ -2,7 +2,7 @@
  * Auto-talk: prefer Message.autoFlg when present; else hook Window_Message methods.
  */
 
-import { gameMessage } from "./game-globals"
+import { gameMessage } from './game-globals'
 
 type AutoTalkState = {
   fallback: boolean
@@ -19,7 +19,7 @@ export function getAutoTalkState() {
 
 function messageAutoApi() {
   const message = gameMessage()
-  return message && typeof message.setAutoFlg === "function" && typeof message.autoFlg === "function" ? message : null
+  return message && typeof message.setAutoFlg === 'function' && typeof message.autoFlg === 'function' ? message : null
 }
 
 export function getAutoTalk(): boolean {
@@ -57,23 +57,23 @@ type WindowMessageProto = typeof Window_Message.prototype & {
 let pendingHookTimer: ReturnType<typeof setInterval> | null = null
 
 function hasBlockingSubWindow(win: WindowMessageProto): boolean {
-  if (typeof win.isAnySubWindowActive === "function" && win.isAnySubWindowActive()) {
+  if (typeof win.isAnySubWindowActive === 'function' && win.isAnySubWindowActive()) {
     return true
   }
   const msg = gameMessage()
   if (msg) {
-    if (typeof msg.isChoice === "function" && msg.isChoice()) return true
-    if (typeof msg.isNumberInput === "function" && msg.isNumberInput()) return true
-    if (typeof msg.isItemChoice === "function" && msg.isItemChoice()) return true
+    if (typeof msg.isChoice === 'function' && msg.isChoice()) return true
+    if (typeof msg.isNumberInput === 'function' && msg.isNumberInput()) return true
+    if (typeof msg.isItemChoice === 'function' && msg.isItemChoice()) return true
   }
   return false
 }
 
 export function ensureAutoTalkFallback() {
-  if (typeof Window_Message === "undefined" || !Window_Message.prototype) {
-    if (!pendingHookTimer && typeof window !== "undefined") {
+  if (typeof Window_Message === 'undefined' || !Window_Message.prototype) {
+    if (!pendingHookTimer && typeof window !== 'undefined') {
       pendingHookTimer = setInterval(() => {
-        if (typeof Window_Message !== "undefined" && Window_Message.prototype) {
+        if (typeof Window_Message !== 'undefined' && Window_Message.prototype) {
           if (pendingHookTimer) clearInterval(pendingHookTimer)
           pendingHookTimer = null
           ensureAutoTalkFallback()
@@ -103,7 +103,7 @@ export function ensureAutoTalkFallback() {
     if (getAutoTalk()) {
       this._showFast = true
     }
-    if (typeof origUpdateShowFast === "function") {
+    if (typeof origUpdateShowFast === 'function') {
       origUpdateShowFast.apply(this, arguments as unknown as [])
     }
   }
@@ -112,12 +112,12 @@ export function ensureAutoTalkFallback() {
   const origUpdateWait = proto.updateWait
   proto.updateWait = function (this: WindowMessageProto) {
     if (getAutoTalk() && !this.pause) {
-      if (typeof this._waitCount === "number" && this._waitCount > 0) {
+      if (typeof this._waitCount === 'number' && this._waitCount > 0) {
         this._waitCount = 0
         this._showFast = true
       }
     }
-    return typeof origUpdateWait === "function" ? origUpdateWait.apply(this, arguments as unknown as []) : false
+    return typeof origUpdateWait === 'function' ? origUpdateWait.apply(this, arguments as unknown as []) : false
   }
 
   // 3. Hook updateInput: advance dialogue once text finishes typing and is waiting for player confirm
@@ -130,10 +130,10 @@ export function ensureAutoTalkFallback() {
         if (this._geAutoWait <= 0) {
           this._geAutoWait = null
           this.pause = false
-          if (!this._textState && typeof this.terminateMessage === "function") {
+          if (!this._textState && typeof this.terminateMessage === 'function') {
             this.terminateMessage()
           }
-          if (typeof Input !== "undefined" && typeof Input.update === "function") {
+          if (typeof Input !== 'undefined' && typeof Input.update === 'function') {
             Input.update()
           }
           return true
@@ -145,7 +145,7 @@ export function ensureAutoTalkFallback() {
       this._geAutoWait = null
     }
 
-    return typeof origUpdateInput === "function" ? origUpdateInput.apply(this, arguments as unknown as []) : false
+    return typeof origUpdateInput === 'function' ? origUpdateInput.apply(this, arguments as unknown as []) : false
   }
 
   // 4. Hook isTriggered: fallback for other plugins or third-party engines calling isTriggered
@@ -156,11 +156,11 @@ export function ensureAutoTalkFallback() {
         return true
       }
     }
-    return typeof origIsTriggered === "function" ? origIsTriggered.apply(this, arguments as unknown as []) : false
+    return typeof origIsTriggered === 'function' ? origIsTriggered.apply(this, arguments as unknown as []) : false
   }
 }
 
 // Ensure hooks are installed if Window_Message is already available at evaluation time
-if (typeof window !== "undefined") {
+if (typeof window !== 'undefined') {
   ensureAutoTalkFallback()
 }

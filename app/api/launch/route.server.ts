@@ -16,23 +16,30 @@ import { findRunningJob } from '@/services/downloads/jobs'
 import { ensureGameAppIcon, updateSharedMacAppIcon } from '@/services/game/app-icon'
 import { findRunningGameProcesses, terminateAllRunningGameProcesses } from '@/services/game/game-process'
 import { pathEquals } from '@/services/game/library'
-import { launchRgss, quitRgss } from '@/services/game/rgss-runtime'
+import { launchRgss, quitRgss, rgssRuntimeStatus } from '@/services/game/rgss-runtime'
 import { anyWebConnected, clearGameQuitRequest, getGamePresence, preferredPluginApiBase, requestGameQuit, toolkitListenPort, writeLaunchEnv } from '@/services/runtime'
+import { terminateCloudGameInstance } from '@/services/runtime/game-instance-manager'
+import { recordGameLaunch } from '@/services/runtime/playable-games'
+import { readRemotePlayHostSettings } from '@/services/runtime/remote-play-settings.server'
 
 export const runtime = 'nodejs'
 
 /** Launch: Ensure loader, environment, and disk cache, then launch shell or open directory. */
 export const POST = defineApiRoute('post:/api/launch', async ({ request }) => {
-  let mode: 'silent' | 'windowed' = 'windowed'
-  try {
-    const raw = await request.clone().json()
-    if (raw && typeof raw === 'object' && raw.mode === 'silent') {
-      mode = 'silent'
-    }
-  } catch {}
-  const isSilent = mode === 'silent'
   const denied = requireDisk()
   if (denied) return denied
+
+  let mode: 'silent' | 'windowed' = 'windowed'
+  let muteHostAudio: boolean | undefined
+  const raw = await request.json().catch(() => null)
+  if (raw && typeof raw === 'object' && raw.remotePlay === true) {
+    const settings = readRemotePlayHostSettings()
+    mode = settings.launchMode
+    muteHostAudio = settings.muteHostAudio
+  } else if (raw && typeof raw === 'object' && raw.mode === 'silent') {
+    mode = 'silent'
+  }
+  const isSilent = mode === 'silent'
 
   let resolved = getResolvedFromConfig()
   if (!resolved.ok) return apiBadRequest(resolved.error || 'No game bound yet')
@@ -40,10 +47,35 @@ export const POST = defineApiRoute('post:/api/launch', async ({ request }) => {
   if (resolved.engine === 'VX Ace' || resolved.engine === 'VX') {
     if (findRunningJob('rgss-shell')) return apiError(409, 'SHELL_JOB_RUNNING', 'mkxp-z installation is in progress')
     if (!resolved.hasShell) return apiBadRequest('Install the native mkxp-z runtime to launch VX / VX Ace on macOS', 'RGSS_RUNTIME_MISSING')
-    // Terminate any running game processes before launching MKXP-Z
-    await terminateAllRunningGameProcesses()
+
+    const targetContentRoot = resolved.contentRoot
+    const targetShellApp = resolved.shellApp
+    const rgssStatus = rgssRuntimeStatus(targetContentRoot)
+    const runningProcesses = findRunningGameProcesses(targetContentRoot)
+    const isSameGameRunning = rgssStatus.running || runningProcesses.length > 0
+
+    if (isSameGameRunning) {
+      const apiBase = preferredPluginApiBase(toolkitListenPort())
+      return apiOk({
+        path: targetShellApp,
+        contentRoot: targetContentRoot,
+        mode: 'already-running',
+        alreadyRunning: true,
+        roomId: rgssStatus.roomId,
+        engine: resolved.engine,
+        apiBase,
+      })
+    }
+
+    // Switching or launching a new game: ensure previous instances are terminated
+    await terminateCloudGameInstance()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    clearGameQuitRequest()
+
     try {
-      return apiOk(await launchRgss(resolved))
+      const result = await launchRgss(resolved, { silent: isSilent, ...(muteHostAudio !== undefined ? { muteHostAudio } : {}) })
+      recordGameLaunch(targetContentRoot, raw?.remotePlay === true || isSilent ? 'cloud' : 'local')
+      return apiOk(result)
     } catch (error) {
       return apiError(500, 'LAUNCH_FAILED', error instanceof Error ? error.message : String(error))
     }
@@ -56,9 +88,7 @@ export const POST = defineApiRoute('post:/api/launch', async ({ request }) => {
   const runningProcesses = findRunningGameProcesses()
   const targetContentRoot = resolved.ok ? resolved.contentRoot : undefined
   const targetShellApp = resolved.ok ? resolved.shellApp : ''
-  const isSameGameRunning = runningProcesses.some(
-    (p) => !targetContentRoot || !p.contentRoot || pathEquals(p.contentRoot, targetContentRoot)
-  )
+  const isSameGameRunning = runningProcesses.some((p) => !targetContentRoot || !p.contentRoot || pathEquals(p.contentRoot, targetContentRoot))
   const presence = getGamePresence()
   const isSamePresenceOnline = presence.online && (!targetContentRoot || !presence.contentRoot || pathEquals(presence.contentRoot, targetContentRoot))
 
@@ -74,10 +104,10 @@ export const POST = defineApiRoute('post:/api/launch', async ({ request }) => {
     })
   }
 
-  // Switching or launching a new game: ensure previous instances are terminated
+  // Switching or launching a new game: ensure previous cloud instances are terminated
   if (runningProcesses.length > 0) {
-    await terminateAllRunningGameProcesses()
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    await terminateCloudGameInstance()
+    await new Promise((resolve) => setTimeout(resolve, 300))
   }
   clearGameQuitRequest()
 
@@ -121,10 +151,11 @@ export const POST = defineApiRoute('post:/api/launch', async ({ request }) => {
     if (plugins.pluginsJsParseFailed) {
       return apiError(500, 'PLUGINS_JS_PARSE_FAILED', `Failed to parse js/plugins.js ($plugins array format invalid): ${resolved.contentRoot}`)
     }
-    const { env, session } = writeLaunchEnv(resolved, apiBase, { silentMode: isSilent })
+    const { env, session } = writeLaunchEnv(resolved, apiBase, { silentMode: isSilent, ...(muteHostAudio !== undefined ? { muteHostAudio } : {}) })
 
     if (resolved.bundled) {
       await openInFinder(resolved.shellApp)
+      recordGameLaunch(resolved.contentRoot, raw?.remotePlay === true || isSilent ? 'cloud' : 'local')
       return apiOk({
         path: resolved.shellApp,
         mode: 'bundled',
@@ -149,6 +180,7 @@ export const POST = defineApiRoute('post:/api/launch', async ({ request }) => {
       }
     }
     await launchShellWithContent(resolved.shellApp, resolved.contentRoot, { silent: isSilent })
+    recordGameLaunch(resolved.contentRoot, raw?.remotePlay === true || isSilent ? 'cloud' : 'local')
     return apiOk({
       path: resolved.shellApp,
       contentRoot: resolved.contentRoot,

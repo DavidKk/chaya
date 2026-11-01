@@ -259,6 +259,14 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     }),
   },
   {
+    name: 'chaya_live_events',
+    readOnly: true,
+    group: 'live',
+    title: 'Running event diagnostics',
+    description: 'Read active map, common and nested event interpreters, command positions, waits and movement routes. Does not advance or restart events.',
+    inputSchema: obj({ gameId }),
+  },
+  {
     name: 'chaya_live_ui',
     readOnly: true,
     group: 'live',

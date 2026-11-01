@@ -1,7 +1,9 @@
 import type { EventsMessages } from '@/lib/i18n/messages/events-types'
+import { eventCurrentZh } from '@/lib/i18n/messages/parts/event-current'
 
 export const eventsZh: { events: EventsMessages } = {
   events: {
+    current: eventCurrentZh,
     tabCommon: '公共事件',
     tabMap: '地图',
     tabTroop: '敌群',

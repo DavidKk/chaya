@@ -124,10 +124,54 @@ describe('SDP LAN IP patch and codec optimization', () => {
   })
 
   it('exposes detected clientIp on GET /api/runtime/webrtc', async () => {
-    const res = await GET(new Request('http://localhost/api/runtime/webrtc?roomId=test-room', {
-      headers: { 'X-Real-IP': '192.168.31.77', 'X-Chaya-Link-Token': OWNER },
-    }), ctx)
+    const res = await GET(
+      new Request('http://localhost/api/runtime/webrtc?roomId=test-room', {
+        headers: { 'X-Real-IP': '192.168.31.77', 'X-Chaya-Link-Token': OWNER },
+      }),
+      ctx
+    )
     const data = await res.json()
     expect(data.clientIp).toBe('192.168.31.77')
+  })
+  it('supports spectator peers alongside primary controller offer and answer', async () => {
+    // 1. Controller establishes room
+    await post({ action: 'offer', roomId: 'game-room', sdp: offer }, OWNER)
+    await post({ action: 'answer', roomId: 'game-room', sdp: answer }, OWNER)
+    await post({ action: 'connected', roomId: 'game-room', connected: true }, OWNER)
+
+    // 2. Spectator joins with peerId
+    const specOffer = { type: 'offer', sdp: 'v=0 spectator offer' }
+    const specPostRes = await post({ action: 'offer', roomId: 'game-room', peerId: 'spec-1', role: 'spectator', sdp: specOffer }, OWNER)
+    expect(specPostRes.status).toBe(200)
+
+    // 3. Game inspects room and sees spectator in list
+    const roomRes = await get('game-room', OWNER)
+    const roomData = await roomRes.json()
+    expect(roomData.room.offer.sdp).toBe(offer.sdp)
+    expect(roomData.room.answer.sdp).toBe(answer.sdp)
+    expect(roomData.room.webConnected).toBe(true)
+    expect(roomData.room.spectators).toHaveLength(1)
+    expect(roomData.room.spectators[0].peerId).toBe('spec-1')
+    expect(roomData.room.spectators[0].offer.sdp).toBe(specOffer.sdp)
+
+    // 4. Game answers spectator
+    const specAnswer = { type: 'answer', sdp: 'v=0 spectator answer' }
+    await post({ action: 'answer', roomId: 'game-room', peerId: 'spec-1', sdp: specAnswer }, OWNER)
+
+    // 5. Spectator retrieves its answer
+    const specGetRes = await GET(
+      new Request('http://localhost/api/runtime/webrtc?roomId=game-room&peerId=spec-1', {
+        headers: { 'X-Chaya-Link-Token': OWNER },
+      }),
+      ctx
+    )
+    const specGetData = await specGetRes.json()
+    expect(specGetData.room.answer.sdp).toBe(specAnswer.sdp)
+
+    // 6. Reset spectator peer leaves controller untouched
+    await post({ action: 'reset', roomId: 'game-room', peerId: 'spec-1' }, OWNER)
+    const afterReset = await (await get('game-room', OWNER)).json()
+    expect(afterReset.room.spectators).toHaveLength(0)
+    expect(afterReset.room.offer.sdp).toBe(offer.sdp)
   })
 })

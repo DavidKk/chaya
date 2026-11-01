@@ -125,3 +125,12 @@ it('stops polling for an answer after the wait window', async () => {
   expect(later).toBe(gets)
   link.stop()
 })
+
+it('connects as a spectator peer without resetting primary room offer', async () => {
+  room = { webConnected: true, updatedAt: Date.now() }
+  const link = new WebGameLink('walk')
+  await link.start({ role: 'spectator', peerId: 'spec-test-1', enableMedia: true })
+  expect(actions).toEqual(['offer'])
+  expect(posts[0]).toEqual(expect.objectContaining({ action: 'offer', peerId: 'spec-test-1', role: 'spectator' }))
+  link.stop()
+})

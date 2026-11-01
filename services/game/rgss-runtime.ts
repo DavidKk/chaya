@@ -15,7 +15,7 @@ import { prepareSeedInventory } from '@/services/translate/scheduler/seed-prepar
 import { ensureGameAppIcon, updateSharedMacAppIcon } from './app-icon'
 import { loadConfig } from './config'
 import { findLibraryEntry } from './library'
-import { detectRgssPlugins } from './rgss-plugins'
+import { detectRgssPlugins, detectRgssPluginsOutdated, installRgssPlugins } from './rgss-plugins'
 import { spawnRgssProcess } from './rgss-process'
 
 type Session = { child?: ChildProcess; running: boolean; starting: boolean; logPath: string; error?: string; tail: string; quitting?: boolean; roomId?: string; token?: string }
@@ -77,6 +77,20 @@ export function rgssRuntimeStatus(contentRoot: string) {
   }
 }
 
+export function findRgssSessionByPid(pid: number): { root: string; session: Session } | undefined {
+  for (const [root, s] of sessions().entries()) {
+    if (s.child?.pid === pid) return { root, session: s }
+  }
+  return undefined
+}
+
+export function findRgssSessionByRoomId(roomId: string): { root: string; session: Session } | undefined {
+  for (const [root, s] of sessions().entries()) {
+    if (s.roomId === roomId) return { root, session: s }
+  }
+  return undefined
+}
+
 export function anyRgssRunning(): boolean {
   return [...sessions().values()].some((session) => session.running || session.starting)
 }
@@ -90,11 +104,20 @@ export function uninstallRgssRuntime() {
   return { removed: [installed] }
 }
 
-export async function launchRgss(resolved: ResolvedGame) {
+export async function launchRgss(resolved: ResolvedGame, options?: { silent?: boolean; muteHostAudio?: boolean }) {
+  const isSilent = Boolean(options?.silent)
+  const muteHostAudio = options?.muteHostAudio ?? isSilent
   const root = path.resolve(resolved.contentRoot)
   if (anyRgssRunning()) throw new Error('An RGSS game is already running or starting')
   if (!['darwin', 'win32'].includes(process.platform)) throw new Error('Native RGSS launch is currently supported on macOS and Windows only')
   if (!detectRgssPlugins(root).every((plugin) => plugin.registered && plugin.fileExists)) throw new Error('Install the RGSS plugin before launching the game')
+  if (detectRgssPluginsOutdated(root)) {
+    try {
+      installRgssPlugins(root)
+    } catch (e) {
+      process.emitWarning('Failed to auto-update outdated RGSS plugins: ' + e)
+    }
+  }
   const key = createHash('sha256').update(root).digest('hex').slice(0, 24)
   const sessionDir = path.join(toolkitRgssDir(), 'games', key)
   fs.mkdirSync(sessionDir, { recursive: true })
@@ -125,7 +148,7 @@ export async function launchRgss(resolved: ResolvedGame) {
 <key>CFBundleIdentifier</key><string>app.chaya.rgss.${key}</string>
 <key>CFBundleName</key><string>Chaya RGSS</string>
 <key>CFBundlePackageType</key><string>APPL</string>
-<key>NSHighResolutionCapable</key><true/>
+<key>NSHighResolutionCapable</key><true/>${isSilent ? '\n<key>LSUIElement</key><true/>' : ''}
 </dict></plist>`
       )
       fs.copyFileSync(installed, `${binary}.new`, fs.constants.COPYFILE_FICLONE)
@@ -207,6 +230,9 @@ export async function launchRgss(resolved: ResolvedGame) {
             allowSymlinks: true,
             winResizable: true,
             fixedAspectRatio: true,
+            fixedFramerate: 60,
+            syncToRefreshrate: false,
+            frameSkip: false,
             RTP: hasMountedFont ? [fontResources] : [],
             rubyLoadpath: [path.join(path.dirname(installed), 'stdlib')],
             preloadScript: [preload],
@@ -218,7 +244,7 @@ export async function launchRgss(resolved: ResolvedGame) {
     }
     fs.writeFileSync(state.logPath, `Chaya native RGSS: ${new Date().toISOString()}\n${root}\n`)
     const config = loadConfig()
-    const gameRoot = String(config.gameRoot || resolved.selected || resolved.contentRoot || '').trim()
+    const gameRoot = String(resolved.contentRoot || resolved.selected || config.gameRoot || '').trim()
     const entry = findLibraryEntry(config.library, gameRoot)
     state.roomId = entry?.id || `rgss-${randomUUID()}`
     state.token = issueLaunchToken({ gameRoot: root, libraryId: state.roomId }).token
@@ -242,6 +268,14 @@ export async function launchRgss(resolved: ResolvedGame) {
           CHAYA_RGSS_ROOM: state.roomId || '',
           CHAYA_RGSS_TOKEN: state.token || '',
           CHAYA_RGSS_TRANSLATION_DEBUG: '1',
+          CHAYA_RGSS_SILENT: isSilent ? '1' : '0',
+          CHAYA_SILENT_MODE: isSilent ? '1' : '0',
+          CHAYA_MUTE_HOST_AUDIO: muteHostAudio ? '1' : '0',
+          ...(muteHostAudio
+            ? {
+                ALSOFT_DEFAULT_GAIN: '0.0',
+              }
+            : {}),
         },
       },
       state.logPath
@@ -296,7 +330,7 @@ export async function launchRgss(resolved: ResolvedGame) {
     await new Promise((resolve) => setTimeout(resolve, 1_500))
     state.starting = false
     if (state.error || !state.running) throw new Error(state.error || state.tail.trim() || 'The RGSS process exited during startup')
-    return { path: binary, contentRoot: root, mode: 'native-rgss', engine: resolved.engine, pid: child.pid, logPath: state.logPath }
+    return { path: binary, contentRoot: root, mode: 'native-rgss', engine: resolved.engine, pid: child.pid, logPath: state.logPath, roomId: state.roomId }
   } catch (error) {
     if (state.token) clearLaunchToken(state.token)
     if (state.roomId) disconnectAgentGame(state.roomId)

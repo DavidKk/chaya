@@ -407,6 +407,11 @@ export function MapDetail({ node, data, slot, session, near }: { node: MapNode; 
                   </div>
                   <div className={editCell} data-list-cell="">
                     <StateBadge state={eventStateOf(ev, detail, session)} />
+                    {slot.live && slot.eventActivity?.entries.some((entry) => entry.mapId === node.id && entry.eventId === ev.id && entry.commonEventId == null) ? (
+                      <Badge dot={false} tone="ok">
+                        {t('events.running')}
+                      </Badge>
+                    ) : null}
                   </div>
                 </div>
               )

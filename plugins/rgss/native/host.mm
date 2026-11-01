@@ -1,8 +1,128 @@
 #import <Cocoa/Cocoa.h>
 #import <WebKit/WebKit.h>
+#import <objc/runtime.h>
+#import "window-capture.h"
 #include <deque>
 #include <mutex>
 #include <string>
+
+static BOOL IsSilentMode(void) {
+  const char *s1 = getenv("CHAYA_RGSS_SILENT");
+  const char *s2 = getenv("CHAYA_SILENT_MODE");
+  return (s1 && strcmp(s1, "1") == 0) || (s2 && strcmp(s2, "1") == 0);
+}
+
+static void SwizzleMethod(Class cls, SEL origSel, SEL newSel) {
+  Method origMethod = class_getInstanceMethod(cls, origSel);
+  Method newMethod = class_getInstanceMethod(cls, newSel);
+  if (!origMethod || !newMethod) return;
+  if (class_addMethod(cls, origSel, method_getImplementation(newMethod), method_getTypeEncoding(newMethod))) {
+    class_replaceMethod(cls, newSel, method_getImplementation(origMethod), method_getTypeEncoding(origMethod));
+  } else {
+    method_exchangeImplementations(origMethod, newMethod);
+  }
+}
+
+@interface NSWindow (ChayaSilent)
+- (void)chaya_makeKeyAndOrderFront:(id)sender;
+- (void)chaya_orderFront:(id)sender;
+- (void)chaya_orderFrontRegardless;
+- (void)chaya_setFrame:(NSRect)frameRect display:(BOOL)flag;
+@end
+
+// Offscreen windows must stay opaque: alpha zero stops ScreenCaptureKit updates.
+@implementation NSWindow (ChayaSilent)
+- (void)chaya_makeKeyAndOrderFront:(id)sender {
+  if (IsSilentMode()) {
+    [self setAlphaValue:1.0];
+    [self setIgnoresMouseEvents:YES];
+    [self setCollectionBehavior:NSWindowCollectionBehaviorMoveToActiveSpace | NSWindowCollectionBehaviorTransient];
+    [self setFrame:NSMakeRect(-20000, -20000, self.frame.size.width, self.frame.size.height) display:NO];
+    [self orderBack:nil];
+    return;
+  }
+  [self chaya_makeKeyAndOrderFront:sender];
+}
+
+- (void)chaya_orderFront:(id)sender {
+  if (IsSilentMode()) {
+    [self setAlphaValue:1.0];
+    [self setIgnoresMouseEvents:YES];
+    [self setCollectionBehavior:NSWindowCollectionBehaviorMoveToActiveSpace | NSWindowCollectionBehaviorTransient];
+    [self setFrame:NSMakeRect(-20000, -20000, self.frame.size.width, self.frame.size.height) display:NO];
+    [self orderBack:nil];
+    return;
+  }
+  [self chaya_orderFront:sender];
+}
+
+- (void)chaya_orderFrontRegardless {
+  if (IsSilentMode()) {
+    [self setAlphaValue:1.0];
+    [self setIgnoresMouseEvents:YES];
+    [self setCollectionBehavior:NSWindowCollectionBehaviorMoveToActiveSpace | NSWindowCollectionBehaviorTransient];
+    [self setFrame:NSMakeRect(-20000, -20000, self.frame.size.width, self.frame.size.height) display:NO];
+    [self orderBack:nil];
+    return;
+  }
+  [self chaya_orderFrontRegardless];
+}
+
+- (void)chaya_setFrame:(NSRect)frameRect display:(BOOL)flag {
+  if (IsSilentMode()) {
+    frameRect.origin = NSMakePoint(-20000, -20000);
+    [self chaya_setFrame:frameRect display:NO];
+    [self setAlphaValue:1.0];
+    [self setIgnoresMouseEvents:YES];
+    return;
+  }
+  [self chaya_setFrame:frameRect display:flag];
+}
+@end
+
+@interface NSApplication (ChayaSilent)
+- (void)chaya_activateIgnoringOtherApps:(BOOL)flag;
+@end
+
+@implementation NSApplication (ChayaSilent)
+- (void)chaya_activateIgnoringOtherApps:(BOOL)flag {
+  if (IsSilentMode()) {
+    return;
+  }
+  [self chaya_activateIgnoringOtherApps:flag];
+}
+@end
+
+__attribute__((constructor))
+static void ChayaNativeHostInit(void) {
+  if (IsSilentMode()) {
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+      Class winCls = [NSWindow class];
+      SwizzleMethod(winCls, @selector(makeKeyAndOrderFront:), @selector(chaya_makeKeyAndOrderFront:));
+      SwizzleMethod(winCls, @selector(orderFront:), @selector(chaya_orderFront:));
+      SwizzleMethod(winCls, @selector(orderFrontRegardless), @selector(chaya_orderFrontRegardless));
+      SwizzleMethod(winCls, @selector(setFrame:display:), @selector(chaya_setFrame:display:));
+      Class appCls = [NSApplication class];
+      SwizzleMethod(appCls, @selector(activateIgnoringOtherApps:), @selector(chaya_activateIgnoringOtherApps:));
+    });
+    void (^hideWindows)(void) = ^{
+      [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+      for (NSWindow *w in NSApp.windows) {
+        [w setAlphaValue:1.0];
+        [w setIgnoresMouseEvents:YES];
+        [w setCollectionBehavior:NSWindowCollectionBehaviorMoveToActiveSpace | NSWindowCollectionBehaviorTransient];
+        [w setFrame:NSMakeRect(-20000, -20000, w.frame.size.width, w.frame.size.height) display:NO];
+        [w orderBack:nil];
+      }
+    };
+    if ([NSThread isMainThread]) {
+      hideWindows();
+    } else {
+      dispatch_async(dispatch_get_main_queue(), hideWindows);
+    }
+  }
+}
 
 // WebKit stays on AppKit's main thread. Ruby only exchanges bounded JSON queues.
 static std::mutex messagesMutex;
@@ -77,10 +197,19 @@ static void enqueue(NSString *text) {
 @property(nonatomic, strong) NSTimer *pointerTimer;
 @property(nonatomic, strong) NSNumber *pointerActive;
 @property(nonatomic, strong) NSMenuItem *editMenuItem;
+@property(nonatomic, strong) ChayaWindowCapture *capture;
 @end
 @implementation ChayaHost
 - (void)updatePointer {
   NSWindow *window = self.view.window;
+  if (IsSilentMode() && window) {
+    if (window.alphaValue != 1.0 || window.frame.origin.x != -20000) {
+      [window setAlphaValue:1.0];
+      [window setFrame:NSMakeRect(-20000, -20000, window.frame.size.width, window.frame.size.height) display:NO];
+      [window orderBack:nil];
+    }
+    return;
+  }
   NSPoint point = [window convertPointFromScreen:NSEvent.mouseLocation];
   point = [window.contentView convertPoint:point fromView:nil];
   BOOL active = window.isKeyWindow && [self.view containsInteractivePoint:point];
@@ -113,6 +242,24 @@ static void enqueue(NSString *text) {
   if (data.length > maxMessage) return;
   NSDictionary *packet = [NSJSONSerialization JSONObjectWithData:data options:0 error:nil];
   if (![packet isKindOfClass:NSDictionary.class]) return;
+  if ([packet[@"type"] isEqual:@"host.stream"]) {
+    [self.capture stop];
+    if ([packet[@"active"] boolValue] && self.view.window && [packet[@"generation"] isKindOfClass:NSString.class]) {
+      if (!self.capture) self.capture = [ChayaWindowCapture new];
+      __weak ChayaHost *weakHost = self;
+      [self.capture startWindow:self.view.window generation:packet[@"generation"] callback:^(NSDictionary *frame) {
+        NSData *json = [NSJSONSerialization dataWithJSONObject:frame options:0 error:nil];
+        NSString *argument = [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding];
+        if (argument) [weakHost.view evaluateJavaScript:[NSString stringWithFormat:@"window.__chaya_stream_frame?.(%@)", argument] completionHandler:nil];
+      }];
+    }
+    return;
+  }
+  if ([packet[@"type"] isEqual:@"host.stream.ack"]) {
+    if ([packet[@"generation"] isKindOfClass:NSString.class] && [packet[@"sequence"] isKindOfClass:NSNumber.class])
+      [self.capture acknowledge:packet[@"generation"] sequence:packet[@"sequence"]];
+    return;
+  }
   if ([packet[@"type"] isEqual:@"host.regions"]) {
     NSMutableArray *regions = [NSMutableArray array];
     NSArray *rects = packet[@"rects"];
@@ -145,7 +292,7 @@ static void enqueue(NSString *text) {
 - (void)attach {
   NSWindow *window = nil;
   for (NSWindow *candidate in NSApp.windows) {
-    if (candidate.visible && candidate.contentView && candidate.canBecomeKeyWindow) {
+    if (candidate.contentView) {
       if (candidate.contentView.bounds.size.width >= 320 && candidate.contentView.bounds.size.height >= 240) {
         window = candidate;
         break;
@@ -154,7 +301,17 @@ static void enqueue(NSString *text) {
   }
   if (!window) return;
   [self.attachTimer invalidate]; self.attachTimer = nil;
+  if (IsSilentMode()) {
+    [window setAlphaValue:1.0];
+    [window setIgnoresMouseEvents:YES];
+    [window setCollectionBehavior:NSWindowCollectionBehaviorMoveToActiveSpace | NSWindowCollectionBehaviorTransient];
+    [window setFrame:NSMakeRect(-20000, -20000, window.frame.size.width, window.frame.size.height) display:NO];
+    [window orderBack:nil];
+  }
   WKWebViewConfiguration *config = [WKWebViewConfiguration new];
+  [config.preferences setValue:@YES forKey:@"allowFileAccessFromFileURLs"];
+  [config setValue:@YES forKey:@"allowUniversalAccessFromFileURLs"];
+  [config.preferences setValue:@YES forKey:@"developerExtrasEnabled"];
   [config.userContentController addScriptMessageHandler:self name:@"chaya"];
   NSString *source = [@"window.__CHAYA_RGSS_CONFIG__=" stringByAppendingString:self.configuration];
   [config.userContentController addUserScript:[[WKUserScript alloc] initWithSource:source injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:YES]];
@@ -193,7 +350,8 @@ static void enqueue(NSString *text) {
     }
     return event;
   }];
-  [self.view loadFileURL:self.url allowingReadAccessToURL:[self.url URLByDeletingLastPathComponent]];
+  NSURL *accessUrl = [NSURL fileURLWithPath:@"/" isDirectory:YES];
+  [self.view loadFileURL:self.url allowingReadAccessToURL:accessUrl];
 }
 - (void)webView:(WKWebView *)view didFinishNavigation:(WKNavigation *)navigation {
   enqueue(@"{\"type\":\"host.ready\"}");
@@ -202,6 +360,7 @@ static void enqueue(NSString *text) {
   decision([action.request.URL.standardizedURL.path isEqual:self.url.standardizedURL.path] ? WKNavigationActionPolicyAllow : WKNavigationActionPolicyCancel);
 }
 - (void)dispose {
+  [self.capture stop]; self.capture = nil;
   [self.attachTimer invalidate]; self.attachTimer = nil;
   [self.pointerTimer invalidate]; self.pointerTimer = nil;
   if (self.editMenuItem) [NSApp.mainMenu removeItem:self.editMenuItem];

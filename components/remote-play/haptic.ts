@@ -58,8 +58,7 @@ class HapticEngine {
     // 1. Hardware vibration API (Android / Chrome / Firefox)
     try {
       if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
-        const duration =
-          type === 'selection' ? 8 : type === 'medium' ? 18 : type === 'heavy' ? 30 : 12
+        const duration = type === 'selection' ? 8 : type === 'medium' ? 18 : type === 'heavy' ? 30 : 12
         didHardwareVibrate = navigator.vibrate(duration)
       }
     } catch {
@@ -87,9 +86,7 @@ class HapticEngine {
 
   private playTactilePulse(type: HapticType) {
     try {
-      const AudioCtx =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
       if (!AudioCtx) return
 
       if (!this.audioCtx) {

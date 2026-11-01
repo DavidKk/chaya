@@ -2,6 +2,7 @@ import type { ScriptKey } from '@/lib/game/events/interpret'
 
 /** `events.*` messages: 修改 › 公共事件 / 地图 */
 export type EventsMessages = {
+  current: CurrentEventsMessages
   tabCommon: string
   tabMap: string
   tabTroop: string
@@ -99,6 +100,48 @@ export type EventsMessages = {
   troop: EventsTroopMessages
   battle: EventsBattleMessages
   cmd: Record<ScriptKey | 'textBy', string>
+}
+
+export type CurrentEventsMessages = {
+  title: string
+  none: string
+  orphaned: string
+  locate: string
+  position: string
+  skip: string
+  restart: string
+  skipTitle: string
+  restartTitle: string
+  skipWarning: string
+  restartWarning: string
+  applied: string
+  changed: string
+  child: string
+  message: string
+  unsupported: string
+  unstuck: string
+  unstuckSuccess: string
+  candidatesTitle: string
+  runCandidate: string
+  runCandidateTitle: string
+  runCandidateWarning: string
+  missingCondition: string
+  advance: string
+  advanceTitle: string
+  advanceWarning: string
+  advanceCandidate: string
+  advanceCandidateTitle: string
+  advanceCandidateWarning: string
+  badgeFaded: string
+  badgeTransparent: string
+  badgeLocked: string
+  returnPrevMap: string
+  returnPrevMapTitle: string
+  returnPrevMapWarning: string
+  tabRunning: string
+  tabCandidates: string
+  collapse: string
+  expand: string
 }
 
 export type EventsTroopMessages = {

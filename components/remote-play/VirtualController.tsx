@@ -1,20 +1,10 @@
 'use client'
 
 import React, { useEffect, useRef, useState } from 'react'
-import {
-  LuCircle,
-  LuFolderOpen,
-  LuMenu,
-  LuMessageSquareText,
-  LuPackage,
-  LuSave,
-  LuShield,
-  LuSlidersHorizontal,
-  LuX,
-} from 'react-icons/lu'
-import { useT } from '@/components/i18n/LocaleProvider'
+import { LuCircle, LuFolderOpen, LuMenu, LuMessageSquareText, LuPackage, LuSave, LuShield, LuX } from 'react-icons/lu'
 
 import type { RemoteInputKey } from '@/lib/runtime/game-link-protocol'
+
 import { haptic } from './haptic'
 
 export type ControlMode = 'fixed' | 'dynamic' | 'single-left' | 'single-right' | 'touch'
@@ -23,6 +13,7 @@ type VirtualControllerProps = {
   onInput: (key: RemoteInputKey, action: 'down' | 'up') => void
   onAction?: (actionId: string) => void
   onOpenDrawer?: () => void
+  _onOpenDrawer?: () => void
   visible?: boolean
   idle?: boolean
   isPortrait?: boolean
@@ -41,9 +32,9 @@ const SATELLITE_ORBIT_ANGLES = [110, 145, 180, 215, 250] // 5 satellite items fa
 export function VirtualController({
   onInput,
   onAction,
-  onOpenDrawer,
+  onOpenDrawer: _onOpenDrawer,
   visible = true,
-  idle = false,
+  idle: _idle = false,
   isPortrait = false,
   mode = 'fixed',
   opacity = 0.65,
@@ -53,7 +44,6 @@ export function VirtualController({
   const [isDragging, setIsDragging] = useState(false)
   const [dynamicOrigin, setDynamicOrigin] = useState<{ x: number; y: number } | null>(null)
   const [shortcutsExpanded, setShortcutsExpanded] = useState(false)
-  const t = useT()
   const baseRef = useRef<HTMLDivElement>(null)
   const activeDirsRef = useRef<Set<Direction>>(new Set())
 
@@ -66,8 +56,8 @@ export function VirtualController({
   const ballDragStartRef = useRef<{ clientX: number; clientY: number; startX: number; startY: number } | null>(null)
   const ballMovedDistRef = useRef(0)
 
-  const maxRadius = isPortrait ? 38 : 28
-  const ballSize = isPortrait ? 42 : 38
+  const maxRadius = isPortrait ? 33 : 26
+  const ballSize = isPortrait ? 40 : 36
 
   const triggerHaptic = (type: 'light' | 'medium' | 'heavy' | 'selection' = 'light') => {
     haptic.trigger(type)
@@ -81,7 +71,7 @@ export function VirtualController({
       try {
         const savedSide = (localStorage.getItem('chaya_remote_ball_side') as 'left' | 'right') || 'right'
         const savedRatioStr = localStorage.getItem('chaya_remote_ball_y_ratio')
-        const ratio = savedRatioStr ? parseFloat(savedRatioStr) : (isPortrait ? 0.46 : 0.40)
+        const ratio = savedRatioStr ? parseFloat(savedRatioStr) : isPortrait ? 0.46 : 0.4
         const clampedRatio = Math.max(0.12, Math.min(0.82, isNaN(ratio) ? 0.45 : ratio))
 
         const targetY = Math.round(window.innerHeight * clampedRatio)
@@ -392,20 +382,21 @@ export function VirtualController({
     { id: 'scene:equip', label: '装备', icon: LuShield, color: 'text-indigo-400', border: 'border-indigo-400/40 bg-neutral-900/90' },
     { id: 'scene:save', label: '存档', icon: LuSave, color: 'text-emerald-400', border: 'border-emerald-400/40 bg-neutral-900/90' },
     { id: 'scene:load', label: '读档', icon: LuFolderOpen, color: 'text-sky-400', border: 'border-sky-400/40 bg-neutral-900/90' },
-    { id: 'flag:autotalk', label: '自动对话', icon: LuMessageSquareText, color: 'text-cyan-400', border: autoTalk ? 'border-sky-400 bg-sky-950/90 text-sky-200' : 'border-cyan-400/40 bg-neutral-900/90' },
+    {
+      id: 'flag:autotalk',
+      label: '自动对话',
+      icon: LuMessageSquareText,
+      color: 'text-cyan-400',
+      border: autoTalk ? 'border-sky-400 bg-sky-950/90 text-sky-200' : 'border-cyan-400/40 bg-neutral-900/90',
+    },
   ]
 
-  const orbitRadius = isPortrait ? 72 : 64
+  const orbitRadius = isPortrait ? 66 : 58
 
   return (
     <>
       {/* Backdrop to dismiss expandable shortcuts dock when clicking outside */}
-      {shortcutsExpanded && (
-        <div
-          className="pointer-events-auto fixed inset-0 z-40 bg-transparent"
-          onClick={() => setShortcutsExpanded(false)}
-        />
-      )}
+      {shortcutsExpanded && <div className="pointer-events-auto fixed inset-0 z-40 bg-transparent" onClick={() => setShortcutsExpanded(false)} />}
 
       {/* AssistiveTouch-style Draggable Floating Ball & Radial Orbit */}
       <div
@@ -413,15 +404,13 @@ export function VirtualController({
           transform: `translate3d(${ballPos.x}px, ${ballPos.y}px, 0)`,
           touchAction: 'none',
         }}
-        className={`pointer-events-auto fixed top-0 left-0 z-50 select-none ${
-          isBallDragging ? 'cursor-grabbing transition-none' : 'transition-transform duration-200 ease-out'
-        }`}
+        className={`pointer-events-auto fixed top-0 left-0 z-50 select-none ${isBallDragging ? 'cursor-grabbing transition-none' : 'transition-transform duration-200 ease-out'}`}
       >
         {/* Radial Satellite Orbit Items (Pure Icons fanning into screen) */}
         {shortcutsExpanded && (
           <div className="absolute inset-0 pointer-events-none">
             {satellites.map((sat, index) => {
-              const baseAngle = SATELLITE_ORBIT_ANGLES[index] ?? (110 + index * 28)
+              const baseAngle = SATELLITE_ORBIT_ANGLES[index] ?? 110 + index * 28
               const angleRad = (baseAngle * Math.PI) / 180
               // If docked on left, mirror horizontally so satellites fan rightwards into screen
               const dx = (ballSide === 'left' ? -Math.cos(angleRad) : Math.cos(angleRad)) * orbitRadius
@@ -439,7 +428,7 @@ export function VirtualController({
                     top: `${ballSize / 2}px`,
                     transform: `translate3d(calc(-50% + ${dx}px), calc(-50% + ${dy}px), 0)`,
                   }}
-                  className={`pointer-events-auto absolute flex h-8.5 w-8.5 sm:h-9 sm:w-9 items-center justify-center rounded-full border shadow-2xl backdrop-blur-xl transition-transform active:scale-90 animate-in fade-in zoom-in-75 duration-150 ${sat.border}`}
+                  className={`pointer-events-auto absolute flex h-9 w-9 items-center justify-center rounded-full border shadow-2xl backdrop-blur-xl transition-transform active:scale-90 animate-in fade-in zoom-in-75 duration-150 ${sat.border}`}
                   aria-label={sat.label}
                   title={sat.label}
                 >
@@ -473,12 +462,10 @@ export function VirtualController({
           style={{
             touchAction: 'none',
           }}
-          className={`flex items-center justify-center rounded-full border shadow-2xl backdrop-blur-xl transition-all duration-300 active:scale-95 ${
-            isPortrait ? 'h-10.5 w-10.5' : 'h-9.5 w-9.5'
+          className={`flex items-center justify-center rounded-full border shadow-2xl backdrop-blur-xl transition-all duration-300 active:scale-95 shrink-0 aspect-square ${
+            isPortrait ? 'h-10 w-10' : 'h-9 w-9'
           } ${
-            shortcutsExpanded
-              ? 'border-emerald-400 bg-emerald-950/90 text-emerald-300 shadow-emerald-500/30'
-              : 'border-white/30 bg-neutral-900/80 text-white shadow-black/60'
+            shortcutsExpanded ? 'border-emerald-400 bg-emerald-950/90 text-emerald-300 shadow-emerald-500/30' : 'border-white/30 bg-neutral-900/80 text-white shadow-black/60'
           } ${isBallIdle && !shortcutsExpanded && !isBallDragging ? 'opacity-35 hover:opacity-100' : 'opacity-100'}`}
           aria-label="快捷配置"
           title="快捷配置 (拖动贴边 / 点击展开)"
@@ -486,17 +473,13 @@ export function VirtualController({
         >
           {/* iOS AssistiveTouch Style Concentric Ring */}
           <div
-            className={`flex items-center justify-center rounded-full border transition-all duration-300 ${
-              isPortrait ? 'h-6.5 w-6.5' : 'h-5.5 w-5.5'
-            } ${
-              shortcutsExpanded
-                ? 'border-emerald-400/80 bg-emerald-500/30'
-                : 'border-white/40 bg-white/10'
+            className={`flex items-center justify-center rounded-full border transition-all duration-300 shrink-0 aspect-square ${isPortrait ? 'h-6 w-6' : 'h-5 w-5'} ${
+              shortcutsExpanded ? 'border-emerald-400/80 bg-emerald-500/30' : 'border-white/40 bg-white/10'
             }`}
           >
             <div
-              className={`rounded-full transition-all duration-300 ${
-                isPortrait ? 'h-2.5 w-2.5' : 'h-2 w-2'
+              className={`rounded-full transition-all duration-300 shrink-0 aspect-square ${
+                isPortrait ? 'h-2 w-2' : 'h-1.5 w-1.5'
               } ${shortcutsExpanded ? 'bg-emerald-300' : 'bg-white/90 shadow-[0_0_6px_rgba(255,255,255,0.8)]'}`}
             />
           </div>
@@ -511,15 +494,11 @@ export function VirtualController({
             top: dynamicOrigin.y,
             transform: 'translate(-50%, -50%)',
           }}
-          className={`pointer-events-none fixed z-50 flex items-center justify-center rounded-full border border-white/30 bg-neutral-900/75 shadow-2xl backdrop-blur-md ${
-            isPortrait ? 'h-32 w-32' : 'h-24 w-24'
+          className={`pointer-events-none fixed z-50 flex items-center justify-center rounded-full border border-white/30 bg-neutral-900/75 shadow-2xl backdrop-blur-md shrink-0 aspect-square ${
+            isPortrait ? 'h-28 w-28' : 'h-24 w-24'
           }`}
         >
-          <div
-            className={`pointer-events-none absolute rounded-full border border-white/15 ${
-              isPortrait ? 'h-16 w-16' : 'h-12 w-12'
-            }`}
-          />
+          <div className={`pointer-events-none absolute rounded-full border border-white/15 ${isPortrait ? 'h-14 w-14' : 'h-12 w-12'}`} />
           <div className="pointer-events-none absolute top-1.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-white/25" />
           <div className="pointer-events-none absolute bottom-1.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-white/25" />
           <div className="pointer-events-none absolute top-1/2 left-1.5 h-1 w-1 -translate-y-1/2 rounded-full bg-white/25" />
@@ -527,18 +506,14 @@ export function VirtualController({
 
           {/* Dynamic Knob */}
           <div
-            className={`pointer-events-none flex items-center justify-center rounded-full border border-white/40 bg-gradient-to-b from-neutral-700/95 to-neutral-800/95 shadow-xl shadow-emerald-500/25 ${
-              isPortrait ? 'h-12 w-12' : 'h-8.5 w-8.5'
+            className={`pointer-events-none flex items-center justify-center rounded-full border border-white/40 bg-gradient-to-b from-neutral-700/95 to-neutral-800/95 shadow-xl shadow-emerald-500/25 shrink-0 aspect-square ${
+              isPortrait ? 'h-11 w-11' : 'h-10 w-10'
             }`}
             style={{
               transform: `translate3d(${knobOffset.x}px, ${knobOffset.y}px, 0)`,
             }}
           >
-            <div
-              className={`rounded-full border border-white/25 bg-white/10 shadow-inner ${
-                isPortrait ? 'h-5 w-5' : 'h-3.5 w-3.5'
-              }`}
-            />
+            <div className={`rounded-full border border-white/25 bg-white/10 shadow-inner ${isPortrait ? 'h-4 w-4' : 'h-3 w-3'}`} />
           </div>
         </div>
       )}
@@ -553,6 +528,9 @@ export function VirtualController({
           style={{ touchAction: 'none' }}
           className="pointer-events-auto fixed inset-y-0 left-0 w-[55%] touch-none z-30 select-none"
           role="slider"
+          aria-valuenow={0}
+          aria-valuemin={-1}
+          aria-valuemax={1}
           aria-label="虚拟摇杆"
         />
       )}
@@ -560,9 +538,9 @@ export function VirtualController({
       {/* Main Controller Overlay: Inward margins (Thumb Comfort Zone away from physical bezel) */}
       <div
         style={{
-          paddingLeft: 'max(1.25rem, calc(env(safe-area-inset-left) + 0.5rem))',
-          paddingRight: 'max(2.5rem, calc(env(safe-area-inset-right) + 1.25rem))',
-          paddingBottom: 'max(2rem, calc(env(safe-area-inset-bottom) + 1rem))',
+          paddingLeft: 'max(1rem, calc(env(safe-area-inset-left) + 0.5rem))',
+          paddingRight: 'max(1.25rem, calc(env(safe-area-inset-right) + 0.75rem))',
+          paddingBottom: 'max(1.25rem, calc(env(safe-area-inset-bottom) + 0.5rem))',
           opacity,
         }}
         className="pointer-events-none fixed inset-0 z-40 flex select-none flex-col justify-end transition-opacity duration-200"
@@ -575,43 +553,38 @@ export function VirtualController({
               onPointerMove={isDragging ? handleFixedMove : undefined}
               onPointerUp={handleFixedPointerUp}
               onPointerCancel={handleFixedPointerUp}
-              className={`pointer-events-auto relative flex touch-none items-center justify-center rounded-full border border-white/20 bg-neutral-900/50 shadow-2xl backdrop-blur-md active:border-white/30 shrink-0 ${
-                sizeClass || (isPortrait ? 'h-32 w-32' : 'h-24 w-24')
+              className={`pointer-events-auto relative flex touch-none items-center justify-center rounded-full border border-white/20 bg-neutral-900/50 shadow-2xl backdrop-blur-md active:border-white/30 shrink-0 aspect-square select-none ${
+                sizeClass || (isPortrait ? 'h-28 w-28' : 'h-24 w-24')
               }`}
               style={{ touchAction: 'none' }}
               role="slider"
+              aria-valuenow={0}
+              aria-valuemin={-1}
+              aria-valuemax={1}
               aria-label="虚拟摇杆"
             >
-              <div
-                className={`pointer-events-none absolute rounded-full border border-white/10 ${
-                  isPortrait ? 'h-16 w-16' : 'h-12 w-12'
-                }`}
-              />
+              <div className={`pointer-events-none absolute rounded-full border border-white/10 ${isPortrait ? 'h-14 w-14' : 'h-12 w-12'}`} />
               <div className="pointer-events-none absolute top-1.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-white/25" />
               <div className="pointer-events-none absolute bottom-1.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-white/25" />
               <div className="pointer-events-none absolute top-1/2 left-1.5 h-1 w-1 -translate-y-1/2 rounded-full bg-white/25" />
               <div className="pointer-events-none absolute top-1/2 right-1.5 h-1 w-1 -translate-y-1/2 rounded-full bg-white/25" />
 
               <div
-                className={`pointer-events-none flex items-center justify-center rounded-full border border-white/35 bg-gradient-to-b from-neutral-700/90 to-neutral-800/95 shadow-xl ${
-                  isPortrait ? 'h-12 w-12' : 'h-8.5 w-8.5'
+                className={`pointer-events-none flex items-center justify-center rounded-full border border-white/35 bg-gradient-to-b from-neutral-700/90 to-neutral-800/95 shadow-xl shrink-0 aspect-square ${
+                  isPortrait ? 'h-11 w-11' : 'h-10 w-10'
                 } ${isDragging ? 'shadow-emerald-500/20' : 'transition-transform duration-150 ease-out'}`}
                 style={{
                   transform: `translate3d(${knobOffset.x}px, ${knobOffset.y}px, 0)`,
                 }}
               >
-                <div
-                  className={`rounded-full border border-white/25 bg-white/10 shadow-inner ${
-                    isPortrait ? 'h-5 w-5' : 'h-3.5 w-3.5'
-                  }`}
-                />
+                <div className={`rounded-full border border-white/25 bg-white/10 shadow-inner ${isPortrait ? 'h-4 w-4' : 'h-3 w-3'}`} />
               </div>
             </div>
           )
 
           const renderActionButtons = (compact = false, align: 'start' | 'end' = 'end') => {
-            const btnSize = isPortrait ? (compact ? 'h-11 w-11' : 'h-12 w-12') : 'h-11 w-11'
-            const iconSize = isPortrait ? (compact ? 18 : 20) : 18
+            const btnSize = isPortrait ? (compact ? 'h-10 w-10' : 'h-11 w-11') : compact ? 'h-9 w-9' : 'h-10 w-10'
+            const iconSize = isPortrait ? (compact ? 17 : 18) : compact ? 15 : 16
 
             return (
               <div
@@ -625,7 +598,7 @@ export function VirtualController({
                     onPointerDown={(e) => handleButtonPress('menu', e)}
                     onPointerUp={(e) => handleButtonRelease('menu', e)}
                     onPointerCancel={(e) => handleButtonRelease('menu', e)}
-                    className={`flex items-center justify-center rounded-full border border-purple-400/40 bg-purple-950/70 text-purple-200 shadow-md backdrop-blur-md transition-transform active:scale-90 ${btnSize}`}
+                    className={`flex items-center justify-center rounded-full border border-purple-400/40 bg-purple-950/70 text-purple-200 shadow-md backdrop-blur-md transition-transform active:scale-90 shrink-0 aspect-square ${btnSize}`}
                     aria-label="菜单"
                     title="菜单"
                   >
@@ -640,7 +613,7 @@ export function VirtualController({
                     onPointerDown={(e) => handleButtonPress('cancel', e)}
                     onPointerUp={(e) => handleButtonRelease('cancel', e)}
                     onPointerCancel={(e) => handleButtonRelease('cancel', e)}
-                    className={`flex items-center justify-center rounded-full border border-rose-400/50 bg-rose-950/70 text-rose-100 shadow-lg backdrop-blur-md transition-transform active:scale-90 ${btnSize}`}
+                    className={`flex items-center justify-center rounded-full border border-rose-400/50 bg-rose-950/70 text-rose-100 shadow-lg backdrop-blur-md transition-transform active:scale-90 shrink-0 aspect-square ${btnSize}`}
                     aria-label="取消"
                     title="取消"
                   >
@@ -652,7 +625,7 @@ export function VirtualController({
                     onPointerDown={(e) => handleButtonPress('ok', e)}
                     onPointerUp={(e) => handleButtonRelease('ok', e)}
                     onPointerCancel={(e) => handleButtonRelease('ok', e)}
-                    className={`flex items-center justify-center rounded-full border-2 border-emerald-400/70 bg-emerald-600/85 text-white shadow-xl shadow-emerald-950/50 backdrop-blur-md transition-transform active:scale-90 ${btnSize}`}
+                    className={`flex items-center justify-center rounded-full border-2 border-emerald-400/70 bg-emerald-600/85 text-white shadow-xl shadow-emerald-950/50 backdrop-blur-md transition-transform active:scale-90 shrink-0 aspect-square ${btnSize}`}
                     aria-label="确认"
                     title="确认"
                   >
@@ -667,9 +640,7 @@ export function VirtualController({
             return (
               <div className="flex w-full items-end justify-end gap-5 sm:gap-7 pr-6 sm:pr-10 pb-4 sm:pb-6">
                 {renderJoystick(isPortrait ? 'h-24 w-24' : 'h-20 w-20')}
-                <div className="mr-2 sm:mr-4">
-                  {renderActionButtons(true, 'end')}
-                </div>
+                <div className="mr-2 sm:mr-4">{renderActionButtons(true, 'end')}</div>
               </div>
             )
           }
@@ -677,20 +648,14 @@ export function VirtualController({
           if (mode === 'single-left') {
             return (
               <div className="flex w-full items-end justify-start gap-5 sm:gap-7 pl-6 sm:pl-10 pb-4 sm:pb-6">
-                <div className="ml-2 sm:ml-4">
-                  {renderActionButtons(true, 'start')}
-                </div>
+                <div className="ml-2 sm:ml-4">{renderActionButtons(true, 'start')}</div>
                 {renderJoystick(isPortrait ? 'h-24 w-24' : 'h-20 w-20')}
               </div>
             )
           }
 
           if (mode === 'dynamic') {
-            return (
-              <div className="flex w-full items-end justify-end">
-                {renderActionButtons()}
-              </div>
-            )
+            return <div className="flex w-full items-end justify-end">{renderActionButtons()}</div>
           }
 
           return (

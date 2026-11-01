@@ -7,11 +7,11 @@ const isSubsequence = (ids: readonly string[]) => ids.every((id, i) => i === 0 |
 
 describe('main nav', () => {
   it('has one order: 翻译 then 辅助', () => {
-    expect(order).toEqual(['library', 'edit', 'translate', 'assist', 'logs', 'integration', 'about'])
+    expect(order).toEqual(['library', 'edit', 'translate', 'assist', 'remote', 'logs', 'integration', 'about'])
   })
 
   it('surfaces only hide items, never reorder them', () => {
-    expect(mainNavFor('web').map((i) => i.id)).toEqual(['library', 'edit', 'translate', 'assist', 'logs', 'integration'])
+    expect(mainNavFor('web').map((i) => i.id)).toEqual(['library', 'edit', 'translate', 'assist', 'remote', 'logs', 'integration'])
     expect(mainNavFor('overlay').map((i) => i.id)).toEqual(['edit', 'translate', 'assist', 'logs', 'integration', 'about'])
     expect(isSubsequence(APP_NAV_ITEMS.map((i) => i.id))).toBe(true)
   })

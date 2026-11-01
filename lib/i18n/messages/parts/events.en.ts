@@ -1,7 +1,9 @@
 import type { EventsMessages } from '@/lib/i18n/messages/events-types'
+import { eventCurrentEn } from '@/lib/i18n/messages/parts/event-current'
 
 export const eventsEn: { events: EventsMessages } = {
   events: {
+    current: eventCurrentEn,
     tabCommon: 'Common events',
     tabMap: 'Maps',
     tabTroop: 'Troops',

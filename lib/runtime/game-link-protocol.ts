@@ -3,6 +3,7 @@
 import type { ActorDraft, ActorVitalLockKind, BattleLockChange, ItemKind, RunActionId, RunFlagKey, SessionState } from '@/components/game-edit/types'
 import type { ActorVitalKey, BattleState } from '@/lib/game/battle'
 import type { CommonEventsData, MapDetailData, SelfSwitchLetter } from '@/lib/game/events'
+import type { EventActivity, EventControlAction, EventControlTarget } from '@/lib/game/events/runtime'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import type { GameSavesErrorCode, GameSavesOp, GameSavesSnapshot, GameSavesStatus, SaveWaitReason } from '@/lib/game/game-saves'
 import type { HotkeySyncSnapshot } from '@/lib/game/hotkeys-sync'
@@ -38,6 +39,8 @@ export type GameLinkHello = {
   runtimeInstanceId?: string
   pluginInstanceId?: string
   connectionId?: string
+  isController?: boolean
+  spectator?: boolean
 }
 
 export type GameLinkQuit = { type: 'quit'; reason?: string }
@@ -73,6 +76,7 @@ export type GameEditCmdOp =
   | { op: 'actorOwnedLock'; actorId: number; kind: 'skills' | 'states'; entryId: number; on: boolean; owned: boolean }
   /** `from`: start at this command index of the list (entering the branch it sits in) */
   | { op: 'commonEvent'; id: number; from?: number }
+  | { op: 'eventControl'; action: EventControlAction; target: EventControlTarget }
   | { op: 'selfSwitch'; mapId: number; eventId: number; letter: SelfSwitchLetter; value: boolean }
   /** `near`: land on the first passable neighbour when the target tile is blocked */
   | { op: 'teleport'; mapId: number; x: number; y: number; direction?: 2 | 4 | 6 | 8; near?: boolean }
@@ -130,6 +134,8 @@ export type GameEditStateMsg = {
   recentMaps?: number[]
   /** Common events running in parallel / autorun on the current map */
   runningCommon?: number[]
+  /** Compact interpreter diagnostics; omitted by older plugins and unsupported engines. */
+  eventActivity?: EventActivity
   /** Enemies on the field; only while the battle scene is active */
   battle?: BattleState
 }
@@ -300,6 +306,10 @@ export type RemoteStreamMessage =
       x: number
       y: number
       phase: 'down' | 'move' | 'up'
+    }
+  | {
+      type: 'remote.stream.active'
+      active: boolean
     }
   | {
       type: 'stream.request_keyframe'

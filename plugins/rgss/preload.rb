@@ -6,7 +6,24 @@ class Win32API
 end
 
 # A controlling terminal may disappear independently of the native game.
-Signal.trap('HUP', 'IGNORE') rescue nil
+Signal.trap("HUP", "IGNORE") rescue nil
+
+# In silent mode, load native webview immediately so constructor swizzling hides the window before mkxp-z renders
+if ENV["CHAYA_RGSS_SILENT"] == "1" || ENV["CHAYA_SILENT_MODE"] == "1"
+  begin
+    require_relative "native_webview"
+    ChayaRGSS::NativeWebview.start if ENV["CHAYA_RGSS_ROOM"]
+  rescue LoadError, StandardError => _e
+    # ignore
+  end
+end
+
+if ENV.fetch("CHAYA_MUTE_HOST_AUDIO", ENV["CHAYA_RGSS_SILENT"] || ENV["CHAYA_SILENT_MODE"]) == "1" && defined?(Audio)
+  # Keep position queries and stop/fade methods intact for game scripts.
+  [:bgm_play, :bgs_play, :me_play, :se_play].each do |m|
+    Audio.define_singleton_method(m) { |*| }
+  end
+end
 
 runtime = ENV.fetch('CHAYA_RGSS_RUNTIME')
 load File.join(runtime, 'scripts/preload/ruby_classic_wrap.rb')

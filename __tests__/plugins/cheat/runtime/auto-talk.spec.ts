@@ -1,9 +1,9 @@
 /**
  * @jest-environment jsdom
  */
-import { ensureAutoTalkFallback, getAutoTalk, setAutoTalk } from "@/plugins/mv/src/cheat/runtime/auto-talk"
+import { ensureAutoTalkFallback, getAutoTalk, setAutoTalk } from '@/plugins/mv/src/cheat/runtime/auto-talk'
 
-describe("auto-talk runtime hooks", () => {
+describe('auto-talk runtime hooks', () => {
   let fakeWindowMessage: any
   let fakeGameMessage: any
 
@@ -46,7 +46,7 @@ describe("auto-talk runtime hooks", () => {
     delete (globalThis as any).Input
   })
 
-  it("toggles auto-talk state on and off", () => {
+  it('toggles auto-talk state on and off', () => {
     expect(getAutoTalk()).toBe(false)
     setAutoTalk(true)
     expect(getAutoTalk()).toBe(true)
@@ -54,7 +54,7 @@ describe("auto-talk runtime hooks", () => {
     expect(getAutoTalk()).toBe(false)
   })
 
-  it("hooks updateShowFast and sets _showFast to true when auto-talk is active", () => {
+  it('hooks updateShowFast and sets _showFast to true when auto-talk is active', () => {
     ensureAutoTalkFallback()
     setAutoTalk(true)
 
@@ -69,7 +69,7 @@ describe("auto-talk runtime hooks", () => {
     expect(win._showFast).toBe(false)
   })
 
-  it("hooks updateWait and cancels inline _waitCount when auto-talk is active and not paused", () => {
+  it('hooks updateWait and cancels inline _waitCount when auto-talk is active and not paused', () => {
     ensureAutoTalkFallback()
     setAutoTalk(true)
 
@@ -81,7 +81,7 @@ describe("auto-talk runtime hooks", () => {
     expect(win._showFast).toBe(true)
   })
 
-  it("hooks updateInput and auto-advances dialogue when paused and no choices are active", () => {
+  it('hooks updateInput and auto-advances dialogue when paused and no choices are active', () => {
     ensureAutoTalkFallback()
     setAutoTalk(true)
 
@@ -102,7 +102,7 @@ describe("auto-talk runtime hooks", () => {
     expect(handled).toBe(true)
   })
 
-  it("does not advance dialogue when choices or subwindows are active", () => {
+  it('does not advance dialogue when choices or subwindows are active', () => {
     ensureAutoTalkFallback()
     setAutoTalk(true)
 

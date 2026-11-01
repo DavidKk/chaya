@@ -13,6 +13,7 @@ import { disposeSaveToast } from './game-saves/toast'
 import { InputAssistanceController } from './input-assistance/controller'
 import { Cheats } from './runtime/cheats'
 import { RunCheats } from './runtime/cheats-run'
+import { installEventControlTracking } from './session/event-control'
 import { disposeMapHistory, installMapHistory } from './session/map-history'
 import { markGameEditNeedReapply, startGameEditDiskWatcher } from './session/persist'
 import { handleRemoteEditMessage, stopRemoteEditBridge } from './session/remote-bridge'
@@ -34,6 +35,7 @@ const reopenAfterHot = (() => {
 
 installConsoleApi()
 installMapHistory()
+const stopEventControlTracking = installEventControlTracking()
 RunCheats.ensureSmartPathHook()
 const inputAssistance = new InputAssistanceController()
 ;(window as Window & { __chayaInputAssistanceStopAll?: () => void }).__chayaInputAssistanceStopAll = () => inputAssistance.runtime.stopAll()
@@ -103,6 +105,7 @@ function disposeGameEditRuntime(): boolean {
   delete (window as Window & { __chayaGameSaves?: GameSavesController }).__chayaGameSaves
   stopRemoteEditBridge()
   disposeMapHistory()
+  stopEventControlTracking()
   return wasOpen
 }
 

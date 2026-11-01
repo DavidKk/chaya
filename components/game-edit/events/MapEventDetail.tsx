@@ -10,6 +10,7 @@ import { useNotification } from '@/components/notification/useNotification'
 import { Badge, Button, ScrollArea, SegmentedNav, TruncateText } from '@/components/sk'
 import { type CommonEventsData, type EventEffects, isRiskyEffects, type MapDetailData, type MapEventInfo, type MapNode, reachableFrom, summarizeEffects } from '@/lib/game/events'
 
+import { CurrentEventActions } from './CurrentEventsPanel'
 import { EventScript } from './EventScript'
 import { effectLabels } from './labels'
 import { eventStateOf, type Teleport, TYPE_KEY } from './MapDetail'
@@ -32,6 +33,12 @@ export function MapEventDetail({ ev, node, detail, data, slot, session, tp }: Pr
   const pickedPage = slot.eventPage != null && slot.eventPage < ev.pages.length ? slot.eventPage : null
   const shownIndex = pickedPage ?? Math.max(0, activeIndex)
   const shownPage = ev.pages[shownIndex]
+  const current = slot.live
+    ? slot.eventActivity?.entries
+        .slice()
+        .reverse()
+        .find((entry) => entry.mapId === node.id && entry.eventId === ev.id && entry.commonEventId == null && entry.page === shownIndex)
+    : undefined
   const pageTabs = ev.pages.map((_, i) => ({
     id: String(i),
     label: t('events.map.page', { page: i + 1 }) + (i === activeIndex ? ` · ${t(state.exact ? 'events.map.pageActive' : 'events.map.stateGuess')}` : ''),
@@ -110,6 +117,11 @@ export function MapEventDetail({ ev, node, detail, data, slot, session, tp }: Pr
                 {t('events.map.current')}
               </Badge>
             ) : null}
+            {current ? (
+              <Badge dot={false} tone="ok">
+                {t('events.running')}
+              </Badge>
+            ) : null}
             {state.kind !== 'unknown' ? (
               <Badge dot={false} tone={state.kind === 'shown' ? 'ok' : 'neutral'} className="shrink-0">
                 {t(state.kind === 'shown' ? 'events.map.stateShown' : 'events.map.stateHidden')}
@@ -121,6 +133,7 @@ export function MapEventDetail({ ev, node, detail, data, slot, session, tp }: Pr
             <TruncateText text={`${node.name || `#${node.id}`} · (${ev.x},${ev.y}) · ${t(TYPE_KEY[ev.type])}`} />
           </p>
         </div>
+        {current ? <CurrentEventActions event={current} slot={slot} /> : null}
         <Button
           loading={tp.busy}
           disabled={!!tp.blocked || busy}
@@ -150,6 +163,7 @@ export function MapEventDetail({ ev, node, detail, data, slot, session, tp }: Pr
               runBlocked={fromBlocked}
               busy={busy}
               live={live}
+              current={current}
             />
           ) : null}
         </div>

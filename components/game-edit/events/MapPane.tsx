@@ -13,6 +13,7 @@ import { flattenMapTree, type MapTreeRow } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
 import { EventsDataState } from './CommonEventsPane'
+import { CurrentEventsPanel } from './CurrentEventsPanel'
 import { MapDetail, NearToggle } from './MapDetail'
 import type { EventsSlot } from './types'
 
@@ -181,6 +182,7 @@ export function MapPane({ slot, filter, session, headSlot }: Props) {
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
+      <CurrentEventsPanel slot={slot} />
       <div className="flex min-h-0 flex-1">
         <aside
           className={cn('min-h-0 w-full flex-col @4xl:w-[17rem] @4xl:shrink-0 @4xl:border-r @4xl:border-line', selected ? 'hidden @4xl:flex' : 'flex')}

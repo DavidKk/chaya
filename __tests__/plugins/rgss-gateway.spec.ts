@@ -1,6 +1,14 @@
 /** @jest-environment jsdom */
 import { GAME_LINK_TOKEN_HEADER } from '@/lib/runtime/game-link-protocol'
 import { RgssWebRtcGateway } from '@/plugins/rgss/src/webrtc-gateway'
+import { WindowFrameSource } from '@/plugins/rgss/src/window-frame-source'
+
+jest.mock('@/plugins/rgss/src/window-frame-source', () => ({
+  WindowFrameSource: jest.fn().mockImplementation(() => ({
+    start: jest.fn(async () => ({ getVideoTracks: () => [{ kind: 'video' }] })),
+    stop: jest.fn(),
+  })),
+}))
 
 class Peer {
   static all: Peer[] = []
@@ -13,6 +21,9 @@ class Peer {
   setLocalDescription = jest.fn(async () => {})
   createAnswer = jest.fn(async () => ({ type: 'answer', sdp: 'answer-sdp' }))
   close = jest.fn()
+  addTrack = jest.fn()
+  getTransceivers = () => []
+  getSenders = () => []
   constructor() {
     Peer.all.push(this)
   }
@@ -81,5 +92,78 @@ describe('RGSS signaling and reconnect', () => {
     channel.onclose?.()
     await jest.advanceTimersByTimeAsync(1000)
     expect(Peer.all).toHaveLength(2)
+  })
+  it('keeps observer media alive when the controller offer changes and stops the final consumer', async () => {
+    gateway.stop()
+    gateway = new RgssWebRtcGateway('room', 'https://edge.example', {}, { enableObserver: true })
+    let revision = 1
+    request.mockImplementation(async (url, init) =>
+      init?.method === 'POST'
+        ? { ok: true }
+        : {
+            ok: true,
+            json: async () => ({ room: { offer: { type: 'offer', sdp: `m=video ${url.includes('observer') ? 'observer' : revision}` } } }),
+          }
+    )
+    gateway.start()
+    await settle()
+    const source = jest.mocked(WindowFrameSource).mock.results.at(-1)!.value
+    const observer = Peer.all[1]
+    expect(observer.addTrack).toHaveBeenCalledTimes(1)
+    source.stop.mockClear()
+    revision++
+    await jest.advanceTimersByTimeAsync(2000)
+    expect(Peer.all[0].close).toHaveBeenCalled()
+    expect(observer.close).not.toHaveBeenCalled()
+    expect(source.stop).not.toHaveBeenCalled()
+    gateway.stop()
+    expect(observer.close).toHaveBeenCalled()
+    expect(source.stop).toHaveBeenCalled()
+  })
+  it('answers spectators without granting input, mutation or quit access', async () => {
+    const onMessage = jest.fn()
+    gateway.setHandlers({ onMessage })
+    request.mockImplementation(async (_url, init) =>
+      init?.method === 'POST'
+        ? { ok: true }
+        : {
+            ok: true,
+            json: async () => ({ room: { spectators: [{ peerId: 'viewer', offer: { type: 'offer', sdp: 'm=video spectator' } }] } }),
+          }
+    )
+    gateway.start()
+    await settle()
+    expect(JSON.parse(request.mock.calls[1][1].body).peerId).toBe('viewer')
+    const channel = { readyState: 'open', send: jest.fn(), close: jest.fn(), onopen: null as any, onclose: null as any, onmessage: null as any }
+    Peer.all[0].ondatachannel?.({ channel })
+    channel.onopen()
+    expect(JSON.parse(channel.send.mock.calls[0][0])).toMatchObject({ isController: false, spectator: true })
+    for (const message of [{ type: 'remote.input', key: 'ok', action: 'down' }, { type: 'quit' }, { type: 'ping', t: 1 }]) {
+      channel.onmessage({ data: JSON.stringify(message) })
+    }
+    expect(onMessage).not.toHaveBeenCalled()
+    expect(JSON.parse(channel.send.mock.calls[1][0])).toEqual({ type: 'pong', t: 1 })
+    gateway.stop()
+    expect(Peer.all[0].close).toHaveBeenCalled()
+  })
+  it('retains spectator capture during a temporary signaling failure and releases removed viewers', async () => {
+    const spectators = [{ peerId: 'viewer', offer: { type: 'offer', sdp: 'm=video spectator' } }]
+    request.mockImplementation(async (_url, init) =>
+      init?.method === 'POST'
+        ? { ok: true }
+        : {
+            ok: true,
+            json: async () => ({ room: { spectators } }),
+          }
+    )
+    gateway.start()
+    await settle()
+    const viewer = Peer.all[0]
+    request.mockResolvedValue({ ok: false })
+    await jest.advanceTimersByTimeAsync(6000)
+    expect(viewer.close).not.toHaveBeenCalled()
+    request.mockResolvedValue({ ok: true, json: async () => ({ room: null }) })
+    await jest.advanceTimersByTimeAsync(6000)
+    expect(viewer.close).toHaveBeenCalled()
   })
 })

@@ -1,7 +1,9 @@
 import type { EventsMessages } from '@/lib/i18n/messages/events-types'
+import { eventCurrentKo } from '@/lib/i18n/messages/parts/event-current'
 
 export const eventsKo: { events: EventsMessages } = {
   events: {
+    current: eventCurrentKo,
     tabCommon: '커먼 이벤트',
     tabMap: '맵',
     tabTroop: '적 그룹',

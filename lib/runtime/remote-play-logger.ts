@@ -34,13 +34,9 @@ export interface DeviceDiagnostics {
 export function detectDeviceDiagnostics(): DeviceDiagnostics {
   const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
   const platform = typeof navigator !== 'undefined' ? navigator.platform || '' : ''
-  const isIOS =
-    /iPhone|iPad|iPod/i.test(ua) ||
-    (platform === 'MacIntel' && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1)
+  const isIOS = /iPhone|iPad|iPod/i.test(ua) || (platform === 'MacIntel' && typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1)
   const isSafari = /^((?!chrome|android).)*safari/i.test(ua)
-  const isMobile =
-    /Android|iPhone|iPad|iPod|Mobile/i.test(ua) ||
-    (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1)
+  const isMobile = /Android|iPhone|iPad|iPod|Mobile/i.test(ua) || (typeof navigator !== 'undefined' && navigator.maxTouchPoints > 1)
 
   let os = platform || 'Unknown OS'
   if (isIOS) os = 'iOS / iPadOS'
@@ -182,8 +178,11 @@ export class RemotePlayLogger {
 
     if (typeof console !== 'undefined' && process.env.NODE_ENV !== 'test') {
       const tag = `[RemotePlay:${level.toUpperCase()}]`
+      // eslint-disable-next-line no-console
       if (level === 'fail') console.error(tag, message, meta ?? '')
+      // eslint-disable-next-line no-console
       else if (level === 'warn') console.warn(tag, message, meta ?? '')
+      // eslint-disable-next-line no-console
       else console.log(tag, message, meta ?? '')
     }
 

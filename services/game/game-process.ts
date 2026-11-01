@@ -1,8 +1,9 @@
 import { execSync } from 'node:child_process'
+import fs from 'node:fs'
 import path from 'node:path'
 
 import { pathEquals } from '@/services/game/library'
-import { anyRgssRunning, quitRgss } from '@/services/game/rgss-runtime'
+import { anyRgssRunning, findRgssSessionByPid, quitRgss } from '@/services/game/rgss-runtime'
 import { clearGamePresenceKeepQuit, requestGameQuit } from '@/services/runtime'
 
 export type RunningGameProcess = {
@@ -19,6 +20,17 @@ export function clearGameProcessCache() {
   cachedProcesses = null
 }
 
+function nwContentRootFromCommand(command: string): string | undefined {
+  const args = command.match(/(?:^|[/\\])nwjs["']?\s+(.+)$/i)?.[1]
+  if (!args) return undefined
+  const explicit = args.match(/(?:^|\s)--nwapp-path(?:=|\s+)(.+)$/)?.[1]
+  const value = (explicit || args).trim()
+  // macOS ps does not quote argv, so splitting on spaces truncates game paths.
+  const quoted = value.match(/^"([^"]+)"|^'([^']+)'/)
+  const root = quoted ? quoted[1] || quoted[2] : value.split(/\s+--/)[0].trim()
+  return root && !root.startsWith('-') && path.isAbsolute(root) ? path.resolve(root) : undefined
+}
+
 /**
  * Scan the operating system for active Chaya game processes (NW.js, mkxp-z, Game.exe, etc.).
  * Includes a short-lived cache (1.5s) to avoid repeatedly executing ps during rapid status polling.
@@ -32,10 +44,11 @@ export function findRunningGameProcesses(targetContentRoot?: string): RunningGam
 
   if (process.platform === 'win32') {
     try {
-      const stdout = execSync(
-        'wmic process where "name like \'%nw.exe%\' or name like \'%Game.exe%\' or name like \'%mkxp%\'" get ProcessId,CommandLine /format:csv',
-        { encoding: 'utf8', timeout: 3000, stdio: ['ignore', 'pipe', 'ignore'] }
-      )
+      const stdout = execSync("wmic process where \"name like '%nw.exe%' or name like '%Game.exe%' or name like '%mkxp%'\" get ProcessId,CommandLine /format:csv", {
+        encoding: 'utf8',
+        timeout: 3000,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      })
       const lines = stdout.split('\r\n').filter(Boolean)
       for (const line of lines) {
         const parts = line.split(',')
@@ -83,18 +96,31 @@ export function findRunningGameProcesses(targetContentRoot?: string): RunningGam
         // Try to parse contentRoot from command line parameters
         let detectedRoot: string | undefined
         if (isMain && isNwShell) {
-          const tokens = cmd.split(/\s+/)
-          for (let i = 1; i < tokens.length; i++) {
-            const tok = tokens[i]
-            if (tok && !tok.startsWith('-') && !tok.includes('nwjs') && (tok.includes('/') || tok.includes('\\'))) {
-              detectedRoot = path.resolve(tok)
-              break
+          detectedRoot = nwContentRootFromCommand(cmd)
+        } else if (isMain && isRgss) {
+          const matched = findRgssSessionByPid(pid)
+          if (matched) {
+            detectedRoot = matched.root
+          } else {
+            const match = cmd.match(/[\\/]rgss-runtime[\\/]games[\\/]([a-f0-9]+)[\\/]/i)
+            if (match) {
+              try {
+                const sessionDir = cmd.slice(0, (match.index ?? 0) + match[0].length - 1)
+                const logPath = path.join(sessionDir, 'runtime.log')
+                if (fs.existsSync(logPath)) {
+                  const content = fs.readFileSync(logPath, 'utf8')
+                  const lines = content.split(/\r?\n/)
+                  if (lines[1] && fs.existsSync(lines[1].trim())) {
+                    detectedRoot = lines[1].trim()
+                  }
+                }
+              } catch {}
             }
           }
         }
 
-        if (targetContentRoot && detectedRoot) {
-          if (!pathEquals(detectedRoot, targetContentRoot)) {
+        if (targetContentRoot) {
+          if (!detectedRoot || !pathEquals(detectedRoot, targetContentRoot)) {
             continue
           }
         }
@@ -119,8 +145,12 @@ export function findRunningGameProcesses(targetContentRoot?: string): RunningGam
  * Check whether any game process is currently running (optionally filtered by contentRoot).
  */
 export function isAnyGameProcessRunning(contentRoot?: string): boolean {
+  if (contentRoot) {
+    const list = findRunningGameProcesses(contentRoot)
+    return list.length > 0
+  }
   if (anyRgssRunning()) return true
-  const list = findRunningGameProcesses(contentRoot)
+  const list = findRunningGameProcesses()
   return list.length > 0
 }
 
@@ -170,9 +200,47 @@ export async function terminateAllRunningGameProcesses(targetContentRoot?: strin
     }
   }
 
-  // 4. Clean up Presence state
-  clearGamePresenceKeepQuit()
-  requestGameQuit()
+  // 4. Clean up Presence state only when no specific targetContentRoot was specified (global shutdown)
+  if (!targetContentRoot) {
+    clearGamePresenceKeepQuit()
+    requestGameQuit()
+  }
 
   return { killed }
+}
+
+/**
+ * Terminate a single specific game process by PID (e.g. reclaiming an idle cloud instance).
+ * Never triggers global requestGameQuit to ensure other local or running games are preserved.
+ */
+export async function terminateGameProcess(pid: number, contentRoot?: string): Promise<boolean> {
+  clearGameProcessCache()
+  if (contentRoot) {
+    try {
+      quitRgss(contentRoot)
+    } catch {
+      /* ignore */
+    }
+  }
+  let killed = false
+  try {
+    if (process.platform === 'win32') {
+      execSync(`taskkill /pid ${pid} /T /F`, { stdio: 'ignore', timeout: 2000 })
+      killed = true
+    } else {
+      process.kill(pid, 'SIGTERM')
+      killed = true
+      setTimeout(() => {
+        try {
+          process.kill(pid, 0)
+          process.kill(pid, 'SIGKILL')
+        } catch {
+          /* already dead */
+        }
+      }, 350)
+    }
+  } catch {
+    /* process may already be dead */
+  }
+  return killed
 }

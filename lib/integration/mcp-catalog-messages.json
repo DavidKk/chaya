@@ -463,6 +463,13 @@
       "chaya_logs_clear": {
         "title": "清空日志",
         "description": "清空全部日志。破坏性操作：调用前必须先征得用户同意。"
+      },
+      "chaya_live_events": {
+        "title": "进行中事件诊断",
+        "description": "读取当前正在运行的地图、公共及嵌套事件解释器、指令执行位置、等待与移动路线状态。仅用于诊断，不推进或重置事件。",
+        "params": {
+          "gameId": "目标游戏 id（chaya_live_games 返回）；只有一个游戏在线时可省略"
+        }
       }
     }
   },
@@ -930,6 +937,13 @@
       "chaya_logs_clear": {
         "title": "ログを消去",
         "description": "すべてのログを消去します。破壊的な操作：呼び出す前に必ずユーザーの同意を得てください。"
+      },
+      "chaya_live_events": {
+        "title": "実行中イベント診断",
+        "description": "実行中のマップ、コモン、ネストイベントのインタプリタ、コマンド位置、ウェイト、移動ルート状態を取得します。診断専用で進行やリセットは行いません。",
+        "params": {
+          "gameId": "対象ゲーム id（chaya_live_games の結果）。オンラインのゲームが 1 つなら省略可"
+        }
       }
     }
   },
@@ -1397,6 +1411,13 @@
       "chaya_logs_clear": {
         "title": "로그 지우기",
         "description": "모든 로그를 지웁니다. 파괴적인 작업: 호출 전에 반드시 사용자 동의를 받으세요."
+      },
+      "chaya_live_events": {
+        "title": "실행 중 이벤트 진단",
+        "description": "실행 중인 맵, 커먼, 중첩 이벤트 인터프리터, 명령어 위치, 대기 및 이동 경로 상태를 읽습니다. 진단 전용이며 이벤트를 진행하거나 재설정하지 않습니다.",
+        "params": {
+          "gameId": "대상 게임 id(chaya_live_games 결과). 온라인 게임이 하나뿐이면 생략 가능"
+        }
       }
     }
   },
@@ -1873,6 +1894,13 @@
         "title": "清空日誌",
         "description": "刪除儲存的歷史日誌記錄。",
         "params": {}
+      },
+      "chaya_live_events": {
+        "title": "進行中事件診斷",
+        "description": "讀取目前正在執行的地圖、公共與巢狀事件直譯器、指令執行位置、等待與移動路線狀態。僅供診斷，不推進或重設事件。",
+        "params": {
+          "gameId": "指定遊戲實例 ID"
+        }
       }
     }
   },
@@ -2349,6 +2377,13 @@
         "title": "Effacer les journaux",
         "description": "Supprimer l’historique des journaux enregistrés.",
         "params": {}
+      },
+      "chaya_live_events": {
+        "title": "Diagnostic des événements en cours",
+        "description": "Lire les interpréteurs d’événements actifs de carte, communs et imbriqués, la position des commandes, les attentes et itinéraires de déplacement. Réservé au diagnostic sans faire avancer ni redémarrer.",
+        "params": {
+          "gameId": "ID de l’instance de jeu"
+        }
       }
     }
   },
@@ -2825,6 +2860,13 @@
         "title": "Protokolle leeren",
         "description": "Gespeicherte Protokolldateien leeren.",
         "params": {}
+      },
+      "chaya_live_events": {
+        "title": "Diagnose aktiver Ereignisse",
+        "description": "Laufende Karten-, Common- und verschachtelte Ereignis-Interpreter, Befehlspositionen, Wartezeiten und Bewegungsrouten abfragen. Nur Diagnose, führt Ereignisse weder fort noch setzt sie zurück.",
+        "params": {
+          "gameId": "ID der Spielinstanz"
+        }
       }
     }
   },
@@ -3301,6 +3343,13 @@
         "title": "Vaciar registros",
         "description": "Borrar los archivos de registro almacenados.",
         "params": {}
+      },
+      "chaya_live_events": {
+        "title": "Diagnóstico de eventos en ejecución",
+        "description": "Leer los intérpretes de eventos de mapa, comunes y anidados activos, posiciones de comandos, esperas y rutas de movimiento. Solo para diagnóstico, no avanza ni reinicia eventos.",
+        "params": {
+          "gameId": "ID de instancia del juego"
+        }
       }
     }
   },
@@ -3777,6 +3826,13 @@
         "title": "Очистить журналы",
         "description": "Удалить сохранённую историю журналов.",
         "params": {}
+      },
+      "chaya_live_events": {
+        "title": "Диагностика выполняемых событий",
+        "description": "Чтение активных интерпретаторов событий карты, общих и вложенных событий, позиций команд, ожидания и маршрутов движения. Только для диагностики без продвижения и перезапуска.",
+        "params": {
+          "gameId": "ID экземпляра игры"
+        }
       }
     }
   },
@@ -4253,6 +4309,13 @@
         "title": "Limpar registros",
         "description": "Excluir arquivos de logs históricos armazenados.",
         "params": {}
+      },
+      "chaya_live_events": {
+        "title": "Diagnóstico de eventos em execução",
+        "description": "Lê os interpretadores de eventos de mapa, comuns e aninhados ativos, posições de comandos, esperas e rotas de movimento. Apenas para diagnóstico, não avança nem reinicia eventos.",
+        "params": {
+          "gameId": "ID da instância do jogo"
+        }
       }
     }
   }

@@ -1,7 +1,8 @@
-import { playEs } from '@/lib/i18n/messages/parts/play'
 import { debugEs } from '@/lib/i18n/messages/parts/debug'
+import { eventCurrentEs } from '@/lib/i18n/messages/parts/event-current'
 import { floatingBallEs } from '@/lib/i18n/messages/parts/floating-ball'
 import { mcpGatewayEs } from '@/lib/i18n/messages/parts/mcp-gateway'
+import { playEs } from '@/lib/i18n/messages/parts/play'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const es: MessageTree = {
@@ -1519,6 +1520,7 @@ export const es: MessageTree = {
       'Chaya is a free, open-source technical tool. It provides no games or translations and is not affiliated with RPG Maker or any rights holder. For usage risks, see the',
   },
   events: {
+    current: eventCurrentEs,
     tabCommon: 'Common events',
     tabMap: 'Maps',
     tabTroop: 'Troops',

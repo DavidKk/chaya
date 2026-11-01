@@ -27,11 +27,7 @@ export const metadata: Metadata = {
       { url: '/apple-touch-icon.png', sizes: '180x180', type: 'image/png' },
       { url: '/brand/chaya-app-icon.png', sizes: '512x512', type: 'image/png' },
     ],
-    apple: [
-      { url: '/apple-touch-icon.png' },
-      { url: '/apple-touch-icon.png', sizes: '180x180' },
-      { url: '/brand/chaya-app-icon.png', sizes: '512x512' },
-    ],
+    apple: [{ url: '/apple-touch-icon.png' }, { url: '/apple-touch-icon.png', sizes: '180x180' }, { url: '/brand/chaya-app-icon.png', sizes: '512x512' }],
   },
 }
 

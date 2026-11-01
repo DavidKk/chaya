@@ -1,5 +1,5 @@
-import { LuSlidersHorizontal, LuTv } from 'react-icons/lu'
 import type { IconType } from 'react-icons'
+import { LuSlidersHorizontal, LuTv } from 'react-icons/lu'
 
 import type { MessageKey } from '@/lib/i18n'
 

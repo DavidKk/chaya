@@ -14,18 +14,17 @@ export async function OPTIONS() {
   return new NextResponse(null, { status: 204, headers: CORS })
 }
 
-function placeholderSvg(message = '游戏画面截取中…') {
+function placeholderSvg() {
   return `
 <svg xmlns="http://www.w3.org/2000/svg" width="640" height="360" viewBox="0 0 640 360" fill="none">
   <rect width="640" height="360" fill="#090d16" />
   <circle cx="320" cy="160" r="40" fill="#1e293b" />
   <path d="M305 145h30v30h-30z" stroke="#64748b" stroke-width="2" fill="none" stroke-linejoin="round" />
-  <text x="320" y="230" fill="#94a3b8" font-size="14" font-family="sans-serif" text-anchor="middle">${message}</text>
 </svg>
 `.trim()
 }
 
-/** 动态抓取运行中游戏的实时画面快照（JPEG） */
+/** Return a cached low-frequency preview, independent of live WebRTC capture. */
 export const GET = defineApiRoute('get:/api/remote/screenshot', async ({ request }) => {
   const url = new URL(request.url)
   const roomId = url.searchParams.get('roomId') || 'default'
@@ -38,7 +37,7 @@ export const GET = defineApiRoute('get:/api/remote/screenshot', async ({ request
       status: 200,
       headers: {
         ...CORS,
-        'Content-Type': 'image/jpeg',
+        'Content-Type': shot.mimeType || 'image/jpeg',
         'Cache-Control': 'no-cache, no-store, must-revalidate',
       },
     })

@@ -1,7 +1,8 @@
-import { playCht } from '@/lib/i18n/messages/parts/play'
 import { debugCht } from '@/lib/i18n/messages/parts/debug'
+import { eventCurrentCht } from '@/lib/i18n/messages/parts/event-current'
 import { floatingBallCht } from '@/lib/i18n/messages/parts/floating-ball'
 import { mcpGatewayCht } from '@/lib/i18n/messages/parts/mcp-gateway'
+import { playCht } from '@/lib/i18n/messages/parts/play'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const cht: MessageTree = {
@@ -1499,6 +1500,7 @@ export const cht: MessageTree = {
     marketing: 'Chaya 为开源免费的技术工具，不提供遊戲或譯文，与 RPG Maker 及各作品权利人无關聯。使用风险详见',
   },
   events: {
+    current: eventCurrentCht,
     tabCommon: '公共事件',
     tabMap: '地图',
     tabTroop: '敌群',

@@ -1,7 +1,8 @@
-import { playPtBR } from '@/lib/i18n/messages/parts/play'
 import { debugPtBR } from '@/lib/i18n/messages/parts/debug'
+import { eventCurrentPtBR } from '@/lib/i18n/messages/parts/event-current'
 import { floatingBallPtBR } from '@/lib/i18n/messages/parts/floating-ball'
 import { mcpGatewayPtBR } from '@/lib/i18n/messages/parts/mcp-gateway'
+import { playPtBR } from '@/lib/i18n/messages/parts/play'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const ptBR: MessageTree = {
@@ -1518,6 +1519,7 @@ export const ptBR: MessageTree = {
       'Chaya is a free, open-source technical tool. It provides no games or translations and is not affiliated with RPG Maker or any rights holder. For usage risks, see the',
   },
   events: {
+    current: eventCurrentPtBR,
     tabCommon: 'Common events',
     tabMap: 'Maps',
     tabTroop: 'Troops',

@@ -4,12 +4,15 @@ import { assertMapOperationCompleted, type EventsOp, type EventsSlot, type Playe
 import { type TabId, usesEventsSlot } from '@/components/game-edit/tabs'
 import { battleSignature, type BattleState } from '@/lib/game/battle'
 import type { CommonEventsData, MapDetailData } from '@/lib/game/events'
+import type { EventActivity } from '@/lib/game/events/runtime'
 import { readViewState, writeViewState } from '@/lib/view-state'
 
 import { gameRoomId } from '../../helpers'
+import { applyRunAction } from '../runtime/apply-run'
+import { controlCurrentEvent, readEventActivity } from '../session/event-control'
 import { addEnemy, killEnemy, readBattleState, recoverEnemy, reviveEnemy, transformEnemy, writeEnemyHp, writeEnemyMhp } from '../session/live-battle'
 import { buildLiveCommonEventsData, isOnMapScene, runCommonEventOnMap } from '../session/live-events'
-import { buildLiveMapDetail, playerSpot, runMapEvent, runningCommonEvents, setSelfSwitch, teleportPlayer } from '../session/live-map'
+import { buildLiveMapDetail, playerSpot, runMapEvent, setSelfSwitch, teleportPlayer } from '../session/live-map'
 import { joinActor, recoverActor, reviveActor, writeActorVital } from '../session/live-party'
 import { startTroopBattle } from '../session/live-troop'
 import { recentMaps } from '../session/map-history'
@@ -33,12 +36,20 @@ function initialEventsView(): EventsView {
   return { commonId: optionalId(saved?.commonId), mapId, eventId, eventPage, troopId: optionalId(saved?.troopId) }
 }
 
-type Scene = { onMap: boolean; player: PlayerSpot | null; recent: number[]; running: number[]; battle: BattleState | null }
+type Scene = { onMap: boolean; player: PlayerSpot | null; recent: number[]; running: number[]; battle: BattleState | null; activity?: EventActivity }
 
 function readScene(): Scene {
   const onMap = isOnMapScene()
   const spot = playerSpot()
-  return { onMap, player: spot.mapId > 0 ? spot : null, recent: recentMaps(), running: runningCommonEvents(), battle: readBattleState() }
+  const activity = readEventActivity()
+  return {
+    onMap,
+    player: spot.mapId > 0 ? spot : null,
+    recent: recentMaps(),
+    running: [...new Set(activity.entries.flatMap((e) => (e.commonEventId ? [e.commonEventId] : [])))],
+    battle: readBattleState(),
+    activity,
+  }
 }
 
 function sameScene(a: Scene, b: Scene) {
@@ -50,6 +61,7 @@ function sameScene(a: Scene, b: Scene) {
     a.player?.direction === b.player?.direction &&
     a.recent.join() === b.recent.join() &&
     a.running.join() === b.running.join() &&
+    JSON.stringify(a.activity) === JSON.stringify(b.activity) &&
     battleSignature(a.battle) === battleSignature(b.battle)
   )
 }
@@ -60,8 +72,12 @@ async function completedMapOperation<T>(operation: Promise<T>): Promise<void> {
 
 function applyOp(op: EventsOp) {
   switch (op.op) {
+    case 'runAction':
+      return applyRunAction(op.id)
     case 'commonEvent':
       return runCommonEventOnMap(op.id, op.from)
+    case 'eventControl':
+      return controlCurrentEvent(op.action, op.target)
     case 'selfSwitch':
       return setSelfSwitch(op.mapId, op.eventId, op.letter, op.value)
     case 'teleport':
@@ -190,6 +206,7 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
       canAct: true,
       onMap: scene.onMap,
       runningCommon: scene.running,
+      eventActivity: scene.activity,
       commonId: view.commonId,
       onSelectCommon: (id) => {
         setView((v) => ({ ...v, commonId: id }))
@@ -235,7 +252,8 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
           )
           setMapUndo(latestMapUndo())
         } else await applyOp(op)
-        if (op.op === 'teleport' || op.op.startsWith('enemy') || op.op.startsWith('actor')) setScene((sceneRef.current = readScene()))
+        if (op.op === 'teleport' || op.op === 'eventControl' || op.op === 'runAction' || op.op.startsWith('enemy') || op.op.startsWith('actor'))
+          setScene((sceneRef.current = readScene()))
         if ((op.op === 'selfSwitch' || op.op === 'teleport' || op.op === 'mapEvent') && mapRef.current != null) void loadMap(mapRef.current)
       },
       onSwitchChange: (id, value) => {
@@ -274,8 +292,8 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
       afterRun: onClose,
       mapId: view.mapId,
       eventId: view.eventId,
-      onSelectMap: (mapId, eventId) => {
-        setView((v) => ({ ...v, mapId, eventId: eventId ?? null, eventPage: null }))
+      onSelectMap: (mapId, eventId, page) => {
+        setView((v) => ({ ...v, mapId, eventId: eventId ?? null, eventPage: page ?? null }))
         if (tab !== 'map') selectTab('map')
       },
       eventPage: view.eventPage,

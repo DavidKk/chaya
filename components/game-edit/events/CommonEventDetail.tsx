@@ -235,6 +235,14 @@ export function CommonEventDetail({ event, data, slot, session, onBack }: Props)
           runBlocked={runBlocked}
           busy={running}
           live={live}
+          current={
+            slot.live
+              ? slot.eventActivity?.entries
+                  .slice()
+                  .reverse()
+                  .find((entry) => entry.commonEventId === event.id)
+              : undefined
+          }
         />
       </ScrollArea>
     </section>

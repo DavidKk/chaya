@@ -22,7 +22,7 @@ export class WindowsHostShell implements HostShellCapability {
     return spawnDetached('explorer.exe', [p])
   }
 
-  launchShell(shellApp: string, contentRoot: string, options?: LaunchShellOptions): Promise<void> {
+  launchShell(shellApp: string, contentRoot: string, _options?: LaunchShellOptions): Promise<void> {
     assertPathExists(shellApp)
     assertPathExists(contentRoot)
     const exe = resolveShellLaunchTarget(shellApp)

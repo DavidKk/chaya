@@ -3,6 +3,7 @@
  * No arbitrary plugin method calls: agents only reach preset abilities (see docs/capabilities.md).
  */
 
+import { readEventRuntime } from '@/lib/game/events/runtime'
 import type { AgentCommand, AgentInputEffect, AgentInputGuard, AgentInputKey, AgentParams } from '@/lib/runtime/agent-protocol'
 import { parseEditAction, parseEditOp } from '@/lib/runtime/edit-ops'
 import { isFirstPartyToolPlugin } from '@/lib/runtime/plugin-tools'
@@ -551,6 +552,8 @@ export async function runAgentCommand(cmd: AgentCommand, { allowEval = false, in
   switch (cmd.method) {
     case 'game.state':
       return readAgentGameState()
+    case 'game.events':
+      return readEventRuntime()
     case 'game.ui':
       return readAgentGameUi()
     case 'game.saves':

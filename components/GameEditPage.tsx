@@ -133,6 +133,7 @@ export function GameEditPage() {
     canAct: linked,
     onMap: scene.onMap,
     runningCommon: scene.runningCommon,
+    eventActivity: scene.eventActivity,
     commonId,
     onSelectCommon: (id) => {
       const href = hrefWithQuery(editCommonHref(id), eventsQuery)
@@ -183,8 +184,8 @@ export function GameEditPage() {
     },
     mapId,
     eventId: mapEventId,
-    onSelectMap: (nextMap, nextEvent) => {
-      const href = hrefWithQuery(editMapHref(nextMap, nextEvent), eventsQuery)
+    onSelectMap: (nextMap, nextEvent, page) => {
+      const href = hrefWithQuery(editMapHref(nextMap, nextEvent, page != null ? page + 1 : undefined), eventsQuery)
       if ((nextMap == null && mapId != null) || (nextMap === mapId && nextEvent == null && mapEventId != null)) returnToNavigationSource(router, href)
       else router.push(href)
     },

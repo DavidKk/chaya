@@ -26,6 +26,7 @@ export class OsxHostShell implements HostShellCapability {
     if (options?.silent) {
       args.push(
         '--window-hidden',
+        '--disable-raf-throttling',
         '--disable-background-timer-throttling',
         '--disable-renderer-backgrounding',
         '--disable-backgrounding-occluded-windows',

@@ -8,6 +8,15 @@ import os from 'node:os'
 
 export type SignalingSdp = { type: RTCSdpType; sdp?: string }
 
+export type SpectatorPeer = {
+  peerId: string
+  offer: SignalingSdp | null
+  answer: SignalingSdp | null
+  webConnected: boolean
+  updatedAt: number
+  clientIp?: string
+}
+
 export type SignalingRoom = {
   roomId: string
   offer: SignalingSdp | null
@@ -17,6 +26,8 @@ export type SignalingRoom = {
   updatedAt: number
   /** Web 端创建 offer 时的来源 IP（如手机内网 IP） */
   clientIp?: string
+  /** 活跃观战客户端列表（只读画面与音频，无控制权） */
+  spectators?: SpectatorPeer[]
 }
 
 type StoredRoom = SignalingRoom & {
@@ -24,6 +35,7 @@ type StoredRoom = SignalingRoom & {
   tokenHash?: Buffer
   /** 建房来源（客户端 IP），用于按来源限制房间数 */
   owner?: string
+  spectatorMap?: Map<string, SpectatorPeer>
 }
 
 type Board = Map<string, StoredRoom>
@@ -64,10 +76,7 @@ export function detectLocalLanIp(): string | null {
  */
 export function patchOfferSdpWithLanIp(sdp: string, clientIp?: string): string {
   if (!clientIp || !sdp) return sdp
-  let res = sdp.replace(
-    /(candidate:[^\r\n]*\s(?:udp|tcp)\s+\d+\s+)(?:[a-zA-Z0-9.-]+\.local|0\.0\.0\.0)(\s+\d+\s+typ\s+host[^\r\n]*)/gi,
-    `$1${clientIp}$2`
-  )
+  let res = sdp.replace(/(candidate:[^\r\n]*\s(?:udp|tcp)\s+\d+\s+)(?:[a-zA-Z0-9.-]+\.local|0\.0\.0\.0)(\s+\d+\s+typ\s+host[^\r\n]*)/gi, `$1${clientIp}$2`)
   res = res.replace(/^c=IN IP4 (?:0\.0\.0\.0|127\.0\.0\.1)/gm, `c=IN IP4 ${clientIp}`)
   return res
 }
@@ -158,7 +167,16 @@ function board(): Board {
 function prune(now = Date.now()) {
   const b = board()
   for (const [id, room] of b) {
-    if (now - room.updatedAt > ROOM_TTL_MS) b.delete(id)
+    if (room.spectatorMap) {
+      for (const [peerId, peer] of room.spectatorMap) {
+        if (now - peer.updatedAt > ROOM_TTL_MS) {
+          room.spectatorMap.delete(peerId)
+        }
+      }
+    }
+    if (now - room.updatedAt > ROOM_TTL_MS && (!room.spectatorMap || room.spectatorMap.size === 0)) {
+      b.delete(id)
+    }
   }
 }
 
@@ -166,9 +184,22 @@ function hashToken(token: string): Buffer {
   return createHash('sha256').update(token).digest()
 }
 
-function publicRoom(room: StoredRoom): SignalingRoom {
-  const { tokenHash: _hash, owner: _owner, ...rest } = room
-  return { ...rest }
+function publicRoom(room: StoredRoom, targetPeerId?: string): SignalingRoom {
+  const { tokenHash: _hash, owner: _owner, spectatorMap, ...rest } = room
+  const spectators = spectatorMap ? Array.from(spectatorMap.values()) : []
+  if (targetPeerId && spectatorMap?.has(targetPeerId)) {
+    const peer = spectatorMap.get(targetPeerId)!
+    return {
+      roomId: room.roomId,
+      offer: peer.offer,
+      answer: peer.answer,
+      webConnected: peer.webConnected,
+      updatedAt: peer.updatedAt,
+      clientIp: peer.clientIp,
+      spectators,
+    }
+  }
+  return { ...rest, spectators }
 }
 
 function lookup(roomId: string): StoredRoom | undefined {
@@ -180,9 +211,10 @@ function ensure(roomId: string): StoredRoom {
   const b = board()
   let room = lookup(roomId)
   if (!room) {
-    room = { roomId, offer: null, answer: null, webConnected: false, updatedAt: Date.now() }
+    room = { roomId, offer: null, answer: null, webConnected: false, updatedAt: Date.now(), spectatorMap: new Map() }
     b.set(roomId, room)
   }
+  if (!room.spectatorMap) room.spectatorMap = new Map()
   return room
 }
 
@@ -211,21 +243,35 @@ export function checkRoomToken(roomId: string, token: string, opts: { claim: boo
 }
 
 /** 只读，不创建房间 */
-export function getSignalingRoom(roomId: string): SignalingRoom | null {
+export function getSignalingRoom(roomId: string, peerId?: string): SignalingRoom | null {
   const room = lookup(roomId)
-  return room ? publicRoom(room) : null
+  return room ? publicRoom(room, peerId) : null
 }
 
 /** 遍历当前所有活跃的信令房间 */
 export function listAllSignalingRooms(): SignalingRoom[] {
   prune()
-  return [...board().values()].map(publicRoom)
+  return [...board().values()].map((r) => publicRoom(r))
 }
 
 /** 服务端模式可直接建房；浏览器模式须先 `checkRoomToken(..., { claim: true })` */
-export function publishOffer(roomId: string, offer: SignalingSdp, clientIp?: string): SignalingRoom {
+export function publishOffer(roomId: string, offer: SignalingSdp, clientIp?: string, peerId?: string): SignalingRoom {
   const room = ensure(roomId)
   const patchedSdp = clientIp && offer.sdp ? patchOfferSdpWithLanIp(offer.sdp, clientIp) : offer.sdp
+  if (peerId) {
+    if (!room.spectatorMap) room.spectatorMap = new Map()
+    const peer: SpectatorPeer = {
+      peerId,
+      offer: { ...offer, sdp: patchedSdp },
+      answer: null,
+      webConnected: false,
+      clientIp,
+      updatedAt: Date.now(),
+    }
+    room.spectatorMap.set(peerId, peer)
+    room.updatedAt = Date.now()
+    return publicRoom(room, peerId)
+  }
   room.offer = { ...offer, sdp: patchedSdp }
   room.answer = null
   room.webConnected = false
@@ -234,27 +280,53 @@ export function publishOffer(roomId: string, offer: SignalingSdp, clientIp?: str
   return publicRoom(room)
 }
 
-export function publishAnswer(roomId: string, answer: SignalingSdp): SignalingRoom | null {
+export function publishAnswer(roomId: string, answer: SignalingSdp, peerId?: string): SignalingRoom | null {
   const room = lookup(roomId)
   if (!room) return null
+  if (peerId) {
+    const peer = room.spectatorMap?.get(peerId)
+    if (!peer) return null
+    const optimizedSdp = answer.sdp ? optimizeAnswerSdp(answer.sdp, peer.clientIp) : answer.sdp
+    peer.answer = { ...answer, sdp: optimizedSdp }
+    peer.updatedAt = Date.now()
+    room.updatedAt = Date.now()
+    return publicRoom(room, peerId)
+  }
   const optimizedSdp = answer.sdp ? optimizeAnswerSdp(answer.sdp, room.clientIp) : answer.sdp
   room.answer = { ...answer, sdp: optimizedSdp }
   room.updatedAt = Date.now()
   return publicRoom(room)
 }
 
-export function setWebConnected(roomId: string, connected: boolean): SignalingRoom | null {
+export function setWebConnected(roomId: string, connected: boolean, peerId?: string): SignalingRoom | null {
   const room = lookup(roomId)
   if (!room) return null
+  if (peerId) {
+    const peer = room.spectatorMap?.get(peerId)
+    if (peer) {
+      peer.webConnected = connected
+      peer.updatedAt = Date.now()
+      if (!connected) {
+        room.spectatorMap?.delete(peerId)
+      }
+    }
+    room.updatedAt = Date.now()
+    return publicRoom(room, peerId)
+  }
   room.webConnected = connected
   room.updatedAt = Date.now()
   return publicRoom(room)
 }
 
 /** 清空协商状态；保留令牌绑定，避免 reset 与 offer 之间被他人抢先建房 */
-export function resetSignalingRoom(roomId: string): void {
+export function resetSignalingRoom(roomId: string, peerId?: string): void {
   const room = lookup(roomId)
   if (!room) return
+  if (peerId) {
+    room.spectatorMap?.delete(peerId)
+    room.updatedAt = Date.now()
+    return
+  }
   room.offer = null
   room.answer = null
   room.webConnected = false
@@ -272,6 +344,11 @@ export function anyWebConnected(maxAgeMs = 30_000): boolean {
   const now = Date.now()
   for (const room of board().values()) {
     if (room.webConnected && now - room.updatedAt <= maxAgeMs) return true
+    if (room.spectatorMap) {
+      for (const sp of room.spectatorMap.values()) {
+        if (sp.webConnected && now - sp.updatedAt <= maxAgeMs) return true
+      }
+    }
   }
   return false
 }

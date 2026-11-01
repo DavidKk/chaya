@@ -1,7 +1,17 @@
 /**
  * @jest-environment jsdom
  */
-import { applySilentWindowHiding, attachGameMediaStream, captureGameMediaStream, handleHostAudioToggle, handleRemoteInput, handleRemoteTap, isolateHostAudio } from '@/plugins/mv/src/helpers/game/remote-stream'
+import {
+  applySilentWindowHiding,
+  attachGameMediaStream,
+  captureGameMediaStream,
+  closeGameMediaPeer,
+  ensureGameRenderKeepalive,
+  handleHostAudioToggle,
+  handleRemoteInput,
+  handleRemoteTap,
+  isolateHostAudio,
+} from '@/plugins/mv/src/helpers/game/remote-stream'
 
 describe('remote-stream (WebRTC game streaming & input simulation)', () => {
   beforeEach(() => {
@@ -122,7 +132,7 @@ describe('remote-stream (WebRTC game streaming & input simulation)', () => {
     canvas.id = 'GameCanvas'
     document.body.appendChild(canvas)
 
-    const mockVideoTrack = { kind: 'video' } as MediaStreamTrack
+    const mockVideoTrack = { kind: 'video', stop: jest.fn() } as unknown as MediaStreamTrack
     const mockStream = {
       active: true,
       getVideoTracks: () => [mockVideoTrack],
@@ -141,6 +151,7 @@ describe('remote-stream (WebRTC game streaming & input simulation)', () => {
     }
 
     const mockPeer = {
+      close: jest.fn(),
       getTransceivers: jest.fn(() => [mockTransceiver]),
       addTrack: jest.fn(),
     } as unknown as RTCPeerConnection
@@ -148,6 +159,7 @@ describe('remote-stream (WebRTC game streaming & input simulation)', () => {
     await attachGameMediaStream(mockPeer)
     expect(mockTransceiver.direction).toBe('sendonly')
     expect(replaceTrackMock).toHaveBeenCalledWith(mockVideoTrack)
+    closeGameMediaPeer(mockPeer)
   })
 
   it('isolateHostAudio disconnects physical destination (Mac mute) and pipes into MediaStreamDestination', () => {
@@ -167,7 +179,7 @@ describe('remote-stream (WebRTC game streaming & input simulation)', () => {
 
     // Default: mute host machine (disconnects physical speakers)
     isolateHostAudio(false)
-    expect(mockGain.disconnect).toHaveBeenCalled()
+    expect(mockGain.disconnect).toHaveBeenCalledWith(mockCtx.destination)
     expect(mockCtx.createMediaStreamDestination).toHaveBeenCalled()
     expect(mockGain.connect).toHaveBeenCalledWith(mockDestNode)
     expect(mockGain.connect).not.toHaveBeenCalledWith(mockCtx.destination)
@@ -197,4 +209,162 @@ describe('remote-stream (WebRTC game streaming & input simulation)', () => {
     delete (globalThis as any).CHAYA_SILENT_MODE
   })
 
+  it('shares capture across consumers, replaces recreated audio, and releases the final video track', async () => {
+    const audio1 = { kind: 'audio', readyState: 'live' }
+    const audio2 = { kind: 'audio', readyState: 'live' }
+    const video = { kind: 'video', readyState: 'live', stop: jest.fn() }
+    let audioTracks: any[] = []
+    const stream = {
+      active: true,
+      getVideoTracks: () => [video],
+      getAudioTracks: () => audioTracks,
+      addTrack: (track: unknown) => {
+        audioTracks.push(track)
+      },
+      removeTrack: (track: unknown) => {
+        audioTracks = audioTracks.filter((item) => item !== track)
+      },
+    }
+    const canvas = document.createElement('canvas')
+    canvas.id = 'GameCanvas'
+    const capture = jest.fn(() => stream)
+    ;(canvas as any).captureStream = capture
+    document.body.append(canvas)
+    const audioContext = (track: unknown) => ({
+      destination: {},
+      createMediaStreamDestination: () => ({ stream: { getAudioTracks: () => [track] } }),
+    })
+    const host = globalThis as any
+    host.WebAudio = { _context: audioContext(audio1), _masterGainNode: { connect: jest.fn(), disconnect: jest.fn() } }
+    const sender = { track: audio1, replaceTrack: jest.fn(async () => {}) }
+    const first = { close: jest.fn(), addTrack: jest.fn(), getSenders: () => [sender] } as unknown as RTCPeerConnection
+    const second = { close: jest.fn(), addTrack: jest.fn() } as unknown as RTCPeerConnection
+    await attachGameMediaStream(first)
+    await attachGameMediaStream(second)
+    expect(capture).toHaveBeenCalledTimes(1)
+    expect(audioTracks).toEqual([audio1])
+    host.WebAudio._context = audioContext(audio2)
+    isolateHostAudio()
+    expect(sender.replaceTrack).toHaveBeenCalledWith(audio2)
+    expect(audioTracks).toEqual([audio2])
+    closeGameMediaPeer(first)
+    expect(video.stop).not.toHaveBeenCalled()
+    closeGameMediaPeer(second)
+    expect(video.stop).toHaveBeenCalledTimes(1)
+    delete host.WebAudio
+  })
+})
+
+describe('remote render keepalive', () => {
+  const host = globalThis as any
+  let frames: FrameRequestCallback[]
+  let scene: any
+  let renderScene: jest.Mock
+
+  beforeEach(() => {
+    jest.useFakeTimers()
+    delete host.WebAudio
+    delete host.nw
+    frames = []
+    jest.spyOn(globalThis, 'requestAnimationFrame').mockImplementation((callback) => {
+      frames.push(callback)
+      return frames.length
+    })
+    renderScene = jest.fn()
+    scene = {
+      _stopped: false,
+      renderScene,
+      requestUpdate() {
+        if (!this._stopped) requestAnimationFrame(this.update.bind(this))
+      },
+      update() {
+        this.renderScene()
+        this.requestUpdate()
+      },
+    }
+    host.SceneManager = scene
+    scene.requestUpdate()
+  })
+
+  afterEach(() => {
+    jest.clearAllTimers()
+    jest.useRealTimers()
+    jest.restoreAllMocks()
+    delete host.SceneManager
+    delete host.Graphics
+  })
+
+  it('renders close to 60 fps while RAF is suspended without accumulating callbacks', () => {
+    ensureGameRenderKeepalive()
+    ensureGameRenderKeepalive()
+    jest.advanceTimersByTime(1000)
+
+    expect(renderScene.mock.calls.length).toBeGreaterThanOrEqual(55)
+    expect(renderScene.mock.calls.length).toBeLessThanOrEqual(63)
+    expect(frames).toHaveLength(1)
+
+    jest.advanceTimersByTime(9000)
+    expect(frames).toHaveLength(1)
+  })
+
+  it('returns to a single native loop when the window becomes visible', () => {
+    ensureGameRenderKeepalive()
+    jest.advanceTimersByTime(5000)
+    renderScene.mockClear()
+
+    for (let i = 0; i < 60; i++) {
+      const pending = frames.splice(0)
+      for (const frame of pending) frame(performance.now())
+      jest.advanceTimersByTime(16)
+    }
+
+    expect(renderScene).toHaveBeenCalledTimes(60)
+    expect(frames).toHaveLength(1)
+  })
+
+  it('does not interleave timer frames with a phase-offset native RAF or alter engine frame skipping', () => {
+    host.Graphics = { _maxSkip: 3 }
+    ensureGameRenderKeepalive()
+    for (let i = 0; i < 60; i++) {
+      jest.advanceTimersByTime(i === 0 ? 15 : 17)
+      const pending = frames.splice(0)
+      for (const frame of pending) frame(performance.now())
+    }
+    expect(renderScene).toHaveBeenCalledTimes(60)
+    expect(host.Graphics._maxSkip).toBe(3)
+    expect(frames).toHaveLength(1)
+  })
+
+  it('honors engine stop and resumes fallback updates without installing a second timer', () => {
+    ensureGameRenderKeepalive()
+    scene._stopped = true
+    jest.advanceTimersByTime(1000)
+    expect(renderScene).not.toHaveBeenCalled()
+
+    scene._stopped = false
+    ensureGameRenderKeepalive()
+    jest.advanceTimersByTime(1000)
+    expect(renderScene.mock.calls.length).toBeGreaterThanOrEqual(59)
+    expect(renderScene.mock.calls.length).toBeLessThanOrEqual(63)
+    expect(frames).toHaveLength(1)
+  })
+
+  it('ticks the MZ graphics ticker so rendering and delta time remain engine-owned', () => {
+    delete scene.requestUpdate
+    const render = jest.fn()
+    const update = jest.fn((_time: number) => render())
+    const ticker = { started: true, update }
+    host.Graphics = { _app: { ticker } }
+    ensureGameRenderKeepalive()
+
+    jest.advanceTimersByTime(1000)
+    expect(render.mock.calls.length).toBeGreaterThanOrEqual(55)
+    expect(performance.now() - update.mock.calls.at(-1)![0]).toBeLessThan(17)
+    expect(renderScene).not.toHaveBeenCalled()
+
+    render.mockClear()
+    ticker.started = false
+    jest.advanceTimersByTime(1000)
+    expect(render).not.toHaveBeenCalled()
+  })
 })

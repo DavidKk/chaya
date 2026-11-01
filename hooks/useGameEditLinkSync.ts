@@ -26,6 +26,7 @@ import {
 import { HOTKEY_SYNC_CHANGED_EVENT, loadHotkeySyncSnapshot, saveHotkeySyncSnapshot } from '@/components/game-edit/run-hotkeys'
 import { useGameLinkContext } from '@/components/GameLinkProvider'
 import { battleSignature, type BattleState } from '@/lib/game/battle'
+import type { EventActivity } from '@/lib/game/events/runtime'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import { type HotkeySyncSnapshot, reconcileHotkeySnapshots } from '@/lib/game/hotkeys-sync'
 import { EDIT_CMD_GIVE_UP_MS, EDIT_CMD_RETRY_MS, type EditPendingMap, expectForEditCmd, fieldsForEditCmd, mergeRemoteSession, newEditCmdId } from '@/lib/runtime/game-edit-sync'
@@ -45,6 +46,7 @@ export type GameLiveScene = {
   playerDir: number
   recentMaps: number[]
   runningCommon: number[]
+  eventActivity?: EventActivity
   battle: BattleState | null
 }
 
@@ -63,6 +65,7 @@ function sceneFrom(msg: GameEditStateMsg, prev: GameLiveScene): GameLiveScene {
     playerDir: msg.playerDir ?? 0,
     recentMaps: msg.recentMaps ?? [],
     runningCommon: msg.runningCommon ?? [],
+    eventActivity: msg.eventActivity,
     battle: msg.battle ?? null,
   }
   const same =
@@ -73,6 +76,7 @@ function sceneFrom(msg: GameEditStateMsg, prev: GameLiveScene): GameLiveScene {
     next.playerDir === prev.playerDir &&
     sameList(next.recentMaps, prev.recentMaps) &&
     sameList(next.runningCommon, prev.runningCommon) &&
+    JSON.stringify(next.eventActivity) === JSON.stringify(prev.eventActivity) &&
     battleSignature(next.battle) === battleSignature(prev.battle)
   return same ? prev : next
 }

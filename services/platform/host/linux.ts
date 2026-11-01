@@ -24,7 +24,7 @@ export class LinuxHostShell implements HostShellCapability {
     return spawnDetached('xdg-open', [path.resolve(targetPath)])
   }
 
-  launchShell(shellApp: string, contentRoot: string, options?: LaunchShellOptions): Promise<void> {
+  launchShell(shellApp: string, contentRoot: string, _options?: LaunchShellOptions): Promise<void> {
     assertPathExists(shellApp)
     assertPathExists(contentRoot)
     const bin = resolveShellLaunchTarget(shellApp)
