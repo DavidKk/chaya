@@ -18,6 +18,7 @@ export type ActorDraft = {
   agi: number
   luk: number
   classId: number
+  inParty?: boolean
   skillIds: number[]
   stateIds: number[]
 }
@@ -147,6 +148,7 @@ export function defaultActorDraft(id: number, name = ''): ActorDraft {
     agi: 1,
     luk: 1,
     classId: 1,
+    inParty: false,
     skillIds: [],
     stateIds: [],
   }

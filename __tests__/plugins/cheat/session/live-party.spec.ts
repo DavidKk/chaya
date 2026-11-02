@@ -1,5 +1,5 @@
 import { Cheats } from '@/plugins/mv/src/cheat/runtime/cheats'
-import { joinActor, readParty, readPartyRoster, recoverActor, reviveActor, writeActorVital } from '@/plugins/mv/src/cheat/session/live-party'
+import { joinActor, readParty, readPartyRoster, recoverActor, restorePreBattleVitals, reviveActor, writeActorVital } from '@/plugins/mv/src/cheat/session/live-party'
 
 class FakeActor {
   hp = 200
@@ -162,5 +162,21 @@ describe('cheat/live-party', () => {
   ])('rejects when %s', (_label, arrange, message) => {
     arrange()
     expect(() => recoverActor({ actorId: 1 })).toThrow(message)
+  })
+  it('restores pre-battle vitals if battle vitals were modified during battle', () => {
+    readParty()
+    writeActorVital({ actorId: 1, key: 'hp', value: 500 })
+    expect(members[0]!.hp).toBe(500)
+    restorePreBattleVitals()
+    expect(members[0]!.hp).toBe(200)
+    expect(members[0]!.mp).toBe(30)
+    expect(members[0]!.tp).toBe(10)
+  })
+
+  it('does not rollback vitals if no battle overrides occurred', () => {
+    readParty()
+    members[0]!.hp = 120
+    restorePreBattleVitals()
+    expect(members[0]!.hp).toBe(120)
   })
 })

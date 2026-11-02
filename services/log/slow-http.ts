@@ -30,7 +30,7 @@ function save(record: SlowRequest) {
 }
 
 /** Keep slow requests separate from the high-volume plugin log buffer. */
-export function watchSlowHttpRequest(request: Pick<SlowRequest, 'requestId' | 'method' | 'path' | 'startedAt'>, elapsedMs: () => number) {
+export function watchSlowHttpRequest(request: Pick<SlowRequest, 'requestId' | 'method' | 'path' | 'startedAt'>, elapsedMs: () => number, thresholdMs = SLOW_HTTP_MS) {
   request = { ...request, requestId: request.requestId.slice(0, 100), method: request.method.slice(0, 16), path: request.path.slice(0, 128) }
   const id = randomUUID()
   let marked = false
@@ -44,7 +44,7 @@ export function watchSlowHttpRequest(request: Pick<SlowRequest, 'requestId' | 'm
     // eslint-disable-next-line no-console -- report stalled requests before they finish
     console.warn(`[Chaya HTTP SLOW] ${request.method} ${request.path} running ${record.elapsedMs}ms requestId=${request.requestId}`)
   }
-  const timer = setTimeout(mark, SLOW_HTTP_MS)
+  const timer = setTimeout(mark, thresholdMs)
   timer.unref?.()
   return (state: 'completed' | 'failed' | 'cancelled', status: number, phase: string) => {
     if (finished) return
@@ -53,7 +53,7 @@ export function watchSlowHttpRequest(request: Pick<SlowRequest, 'requestId' | 'm
     active.delete(id)
     const duration = elapsedMs()
     // Completion must also detect blocked event loops that delayed the timer.
-    if (!marked && duration < SLOW_HTTP_MS) return
+    if (!marked && duration < thresholdMs) return
     save({ ...request, id, elapsedMs: duration, state, status, phase })
   }
 }

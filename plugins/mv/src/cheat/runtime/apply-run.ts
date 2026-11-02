@@ -4,6 +4,7 @@
 import type { RunActionId, RunFlagKey } from '@/components/game-edit/types'
 
 import { canSettleBattleEnd, settleBattleEnd } from '../session/live-battle'
+import { markBattleVitalOverridden } from '../session/live-party'
 import { startTroopBattle } from '../session/live-troop'
 import { setAutoTalk } from './auto-talk'
 import { Cheats } from './cheats'
@@ -78,9 +79,14 @@ export function applyRunAction(id: RunActionId) {
   else if (id === 'battle:settle') settleBattleEnd({ force: true })
   else if (id === 'battle:enemyHp1') RunCheats.setEnemyHp('one')
   else if (id === 'battle:enemyHpMax') RunCheats.setEnemyHp('max')
-  else if (id === 'battle:partyHeal') Cheats.healParty()
-  else if (id === 'battle:partyHp1') RunCheats.setPartyHp('one')
-  else if (id === 'battle:partyHp0') {
+  else if (id === 'battle:partyHeal') {
+    markBattleVitalOverridden()
+    Cheats.healParty()
+  } else if (id === 'battle:partyHp1') {
+    markBattleVitalOverridden()
+    RunCheats.setPartyHp('one')
+  } else if (id === 'battle:partyHp0') {
+    markBattleVitalOverridden()
     RunCheats.setPartyHp('zero')
     settleBattleEnd()
   }

@@ -240,6 +240,7 @@ export function ActorEditPane({
             <ul className="m-0 list-none p-0">
               {actorList.map((entry) => {
                 const on = entry.id === selectedId
+                const inParty = Boolean(drafts[entry.id]?.inParty)
                 return (
                   <li key={entry.id} data-navigation-id={`actor:${entry.id}`}>
                     <button
@@ -249,7 +250,12 @@ export function ActorEditPane({
                       data-navigation-trigger=""
                       onClick={() => onSelectActor(entry.id)}
                     >
-                      <TruncateText text={entry.name || t('edit.actorFallback', { id: entry.id })} className="font-medium text-ink" />
+                      <TruncateText text={entry.name || t('edit.actorFallback', { id: entry.id })} className="min-w-0 flex-1 font-medium text-ink" />
+                      {inParty && (
+                        <span className="shrink-0 rounded-[0.2rem] bg-[color-mix(in_oklab,var(--accent)_18%,transparent)] px-1.5 py-0.5 text-[0.65rem] font-medium text-accent">
+                          在队
+                        </span>
+                      )}
                     </button>
                   </li>
                 )
@@ -290,6 +296,20 @@ export function ActorEditPane({
               <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': t('edit.actorFormAria') }}>
                 <div className="px-4 pt-3 pb-4">
                   <div className={cn(formCardDense, 'm-0 max-w-[32rem]')}>
+                    <div className={formFieldInlineDense}>
+                      <span className={formTitleInline}>是否在队</span>
+                      <span className={formDescInline}>开启加入当前队伍，关闭移出队伍</span>
+                      <div className={formControlInline}>
+                        <div className={cn('flex items-center', fieldControl)}>
+                          <SwitchToggle
+                            checked={Boolean(draft.inParty)}
+                            aria-label="是否在队"
+                            tooltip={draft.inParty ? '点击移出队伍' : '点击加入队伍'}
+                            onCheckedChange={(on) => patchSelected({ inParty: on })}
+                          />
+                        </div>
+                      </div>
+                    </div>
                     <div className={formFieldInlineDense}>
                       <span className={formTitleInline}>{t('edit.name')}</span>
                       <span className={formDescInline}>显示名</span>

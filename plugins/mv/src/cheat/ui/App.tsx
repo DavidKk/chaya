@@ -53,6 +53,7 @@ import type { GameSavesController } from '../game-saves/controller'
 import { applyGameSpeed, applyRunAction, applyRunFlag, applySpeed, runActionNeedsClose } from '../runtime/apply-run'
 import { Cheats } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
+import { markBattleVitalOverridden } from '../session/live-party'
 import { buildLiveCatalogSlices, type CatalogSlice, type LiveSessionScope, readLiveSession, setItemCount, setPartyGold } from '../session/live-session'
 import { bootstrapGameEditSession, diskStateFromSession, ensureGameEditDiskApplied, loadGameEditDisk, scheduleSaveGameEditDisk } from '../session/persist'
 import { publishRemoteHotkeys, syncRemoteMirror } from '../session/remote-bridge'
@@ -440,6 +441,7 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   }
 
   const setBattleLock = (change: BattleLockChange) => {
+    if (change.side === 'actor') markBattleVitalOverridden()
     const kind = change.side === 'actor' ? change.kind : change.kind === 'hp' ? 'enemyHp' : 'enemyMhp'
     Cheats.setLock(kind, change.id, change.on, change.value)
     const key = battleLockKey(change)
@@ -452,6 +454,9 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   }
 
   const setActorVitalLock = (actorId: number, kind: ActorVitalLockKind, on: boolean) => {
+    if ((kind === 'hp' || kind === 'mp') && typeof $gameParty !== 'undefined' && $gameParty?.inBattle?.()) {
+      markBattleVitalOverridden()
+    }
     const draft = session.actors[actorId]
     const value = kind === 'level' ? (draft?.level ?? 1) : kind === 'exp' ? (draft?.exp ?? 0) : kind === 'hp' ? (draft?.hp ?? 0) : (draft?.mp ?? 0)
     Cheats.setLock(kind, actorId, on, value)
@@ -471,6 +476,7 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   const setActor = (id: number, patch: Partial<ActorDraft>) => {
     const api = window.ChayaEdit?.actor?.(id)
     if (api) {
+      if (patch.inParty != null) (api as any).inParty?.(patch.inParty)
       if (patch.name != null) api.name?.(patch.name)
       if (patch.nickname != null) api.nickname?.(patch.nickname)
       if (patch.profile != null) api.profile?.(patch.profile)

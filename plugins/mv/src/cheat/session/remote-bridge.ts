@@ -14,7 +14,7 @@ import { controlCurrentEvent, readEventActivity } from './event-control'
 import { addEnemy, killEnemy, readBattleState, recoverEnemy, reviveEnemy, transformEnemy, writeEnemyHp, writeEnemyMhp } from './live-battle'
 import { buildLiveCommonEventsData, isOnMapScene, runCommonEventOnMap } from './live-events'
 import { buildLiveMapDetail, playerSpot, runMapEvent, setSelfSwitch, teleportPlayer } from './live-map'
-import { joinActor, recoverActor, reviveActor, writeActorVital } from './live-party'
+import { joinActor, markBattleVitalOverridden, recoverActor, reviveActor, writeActorVital } from './live-party'
 import { buildLiveCatalog, readLiveSession, setItemCount, setPartyGold } from './live-session'
 import { startTroopBattle } from './live-troop'
 import { recentMaps } from './map-history'
@@ -108,6 +108,7 @@ export function applyEditCmd(cmd: GameEditCmd): void {
       const api = window.ChayaEdit?.actor?.(cmd.id)
       const patch = cmd.patch
       if (api) {
+        if (patch.inParty != null) (api as any).inParty?.(patch.inParty)
         if (patch.name != null) api.name?.(patch.name)
         if (patch.nickname != null) api.nickname?.(patch.nickname)
         if (patch.profile != null) api.profile?.(patch.profile)
@@ -133,6 +134,7 @@ export function applyEditCmd(cmd: GameEditCmd): void {
       Cheats.setLock(cmd.kind, cmd.actorId, cmd.on, cmd.value)
       return
     case 'battleLock':
+      if (cmd.side === 'actor') markBattleVitalOverridden()
       Cheats.setLock(cmd.side === 'actor' ? cmd.kind : cmd.kind === 'hp' ? 'enemyHp' : 'enemyMhp', cmd.id, cmd.on, cmd.value)
       return
     case 'actorOwnedLock': {

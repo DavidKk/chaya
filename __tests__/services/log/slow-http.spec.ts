@@ -119,3 +119,13 @@ it('bounds the active index during a flood while still saving every completion',
   for (const finish of finishes) finish('completed', 200, 'response-finished')
   expect(listSlowHttpRequests()).toMatchObject({ running: 0, matched: 300, unfinished: 0 })
 })
+
+it('respects custom thresholdMs for long-polling requests', () => {
+  const started = performance.now()
+  const finish = watchSlowHttpRequest({ requestId: 'poll-id', method: 'POST', path: '/api/runtime/agent', startedAt: Date.now() }, () => performance.now() - started, 35000)
+  jest.advanceTimersByTime(26000)
+  expect(listSlowHttpRequests().requests).toHaveLength(0)
+  expect(warnings).not.toHaveBeenCalled()
+  finish('completed', 200, 'response-finished')
+  expect(listSlowHttpRequests().matched).toBe(0)
+})

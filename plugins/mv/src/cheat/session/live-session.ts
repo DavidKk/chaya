@@ -232,6 +232,10 @@ function readActors(prev: SessionState, locksIn: Record<string, number>): { acto
     const [mpCur, mpMax] = String(info.mp || '0/0')
       .split('/')
       .map((x) => Number(x) || 0)
+    const inParty = Boolean(
+      (info as { inParty?: boolean })?.inParty ??
+      ($gameParty && (($gameParty._actors && $gameParty._actors.includes(i)) || $gameParty.members?.()?.some((a: { actorId?: () => number }) => a?.actorId?.() === i)))
+    )
     actors[i] = {
       name: String(info.name || $dataActors[i]?.name || `角色 #${i}`),
       nickname: String(info.nickname || ''),
@@ -249,6 +253,7 @@ function readActors(prev: SessionState, locksIn: Record<string, number>): { acto
       agi: Number(info.agi) || 0,
       luk: Number(info.luk) || 0,
       classId: Number(info.classId) || 1,
+      inParty,
       skillIds: Array.isArray(info.skills) ? info.skills.map(Number).filter((n) => n > 0) : [],
       stateIds: Array.isArray(info.states) ? info.states.map(Number).filter((n) => n > 0) : [],
     }
