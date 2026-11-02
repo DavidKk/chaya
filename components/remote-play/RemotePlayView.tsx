@@ -42,7 +42,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const [videoResolution, setVideoResolution] = useState<{ width: number; height: number } | null>(null)
   const [hudVisible, setHudVisible] = useState(false)
   const [installGuideOpen, setInstallGuideOpen] = useState(false)
-  const [fitMode, setFitMode] = useState<'contain' | 'cover'>('contain')
+  const [fitMode, setFitMode] = useState<'contain' | 'cover' | 'fill'>('contain')
 
   // Unified Menu Modal (Single Button trigger)
   const [menuOpen, setMenuOpen] = useState(false)
@@ -71,7 +71,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
     try {
       setHudVisible(localStorage.getItem('chaya_remote_play_hud') === '1')
       const fit = localStorage.getItem('chaya_remote_play_fit')
-      if (fit === 'contain' || fit === 'cover') setFitMode(fit)
+      if (fit === 'contain' || fit === 'cover' || fit === 'fill') setFitMode(fit)
       const mode = localStorage.getItem('chaya_remote_control_mode') as ControlMode
       if (['fixed', 'dynamic', 'single-left', 'single-right', 'touch'].includes(mode)) setControlMode(mode)
       const client = localStorage.getItem('chaya_remote_client_mode')
@@ -316,7 +316,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const toggleFitMode = () => {
     resetIdleTimer()
     setFitMode((prev) => {
-      const next = prev === 'contain' ? 'cover' : 'contain'
+      const next: 'contain' | 'cover' | 'fill' = prev === 'contain' ? 'cover' : prev === 'cover' ? 'fill' : 'contain'
       try {
         localStorage.setItem('chaya_remote_play_fit', next)
       } catch {

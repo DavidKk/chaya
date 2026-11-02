@@ -47,7 +47,7 @@ type Props = {
   onDrawer: (tab: 'cheats' | 'debug' | 'logs' | 'cheat') => void
   muted: boolean
   onMute: () => void
-  fitMode: 'contain' | 'cover'
+  fitMode: 'contain' | 'cover' | 'fill'
   onFit: () => void
   hudVisible: boolean
   onHud: () => void
@@ -190,7 +190,7 @@ export function RemotePlaySettings(props: Props) {
                 <ConfigRow
                   icon={<LuScaling size={16} />}
                   label={t('play.scalingMode')}
-                  control={t(props.fitMode === 'cover' ? 'play.fitCover' : 'play.fitContain')}
+                  control={t(props.fitMode === 'cover' ? 'play.fitCover' : props.fitMode === 'fill' ? 'play.fitFill' : 'play.fitContain')}
                   onClick={props.onFit}
                 />
                 <ConfigRow icon={<LuActivity size={16} />} label={t('play.perfHud')} control={t(props.hudVisible ? 'play.shown' : 'play.hidden')} onClick={props.onHud} />

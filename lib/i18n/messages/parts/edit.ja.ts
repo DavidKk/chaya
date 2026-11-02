@@ -159,6 +159,8 @@ export const editJa = {
     groupBattle: '戦闘',
     flagFullscreen: '全画面',
     flagFullscreenDesc: 'Fullscreen game window',
+    flagScreenStretch: '画面引き伸ばし',
+    flagScreenStretchDesc: '黒帯を解消してウィンドウ全体に表示',
     flagAlwaysDash: '常時ダッシュ',
     flagAlwaysDashDesc: 'Always move at dash speed',
     flagGod: '無敵',

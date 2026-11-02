@@ -23,7 +23,7 @@ type Props = {
   isPortrait: boolean
   isDesktop: boolean
   muted: boolean
-  fitMode: 'contain' | 'cover'
+  fitMode: 'contain' | 'cover' | 'fill'
   isFullscreen: boolean
   isStandalone: boolean
   idle: boolean
@@ -133,7 +133,7 @@ export function RemotePlaySurface(props: Props) {
         onPointerMove={(e) => handlePointer(e, 'move')}
         onPointerUp={(e) => handlePointer(e, 'up')}
         onPointerCancel={(e) => handlePointer(e, 'up')}
-        className={`relative z-10 max-h-full max-w-full cursor-crosshair touch-none ${hasVideoFeed ? (props.fitMode === 'cover' ? 'h-full w-full object-cover' : 'object-contain') : 'hidden'}`}
+        className={`relative z-10 max-h-full max-w-full cursor-crosshair touch-none ${hasVideoFeed ? (props.fitMode === 'cover' ? 'h-full w-full object-cover' : props.fitMode === 'fill' ? 'h-full w-full object-fill' : 'object-contain') : 'hidden'}`}
         style={props.videoResolution && props.fitMode !== 'cover' ? { aspectRatio: `${props.videoResolution.width} / ${props.videoResolution.height}` } : undefined}
       />
       {!hasVideoFeed && props.connected && (
@@ -147,7 +147,7 @@ export function RemotePlaySurface(props: Props) {
               props.onResolution({ width: el.naturalWidth, height: el.naturalHeight })
             }
           }}
-          className={`relative z-10 max-h-full max-w-full cursor-crosshair touch-none select-none ${props.fitMode === 'cover' ? 'h-full w-full object-cover' : 'object-contain'}`}
+          className={`relative z-10 max-h-full max-w-full cursor-crosshair touch-none select-none ${props.fitMode === 'cover' ? 'h-full w-full object-cover' : props.fitMode === 'fill' ? 'h-full w-full object-fill' : 'object-contain'}`}
           style={props.videoResolution && props.fitMode !== 'cover' ? { aspectRatio: `${props.videoResolution.width} / ${props.videoResolution.height}` } : undefined}
           onContextMenu={(e) => {
             e.preventDefault()
@@ -192,7 +192,12 @@ export function RemotePlaySurface(props: Props) {
                 <Button size="icon" variant="plain" onClick={props.onMute} aria-label={t(muted ? 'play.unmuted' : 'play.muted')}>
                   {muted ? <LuVolumeX size={16} /> : <LuVolume2 size={16} />}
                 </Button>
-                <Button size="icon" variant="plain" onClick={props.onFit} aria-label={t(props.fitMode === 'cover' ? 'play.fitCover' : 'play.fitContain')}>
+                <Button
+                  size="icon"
+                  variant="plain"
+                  onClick={props.onFit}
+                  aria-label={t(props.fitMode === 'cover' ? 'play.fitCover' : props.fitMode === 'fill' ? 'play.fitFill' : 'play.fitContain')}
+                >
                   <LuScaling size={16} />
                 </Button>
                 {!props.isStandalone && (

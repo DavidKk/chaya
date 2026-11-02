@@ -68,6 +68,7 @@ export type PlayMessages = {
   scalingMode: string
   fitCover: string
   fitContain: string
+  fitFill: string
   perfHud: string
   shown: string
   hidden: string
@@ -170,6 +171,7 @@ export const playEn: PlayMessages = {
   scalingMode: 'Ratio',
   fitCover: 'Fill',
   fitContain: 'Fit',
+  fitFill: 'Stretch',
   perfHud: 'HUD',
   shown: 'On',
   hidden: 'Off',
@@ -272,6 +274,7 @@ export const playZh: PlayMessages = {
   scalingMode: '画面比例',
   fitCover: '铺满',
   fitContain: '适应',
+  fitFill: '拉伸全屏',
   perfHud: '性能 HUD',
   shown: '显示',
   hidden: '隐藏',
@@ -374,6 +377,7 @@ export const playCht: PlayMessages = {
   scalingMode: '畫面比例',
   fitCover: '填滿',
   fitContain: '適應',
+  fitFill: '拉伸全螢幕',
   perfHud: '效能 HUD',
   shown: '顯示',
   hidden: '隱藏',
@@ -476,6 +480,7 @@ export const playJa: PlayMessages = {
   scalingMode: '画面比率',
   fitCover: '拡大',
   fitContain: '等比',
+  fitFill: '全画面引き伸ばし',
   perfHud: 'HUD',
   shown: '表示',
   hidden: '非表示',

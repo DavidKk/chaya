@@ -31,6 +31,7 @@ export function applyGameSpeed(rate: number) {
 export function applyRunFlag(key: RunFlagKey, on: boolean) {
   RunCheats.ensureHooks()
   if (key === 'fullscreen') RunCheats.setFullscreen(on)
+  else if (key === 'screenStretch') RunCheats.setScreenStretch(on)
   else if (key === 'alwaysDash') {
     const boost = boostApi()
     if (boost?.dash) boost.dash(on)

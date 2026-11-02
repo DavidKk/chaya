@@ -57,6 +57,7 @@ type MiniMapProps = {
   onPickCell: (x: number, y: number) => void
   onSelectEvent: (id: number) => void
   opacity?: MiniPanelOpacitySettings
+  activeFilter?: string
 }
 
 /**
@@ -102,6 +103,7 @@ function MiniMapBody({
   onSelectEvent,
   cell,
   title,
+  activeFilter,
 }: MiniMapProps & { /** Fixed px per tile; omitted = scale to fit the panel */ cell?: number; title?: string }) {
   const t = useT()
   const gridId = useId()
@@ -184,20 +186,24 @@ function MiniMapBody({
           ) : null}
           {detail.events.map((ev) => {
             const state = stateOf(ev.id)
+            const query = activeFilter?.trim().toLowerCase() || ''
+            const isMatch = !!query && ((ev.name && ev.name.toLowerCase().includes(query)) || (ev.rawName && ev.rawName.toLowerCase().includes(query)) || String(ev.id) === query)
             return (
-              <circle
-                key={ev.id}
-                cx={ev.x + 0.5}
-                cy={ev.y + 0.5}
-                r="0.38"
-                className={cn(TYPE_FILL[ev.type], 'cursor-pointer', state.kind === 'hidden' && 'opacity-35')}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onSelectEvent(ev.id)
-                }}
-              >
-                <title>{`${ev.name || `#${ev.id}`} (${ev.x},${ev.y}) · ${t(TYPE_KEY[ev.type])}`}</title>
-              </circle>
+              <g key={ev.id}>
+                {isMatch && <circle cx={ev.x + 0.5} cy={ev.y + 0.5} r="0.8" fill="none" className="stroke-accent stroke-[0.14] animate-pulse" pointerEvents="none" />}
+                <circle
+                  cx={ev.x + 0.5}
+                  cy={ev.y + 0.5}
+                  r="0.38"
+                  className={cn(TYPE_FILL[ev.type], 'cursor-pointer', state.kind === 'hidden' && 'opacity-35')}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onSelectEvent(ev.id)
+                  }}
+                >
+                  <title>{`${ev.name || `#${ev.id}`} (${ev.x},${ev.y}) · ${t(TYPE_KEY[ev.type])}`}</title>
+                </circle>
+              </g>
             )
           })}
           {onPlayerMap && player ? (

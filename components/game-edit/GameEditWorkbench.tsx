@@ -445,6 +445,7 @@ export function GameEditWorkbench({
                       gameSpeed: session.gameSpeed,
                       alwaysDash: session.alwaysDash,
                       fullscreen: session.fullscreen,
+                      screenStretch: session.screenStretch,
                       god: session.god,
                       autoWin: session.autoWin,
                       autoBattle: session.autoBattle,

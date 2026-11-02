@@ -1007,6 +1007,8 @@ export const cht: MessageTree = {
     groupBattle: '战斗',
     flagFullscreen: '全屏',
     flagFullscreenDesc: '遊戲視窗全屏',
+    flagScreenStretch: '填滿拉伸（去黑邊）',
+    flagScreenStretchDesc: '強制填滿視窗消除上下/左右黑邊',
     flagAlwaysDash: '一直疾跑',
     flagAlwaysDashDesc: '始终以跑步速度移动',
     flagGod: '无敌',

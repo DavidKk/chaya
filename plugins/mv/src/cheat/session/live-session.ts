@@ -97,6 +97,7 @@ export function readRunFields(
   | 'runRate'
   | 'gameSpeed'
   | 'fullscreen'
+  | 'screenStretch'
   | 'alwaysDash'
   | 'god'
   | 'autoWin'
@@ -122,6 +123,8 @@ export function readRunFields(
     runRate: st?.run ?? prev.runRate,
     gameSpeed: st?.gameSpeed ?? prev.gameSpeed,
     fullscreen: RunCheats.getFullscreen(),
+    screenStretch: RunCheats.getScreenStretch(),
+
     alwaysDash: typeof ConfigManager !== 'undefined' ? !!ConfigManager.alwaysDash : prev.alwaysDash,
     god: Cheats.getGod(),
     autoWin: Cheats.getAutoWin(),

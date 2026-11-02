@@ -23,6 +23,7 @@ export type GameEditDiskRun = {
   gameSpeed?: number
   expRate?: number
   fullscreen?: boolean
+  screenStretch?: boolean
   alwaysDash?: boolean
   god?: boolean
   autoWin?: boolean
@@ -92,6 +93,7 @@ function normalizeDisk(raw: unknown): GameEditDiskState | null {
       gameSpeed: asFiniteNumber(runIn.gameSpeed),
       expRate: asFiniteNumber(runIn.expRate),
       fullscreen: asBool(runIn.fullscreen),
+      screenStretch: asBool(runIn.screenStretch),
       alwaysDash: asBool(runIn.alwaysDash),
       god: asBool(runIn.god),
       autoWin: asBool(runIn.autoWin),
@@ -155,6 +157,7 @@ export function diskStateFromSession(session: SessionState): GameEditDiskState {
       gameSpeed: session.gameSpeed,
       expRate: session.expRate,
       fullscreen: session.fullscreen,
+      screenStretch: session.screenStretch,
       alwaysDash: session.alwaysDash,
       god: session.god,
       autoWin: session.autoWin,
@@ -200,6 +203,7 @@ export function applyGameEditDisk(disk: GameEditDiskState) {
 
   const flags: RunFlagKey[] = [
     'fullscreen',
+    'screenStretch',
     'alwaysDash',
     'god',
     'autoWin',
@@ -236,6 +240,7 @@ export function mergeDiskIntoSession(prev: SessionState, disk: GameEditDiskState
     gameSpeed: run.gameSpeed ?? prev.gameSpeed,
     expRate: run.expRate ?? prev.expRate,
     fullscreen: run.fullscreen ?? prev.fullscreen,
+    screenStretch: run.screenStretch ?? prev.screenStretch,
     alwaysDash: run.alwaysDash ?? prev.alwaysDash,
     god: run.god ?? prev.god,
     autoWin: run.autoWin ?? prev.autoWin,

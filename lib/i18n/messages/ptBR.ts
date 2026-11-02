@@ -1014,6 +1014,8 @@ export const ptBR: MessageTree = {
     groupBattle: 'Battle',
     flagFullscreen: 'Fullscreen',
     flagFullscreenDesc: 'Fullscreen game window',
+    flagScreenStretch: 'Fill Screen',
+    flagScreenStretchDesc: 'Stretch canvas to eliminate letterbox black bars',
     flagAlwaysDash: 'Always dash',
     flagAlwaysDashDesc: 'Always move at dash speed',
     flagGod: 'God mode',

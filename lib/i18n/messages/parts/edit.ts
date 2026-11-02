@@ -159,6 +159,8 @@ export const editZh = {
     groupBattle: '战斗',
     flagFullscreen: '全屏',
     flagFullscreenDesc: '游戏窗口全屏',
+    flagScreenStretch: '铺满拉伸（去黑边）',
+    flagScreenStretchDesc: '强制铺满窗口消除上下/左右黑边',
     flagAlwaysDash: '一直疾跑',
     flagAlwaysDashDesc: '始终以跑步速度移动',
     flagGod: '无敌',

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { IoArrowBack, IoArrowUndoOutline } from 'react-icons/io5'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
@@ -132,7 +132,21 @@ function targetConditionPage(event: MapEventInfo, detail: MapDetailData, session
 }
 
 /** One map: header with the coordinate teleport, mini map, event table; selecting an event opens its detail in place */
-export function MapDetail({ node, data, slot, session, near }: { node: MapNode; data: CommonEventsData; slot: EventsSlot; session: SessionState; near: boolean }) {
+export function MapDetail({
+  node,
+  data,
+  slot,
+  session,
+  near,
+  filter,
+}: {
+  node: MapNode
+  data: CommonEventsData
+  slot: EventsSlot
+  session: SessionState
+  near: boolean
+  filter?: string
+}) {
   const t = useT()
   const confirm = useConfirm()
   const notify = useNotification()
@@ -144,6 +158,27 @@ export function MapDetail({ node, data, slot, session, near }: { node: MapNode; 
   const isCurrent = slot.live && slot.player?.mapId === node.id
   const selectedEvent = detail && slot.eventId != null ? (detail.events.find((ev) => ev.id === slot.eventId) ?? null) : null
   const tp = useTeleport(node, slot, near)
+
+  const query = filter?.trim().toLowerCase() || ''
+  const isMatch = useCallback(
+    (ev: MapEventInfo) => {
+      if (!query) return false
+      return (ev.name && ev.name.toLowerCase().includes(query)) || (ev.rawName && ev.rawName.toLowerCase().includes(query)) || String(ev.id) === query
+    },
+    [query]
+  )
+
+  const sortedEvents: MapEventInfo[] = useMemo(() => {
+    const list = detail?.events
+    if (!list) return []
+    if (!query) return list
+    return [...list].sort((a, b) => {
+      const aHit = isMatch(a) ? 1 : 0
+      const bHit = isMatch(b) ? 1 : 0
+      if (aHit !== bHit) return bHit - aHit
+      return a.id - b.id
+    })
+  }, [detail?.events, isMatch, query])
 
   const toggleSelected = (eventId: number, checked: boolean) => {
     setSelected((current) => {
@@ -247,6 +282,7 @@ export function MapDetail({ node, data, slot, session, near }: { node: MapNode; 
       disabled={!!tp.blocked || tp.busy}
       onPickCell={(x, y) => void tp.pickCell(x, y)}
       onSelectEvent={(id) => slot.onSelectMap(node.id, id)}
+      activeFilter={filter}
     />
   ) : null
 
@@ -365,13 +401,18 @@ export function MapDetail({ node, data, slot, session, near }: { node: MapNode; 
                 {t('events.map.colState')}
               </div>
             </div>
-            {detail.events.map((ev, index) => {
+            {sortedEvents.map((ev, index) => {
+              const hit = isMatch(ev)
               const name = ev.name || `#${ev.id}`
               return (
                 <div
                   key={ev.id}
                   data-navigation-id={`map-event:${node.id}:${ev.id}`}
-                  className={cn('grid items-center border-t border-line hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]', index === 0 && 'border-t-0')}
+                  className={cn(
+                    'grid items-center border-t border-line hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]',
+                    index === 0 && 'border-t-0',
+                    hit && 'bg-[color-mix(in_oklab,var(--accent)_14%,transparent)]'
+                  )}
                   style={tableCols}
                   role="listitem"
                 >
@@ -386,7 +427,8 @@ export function MapDetail({ node, data, slot, session, near }: { node: MapNode; 
                       data-navigation-trigger=""
                       onClick={() => slot.onSelectMap(node.id, ev.id)}
                     >
-                      <TruncateText text={name} />
+                      <TruncateText text={name} className="min-w-0 flex-1" />
+                      {hit && <span className="ml-1.5 shrink-0 rounded-[0.2rem] bg-accent/20 px-1.5 py-0.5 text-[0.65rem] font-semibold text-accent">NPC 匹配</span>}
                     </button>
                   </div>
                   <div className={cn(editCell, 'font-mono text-[0.72rem] text-ink-soft')} data-list-cell="">

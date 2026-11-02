@@ -194,6 +194,37 @@ function readFullscreen(): boolean {
   return graphicsFullscreen() ?? false
 }
 
+let screenStretchEnabled = false
+
+function applyScreenStretch(on: boolean): boolean {
+  screenStretchEnabled = !!on
+  if (typeof document === 'undefined') return screenStretchEnabled
+  let styleEl = document.getElementById('chaya-screen-stretch-style')
+  if (on) {
+    if (!styleEl && document.head) {
+      styleEl = document.createElement('style')
+      styleEl.id = 'chaya-screen-stretch-style'
+      styleEl.textContent = `
+        canvas#GameCanvas, canvas {
+          width: 100vw !important;
+          height: 100vh !important;
+          object-fit: cover !important;
+          position: fixed !important;
+          left: 0 !important;
+          top: 0 !important;
+          right: 0 !important;
+          bottom: 0 !important;
+          margin: 0 !important;
+        }
+      `
+      document.head.appendChild(styleEl)
+    }
+  } else {
+    styleEl?.remove()
+  }
+  return screenStretchEnabled
+}
+
 function writeFullscreen(on: boolean): boolean {
   const want = !!on
   const win = getNwWindow()
@@ -387,6 +418,12 @@ export const RunCheats = {
   },
   setFullscreen(on: boolean) {
     return writeFullscreen(on)
+  },
+  getScreenStretch() {
+    return screenStretchEnabled
+  },
+  setScreenStretch(on: boolean) {
+    return applyScreenStretch(on)
   },
 
   pushScene(id: ScenePushId) {

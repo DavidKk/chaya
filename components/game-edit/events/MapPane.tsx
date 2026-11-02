@@ -220,7 +220,11 @@ export function MapPane({ slot, filter, session, headSlot }: Props) {
           </ScrollArea>
         </aside>
         <div className={cn('min-h-0 min-w-0 flex-1', selected ? 'flex' : 'hidden @4xl:flex')}>
-          {selected ? <MapDetail key={selected.id} node={selected} data={data} slot={slot} session={session} near={near} /> : <EmptyState title={t('events.map.selectHint')} />}
+          {selected ? (
+            <MapDetail key={selected.id} node={selected} data={data} slot={slot} session={session} near={near} filter={q} />
+          ) : (
+            <EmptyState title={t('events.map.selectHint')} />
+          )}
         </div>
       </div>
       {headSlot ? createPortal(<NearToggle near={near} onChange={setNear} />, headSlot) : null}

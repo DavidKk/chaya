@@ -157,6 +157,8 @@ export type EditMessages = {
   groupBattle: string
   flagFullscreen: string
   flagFullscreenDesc: string
+  flagScreenStretch: string
+  flagScreenStretchDesc: string
   flagAlwaysDash: string
   flagAlwaysDashDesc: string
   flagGod: string
