@@ -44,7 +44,7 @@ type Props = {
   onHaptic: () => void
   controllerOpacity: number
   onOpacity: (opacity: number) => void
-  onDrawer: (tab: 'cheat' | 'logs') => void
+  onDrawer: (tab: 'cheats' | 'debug' | 'logs' | 'cheat') => void
   muted: boolean
   onMute: () => void
   fitMode: 'contain' | 'cover'
@@ -174,7 +174,8 @@ export function RemotePlaySettings(props: Props) {
             )}
             {props.tab === 'quick' && (
               <>
-                <ConfigRow icon={<LuSparkles size={16} />} label={t('play.inGameConsole')} onClick={() => props.onDrawer('cheat')} />
+                <ConfigRow icon={<LuSparkles size={16} />} label={t('play.inGameConsole')} onClick={() => props.onDrawer('cheats')} />
+                <ConfigRow icon={<LuActivity size={16} />} label={t('play.workspaceStreamDebug')} onClick={() => props.onDrawer('debug')} />
                 <ConfigRow icon={<LuScrollText size={16} />} label={t('play.diagLogs')} onClick={() => props.onDrawer('logs')} />
               </>
             )}

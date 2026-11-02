@@ -9,7 +9,6 @@ import { remotePlayLogger } from '@/lib/runtime/remote-play-logger'
 import { GameSelectorModal } from './GameSelectorModal'
 import { haptic } from './haptic'
 import { IosInstallGuideModal } from './IosInstallGuideModal'
-import { RemoteCheatDrawer } from './RemoteCheatDrawer'
 import { RemotePlayConfirmations } from './RemotePlayConfirmations'
 import { RemotePlayLauncher } from './RemotePlayLauncher'
 import { RemotePlaySettings } from './RemotePlaySettings'
@@ -19,6 +18,7 @@ import { useRemoteDesktopInput } from './useRemoteDesktopInput'
 import { useRemoteEnvironment } from './useRemoteEnvironment'
 import { useRemoteSession } from './useRemoteSession'
 import type { ControlMode } from './VirtualController'
+import { RemoteWorkspaceModal, type RemoteWorkspaceTab } from './workspace'
 
 type RemotePlayViewProps = {
   initialRoomId?: string
@@ -38,7 +38,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   const { coverImage, captureCover, onPlaying } = useRemoteCover(session.selectedGame?.id || initialRoomId, videoRef)
   const [muted, setMuted] = useState(true)
   const [drawerOpen, setDrawerOpen] = useState(false)
-  const [drawerTab, setDrawerTab] = useState<'cheat' | 'logs'>('cheat')
+  const [drawerTab, setDrawerTab] = useState<RemoteWorkspaceTab>('cheats')
   const [videoResolution, setVideoResolution] = useState<{ width: number; height: number } | null>(null)
   const [hudVisible, setHudVisible] = useState(false)
   const [installGuideOpen, setInstallGuideOpen] = useState(false)
@@ -176,7 +176,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
   )
 
   const handleOpenDrawer = useCallback(() => {
-    setDrawerTab('cheat')
+    setDrawerTab('cheats')
     setDrawerOpen(true)
   }, [])
 
@@ -440,7 +440,7 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
         controllerOpacity={controllerOpacity}
         onOpacity={handleSelectOpacity}
         onDrawer={(tab) => {
-          setDrawerTab(tab)
+          setDrawerTab(tab === 'cheat' ? 'cheats' : tab)
           setDrawerOpen(true)
           setMenuOpen(false)
         }}
@@ -499,8 +499,8 @@ export function RemotePlayView({ initialRoomId }: RemotePlayViewProps) {
       {/* 5. iOS Safari Add to Home Screen Fullscreen Guide Modal */}
       <IosInstallGuideModal open={installGuideOpen} onClose={() => setInstallGuideOpen(false)} isStandalone={isStandalone} />
 
-      {/* 6. Centered Remote Modding & Diagnostics Console Modal */}
-      <RemoteCheatDrawer
+      {/* 6. Full-screen Remote Modding & Diagnostics Workspace Modal */}
+      <RemoteWorkspaceModal
         open={drawerOpen}
         onClose={() => setDrawerOpen(false)}
         onSend={(msg) => linkRef.current?.send(msg)}

@@ -75,6 +75,11 @@ export type PlayMessages = {
   exitFullscreen: string
   iosAddHomeScreen: string
   inGameConsole: string
+  workspaceTitle: string
+  workspaceCheats: string
+  workspaceDebug: string
+  workspaceLogs: string
+  workspaceStreamDebug: string
   openPanel: string
   viewLogs: string
   selected: string
@@ -172,6 +177,11 @@ export const playEn: PlayMessages = {
   exitFullscreen: 'Exit Fullscreen',
   iosAddHomeScreen: 'Add to Home',
   inGameConsole: 'Cheats',
+  workspaceTitle: 'Workspace',
+  workspaceCheats: 'Cheats',
+  workspaceDebug: 'Debug',
+  workspaceLogs: 'Logs',
+  workspaceStreamDebug: 'Stream Debug',
   openPanel: 'Open',
   viewLogs: 'View',
   selected: 'Current',
@@ -269,6 +279,11 @@ export const playZh: PlayMessages = {
   exitFullscreen: '退出全屏',
   iosAddHomeScreen: '添加到主屏',
   inGameConsole: '修改控制台',
+  workspaceTitle: '局内工作台',
+  workspaceCheats: '常用修改',
+  workspaceDebug: '串流调试',
+  workspaceLogs: '运行日志',
+  workspaceStreamDebug: '串流调试',
   openPanel: '打开',
   viewLogs: '查看',
   selected: '已选',
@@ -366,6 +381,11 @@ export const playCht: PlayMessages = {
   exitFullscreen: '結束全螢幕',
   iosAddHomeScreen: '加入主畫面',
   inGameConsole: '修改主控台',
+  workspaceTitle: '局內工作台',
+  workspaceCheats: '常用修改',
+  workspaceDebug: '串流調試',
+  workspaceLogs: '運行日誌',
+  workspaceStreamDebug: '串流調試',
   openPanel: '開啟',
   viewLogs: '檢視',
   selected: '已選',
@@ -463,6 +483,11 @@ export const playJa: PlayMessages = {
   exitFullscreen: '終了',
   iosAddHomeScreen: 'ホーム追加',
   inGameConsole: '改造ツール',
+  workspaceTitle: 'ワークスペース',
+  workspaceCheats: 'チート・修正',
+  workspaceDebug: 'デバッグ',
+  workspaceLogs: 'ログ',
+  workspaceStreamDebug: '配信デバッグ',
   openPanel: '開く',
   viewLogs: '表示',
   selected: '選択中',
