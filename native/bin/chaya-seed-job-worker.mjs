@@ -48771,6 +48771,7 @@ var CACHE_CLASSIFY_WINDOW_MS = 1500;
 var CACHE_ADMISSION_TIMEOUT_MS = 1500;
 var CACHE_STALL_FALLBACK_MS = 1500;
 function createScheduledSeedSession(contentRoot, initialTrace, opts) {
+  const overrideEngines = opts?.engines;
   let inventory = opts?.inventory ?? readSeedInventory(contentRoot);
   let progress = { ...inventory.progress };
   let states = new Uint8Array(inventory.pending.length);
@@ -49276,7 +49277,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     for (let id = 0; id < states.length; id++) {
       if (states[id] === RECHECK && !recheckQueue.includes(id)) recheckQueue.push(id);
     }
-    engines = getTranslateEngineSwitches(contentRoot).enabled;
+    engines = overrideEngines && overrideEngines.length > 0 ? overrideEngines : getTranslateEngineSwitches(contentRoot).enabled;
     if (cacheAvailable && !cacheLane) {
       try {
         cacheLane = startCacheLane({
@@ -49385,7 +49386,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
         leaseId = "";
       }
       const switches = getTranslateEngineSwitches(contentRoot);
-      engines = switches.enabled;
+      engines = overrideEngines && overrideEngines.length > 0 ? overrideEngines : switches.enabled;
       agents = switches.agents || [];
       configs = switches.configs;
       for (const [id, entry] of active2)
@@ -49568,7 +49569,7 @@ function scanSeed(contentRoot, fresh = false, repair = false) {
   }
 }
 function createSeedFillSession(contentRoot, onTrace, opts) {
-  if (opts?.nonBlocking) return createScheduledSeedSession(contentRoot, onTrace, { inventory: opts.inventory });
+  if (opts?.nonBlocking) return createScheduledSeedSession(contentRoot, onTrace, { inventory: opts.inventory, engines: opts.engines });
   const prepareStarted = performance.now();
   let scan = scanSeed(contentRoot, false, true);
   onTrace?.(`Session prepared: items=${scan.progress.total}, missing=${scan.progress.missing}, elapsedMs=${Math.round(performance.now() - prepareStarted)}`);
@@ -50095,7 +50096,7 @@ function refreshSeedJobProgress(opts) {
     job: visibleSeedJobState(rt.state)
   };
 }
-function beginSeedLoop(contentRoot, inventory) {
+function beginSeedLoop(contentRoot, inventory, overrideEngines) {
   const progress = inventory.progress;
   const rt = getRuntime(contentRoot);
   if (rt.running) return;
@@ -50117,10 +50118,14 @@ function beginSeedLoop(contentRoot, inventory) {
     return;
   }
   let engines = [];
-  try {
-    engines = getTranslateEngineSwitches(contentRoot).enabled;
-  } catch {
-    engines = [];
+  if (Array.isArray(overrideEngines) && overrideEngines.length > 0) {
+    engines = overrideEngines;
+  } else {
+    try {
+      engines = getTranslateEngineSwitches(contentRoot).enabled;
+    } catch {
+      engines = [];
+    }
   }
   if (!engines.length) {
     rt.state.status = "error";
@@ -50146,25 +50151,29 @@ function beginSeedLoop(contentRoot, inventory) {
   }
   pushLog(rt, "info", `${resume ? "Resume" : "Start"} translation \xB7 engines ${engines.map(shortEngine).join("+")}`);
   persist(rt);
-  rt.session = createSeedFillSession(contentRoot, void 0, { nonBlocking: true, inventory });
+  rt.session = createSeedFillSession(contentRoot, void 0, { nonBlocking: true, inventory, engines });
   rt.progress = rt.session.progress;
   ensureLoop(contentRoot);
 }
 function startSeedJob(opts) {
   const contentRoot = resolveBoundRoot(opts);
   const current = getRuntime(contentRoot);
-  if (current.running) return getSeedJobSnapshot();
+  if (current.running) return getSeedJobSnapshot(opts);
   let engines = [];
-  try {
-    engines = getTranslateEngineSwitches(contentRoot).enabled;
-  } catch {
-    engines = [];
+  if (Array.isArray(opts?.engines) && opts.engines.length > 0) {
+    engines = opts.engines;
+  } else {
+    try {
+      engines = getTranslateEngineSwitches(contentRoot).enabled;
+    } catch {
+      engines = [];
+    }
   }
   if (!engines.length) throw new Error("No translation engines are enabled");
   const peeked = peekSeedInventory(contentRoot);
   const seedStampNow = seedFileStamp(contentRoot);
   if (peeked && peeked.stamp === seedStampNow && peeked.progressStamp === seedProgressStamp(contentRoot)) {
-    beginSeedLoop(contentRoot, peeked);
+    beginSeedLoop(contentRoot, peeked, engines);
     const rt2 = getRuntime(contentRoot);
     return { ...rt2.progress ?? peeked.progress, job: visibleSeedJobState(rt2.state) };
   }
@@ -50186,7 +50195,7 @@ function startSeedJob(opts) {
       persist(live);
       return;
     }
-    beginSeedLoop(contentRoot, bundle);
+    beginSeedLoop(contentRoot, bundle, engines);
   }).catch((error) => {
     const live = getRuntime(contentRoot);
     live.state.inventoryPreparing = false;
@@ -50226,7 +50235,7 @@ port.on("message", (request) => {
   const receivedAt = Date.now();
   timing.run(() => {
     try {
-      const opts = request.contentRoot ? { contentRoot: request.contentRoot } : void 0;
+      const opts = request.contentRoot ? { contentRoot: request.contentRoot, engines: request.engines } : request.engines ? { engines: request.engines } : void 0;
       const snapshot = request.command === "refresh" ? refreshSeedJobProgress(opts) : request.command === "start" ? startSeedJob(opts) : request.command === "pause" ? pauseSeedJob(opts) : getSeedJobSnapshot(opts);
       const executeMs = timing.elapsedMs();
       post({ type: "response", id: request.id, ok: true, snapshot, timing: { executeMs, receivedAt, respondedAt: Date.now() } });

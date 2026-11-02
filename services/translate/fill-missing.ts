@@ -230,9 +230,13 @@ export type SeedFillOptions = {
 export function createSeedFillSession(
   contentRoot: string,
   onTrace?: (message: string) => void,
-  opts?: { nonBlocking?: boolean; inventory?: import('./scheduler/seed-prepare').SeedInventoryBundle }
+  opts?: {
+    nonBlocking?: boolean
+    inventory?: import('./scheduler/seed-prepare').SeedInventoryBundle
+    engines?: import('@/lib/translate/engines').TranslateRunEngine[]
+  }
 ) {
-  if (opts?.nonBlocking) return createScheduledSeedSession(contentRoot, onTrace, { inventory: opts.inventory })
+  if (opts?.nonBlocking) return createScheduledSeedSession(contentRoot, onTrace, { inventory: opts.inventory, engines: opts.engines })
   const prepareStarted = performance.now()
   let scan = scanSeed(contentRoot, false, true)
   onTrace?.(`Session prepared: items=${scan.progress.total}, missing=${scan.progress.missing}, elapsedMs=${Math.round(performance.now() - prepareStarted)}`)

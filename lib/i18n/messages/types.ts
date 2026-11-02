@@ -354,6 +354,17 @@ export type MessageTree = {
     playTabDesc: string
     enginesTab: string
     enginesTabDesc: string
+    silentTranslateTitle: string
+    silentTranslateDesc: string
+    silentTranslateEnable: string
+    silentTranslateDisable: string
+    silentTranslateEnabledMsg: string
+    silentTranslateDisabledMsg: string
+    silentTranslateEngine: string
+    silentTranslateDefaultEngine: string
+    silentTranslateEngineHint: string
+    silentTranslateSaved: string
+    silentTranslateSaveFailed: string
     extract: string
     updateSource: string
     importFile: string

@@ -17,7 +17,7 @@ port.on('message', (request: SeedJobWorkerRequest) => {
   const receivedAt = Date.now()
   timing.run(() => {
     try {
-      const opts = request.contentRoot ? { contentRoot: request.contentRoot } : undefined
+      const opts = request.contentRoot ? { contentRoot: request.contentRoot, engines: request.engines } : request.engines ? { engines: request.engines } : undefined
       const snapshot =
         request.command === 'refresh'
           ? refreshSeedJobProgress(opts)

@@ -3,6 +3,7 @@ import path from 'node:path'
 import { resolveGame } from '@/lib/game'
 import { loadConfig, saveConfig } from '@/services/game/config'
 import { findLibraryEntry, pathEquals, sameGameFamily, upsertLibraryEntry } from '@/services/game/library'
+import { triggerSilentTranslateIfEnabled } from '@/services/translate/silent-translate'
 
 import { peekLaunchToken } from './launch-token'
 
@@ -26,6 +27,11 @@ export type RegisterGameResult = {
 
 /** 同一会话只写库一次，避免心跳反复刷配置 */
 const registeredSessions = new Set<string>()
+
+/** 仅测试用：重置已注册会话缓存 */
+export function resetRegisteredSessionsForTests(): void {
+  registeredSessions.clear()
+}
 
 function pruneRemoteDuplicates(library: ReturnType<typeof loadConfig>['library'], localRoot: string, localName: string): ReturnType<typeof loadConfig>['library'] {
   const name = localName.trim().toLowerCase()
@@ -89,6 +95,10 @@ export function registerGameFromPlugin(input: RegisterGameInput): RegisterGameRe
       gameRoot: nextRoot,
       library,
     })
+  }
+
+  if (!already && check.ok && !remote) {
+    triggerSilentTranslateIfEnabled(check.contentRoot, { gameId: gameRoot })
   }
 
   registeredSessions.add(sessionKey)

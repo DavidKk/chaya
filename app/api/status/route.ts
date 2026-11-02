@@ -36,7 +36,7 @@ import { acceptGameBindEpoch, peekGameBindEpoch } from '@/services/game/bind-epo
 import { detectRgssPlugins, detectRgssPluginsOutdated } from '@/services/game/rgss-plugins'
 import { rgssRuntimeStatus } from '@/services/game/rgss-runtime'
 import { anyWebConnected, detectLanApiBases, getGamePresence, preferredPluginApiBase, toolkitListenPort } from '@/services/runtime'
-import { getSharedTranslateCacheStats } from '@/services/translate'
+import { getSharedTranslateCacheStats, triggerSilentTranslateIfEnabled } from '@/services/translate'
 import { gameCacheFileStats } from '@/services/translate/cache-file-stats'
 
 export const runtime = 'nodejs'
@@ -318,6 +318,8 @@ export const PUT = defineApiRoute('put:/api/status', async ({ request }) => {
     }
     const fingerprint = getGameFingerprint(check)
     const name = resolveDisplayName(check.contentRoot, input, fingerprint?.system?.gameTitle)
+    const alreadyInLibrary = !!findLibraryEntry(prev.library, check.selected)
+    const isNewGame = !existing && !alreadyInLibrary && !replaceLibraryId
     let library
     try {
       library = replaceLibraryId
@@ -331,6 +333,9 @@ export const PUT = defineApiRoute('put:/api/status', async ({ request }) => {
       library,
       ...(body.shellSource !== undefined ? { shellSource: String(body.shellSource || '').trim() } : {}),
     })
+    if (isNewGame && check.ok && !check.remote) {
+      triggerSilentTranslateIfEnabled(check.contentRoot, { gameId: check.selected })
+    }
     return apiOk({ config, resolved: check, library: config.library.map(toLibraryItemView), bindEpoch: epochGate.epoch })
   }
 

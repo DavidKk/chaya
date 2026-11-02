@@ -49,7 +49,12 @@ type Active = { engine: TranslateRunEngine; controller: AbortController; work: P
 
 export { followsOwnedStampChain } from './owned-stamps'
 
-export function createScheduledSeedSession(contentRoot: string, initialTrace?: (message: string) => void, opts?: { inventory?: SeedInventoryBundle }) {
+export function createScheduledSeedSession(
+  contentRoot: string,
+  initialTrace?: (message: string) => void,
+  opts?: { inventory?: SeedInventoryBundle; engines?: TranslateRunEngine[] }
+) {
+  const overrideEngines = opts?.engines
   let inventory: SeedInventoryBundle = opts?.inventory ?? readSeedInventory(contentRoot)
   let progress = { ...inventory.progress }
   let states = new Uint8Array(inventory.pending.length)
@@ -600,7 +605,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
     for (let id = 0; id < states.length; id++) {
       if (states[id] === RECHECK && !recheckQueue.includes(id)) recheckQueue.push(id)
     }
-    engines = getTranslateEngineSwitches(contentRoot).enabled
+    engines = overrideEngines && overrideEngines.length > 0 ? overrideEngines : getTranslateEngineSwitches(contentRoot).enabled
     if (cacheAvailable && !cacheLane) {
       try {
         cacheLane = startCacheLane({
@@ -714,7 +719,7 @@ export function createScheduledSeedSession(contentRoot: string, initialTrace?: (
         leaseId = ''
       }
       const switches = getTranslateEngineSwitches(contentRoot)
-      engines = switches.enabled
+      engines = overrideEngines && overrideEngines.length > 0 ? overrideEngines : switches.enabled
       agents = switches.agents || []
       configs = switches.configs
       for (const [id, entry] of active)

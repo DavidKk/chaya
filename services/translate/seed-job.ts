@@ -150,7 +150,7 @@ export function refreshSeedJobProgress(options?: { gameId?: string; contentRoot?
 }
 
 /** Start or resume the fill loop inside the worker. */
-export function startSeedJob(options?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
+export function startSeedJob(options?: { gameId?: string; contentRoot?: string; engines?: string[] }): SeedJobSnapshot {
   const contentRoot = resolveBoundRoot(options)
   const snapshot = diskSnapshot(contentRoot)
   const state = readSeedJobState(contentRoot)
@@ -159,7 +159,12 @@ export function startSeedJob(options?: { gameId?: string; contentRoot?: string }
   const clear = () => clearPendingCommand(contentRoot, 'start')
   const explicitRoot = options?.contentRoot || (options?.gameId ? contentRoot : undefined)
   void legacyRuntimeDrained()
-    .then(() => (explicitRoot ? commandSeedJobWorker('start', explicitRoot) : commandSeedJobWorker('start')))
+    .then(() => {
+      if (options?.engines) {
+        return commandSeedJobWorker('start', explicitRoot, options.engines)
+      }
+      return explicitRoot ? commandSeedJobWorker('start', explicitRoot) : commandSeedJobWorker('start')
+    })
     .then(clear)
     .catch((error) => {
       clear()
