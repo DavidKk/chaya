@@ -243,6 +243,7 @@ export type EventsMapMessages = {
   selectHint: string
   loadFail: string
   colName: string
+  colNpc: string
   colPos: string
   colType: string
   colState: string

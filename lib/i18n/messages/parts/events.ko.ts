@@ -115,6 +115,7 @@ export const eventsKo: { events: EventsMessages } = {
       selectHint: '목록에서 맵을 선택하세요',
       loadFail: '맵을 읽지 못했습니다',
       colName: '이름',
+      colNpc: 'NPC 이름',
       colPos: '좌표',
       colType: '종류',
       colState: '상태',

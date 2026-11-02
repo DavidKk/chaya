@@ -1635,6 +1635,7 @@ export const fr: MessageTree = {
       selectHint: 'Select a map from the list',
       loadFail: 'Failed to read map',
       colName: 'Name',
+      colNpc: 'Nom du PNJ',
       colPos: 'Position',
       colType: 'Type',
       colState: 'State',

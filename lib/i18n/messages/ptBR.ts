@@ -1633,6 +1633,7 @@ export const ptBR: MessageTree = {
       selectHint: 'Select a map from the list',
       loadFail: 'Failed to read map',
       colName: 'Name',
+      colNpc: 'Nome do NPC',
       colPos: 'Position',
       colType: 'Type',
       colState: 'State',

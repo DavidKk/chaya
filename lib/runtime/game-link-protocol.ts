@@ -75,13 +75,13 @@ export type GameEditCmdOp =
   | ({ op: 'battleLock' } & BattleLockChange)
   | { op: 'actorOwnedLock'; actorId: number; kind: 'skills' | 'states'; entryId: number; on: boolean; owned: boolean }
   /** `from`: start at this command index of the list (entering the branch it sits in) */
-  | { op: 'commonEvent'; id: number; from?: number }
+  | { op: 'commonEvent'; id: number; from?: number; force?: boolean }
   | { op: 'eventControl'; action: EventControlAction; target: EventControlTarget }
   | { op: 'selfSwitch'; mapId: number; eventId: number; letter: SelfSwitchLetter; value: boolean }
   /** `near`: land on the first passable neighbour when the target tile is blocked */
   | { op: 'teleport'; mapId: number; x: number; y: number; direction?: 2 | 4 | 6 | 8; near?: boolean }
   /** Current map only; the game rejects it when `mapId` is not the current map. `page` (0-based) + `from` run that page's list from a command index instead of the active page */
-  | { op: 'mapEvent'; mapId: number; eventId: number; page?: number; from?: number }
+  | { op: 'mapEvent'; mapId: number; eventId: number; page?: number; from?: number; force?: boolean }
   /** Battle against a troop from the map scene (like Battle Processing); `count` resizes the visible members (copies / hides) */
   | { op: 'troop'; id: number; canEscape: boolean; canLose: boolean; count?: number }
   /** In battle: `fromEnemyId` guards against the field having changed since the last state push */
@@ -217,7 +217,11 @@ export type MapOperationValue =
 
 export type MapOperationItem =
   | { label: string; changes: MapOperationValue[] }
-  | { label: string; action: { kind: 'commonEvent'; id: number; from?: number } | { kind: 'mapEvent'; mapId: number; eventId: number; page?: number; from?: number } }
+  | {
+      label: string
+      action:
+        { kind: 'commonEvent'; id: number; from?: number; force?: boolean } | { kind: 'mapEvent'; mapId: number; eventId: number; page?: number; from?: number; force?: boolean }
+    }
 
 export type MapOperationMessage =
   | {

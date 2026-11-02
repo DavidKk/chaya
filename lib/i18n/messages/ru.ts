@@ -1631,6 +1631,7 @@ export const ru: MessageTree = {
       selectHint: 'Select a map from the list',
       loadFail: 'Failed to read map',
       colName: 'Name',
+      colNpc: 'Имя NPC',
       colPos: 'Position',
       colType: 'Type',
       colState: 'State',

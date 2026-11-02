@@ -125,8 +125,10 @@ async function start(message: Extract<MapOperationMessage, { type: 'map.operatio
       try {
         assertSafeMoment()
         if ('action' in item) {
-          if (item.action.kind === 'commonEvent') runCommonEventOnMap(item.action.id, item.action.from)
-          else runMapEvent(item.action)
+          if (item.action.kind === 'commonEvent') {
+            if (item.action.force != null) runCommonEventOnMap(item.action.id, item.action.from, item.action.force)
+            else runCommonEventOnMap(item.action.id, item.action.from)
+          } else runMapEvent(item.action)
           return { state: 'completed', value: null }
         }
         const prepared = await Promise.all(

@@ -181,7 +181,7 @@ export function teleportPlayer({ mapId, x, y, direction, near }: TeleportTarget)
 }
 
 /** Without `page` the event starts like a normal trigger (active page); with it, that page runs from `from` */
-export function runMapEvent({ mapId, eventId, page, from = 0 }: { mapId: number; eventId: number; page?: number; from?: number }) {
+export function runMapEvent({ mapId, eventId, page, from = 0, force: _force = false }: { mapId: number; eventId: number; page?: number; from?: number; force?: boolean }) {
   if (!isOnMapScene()) throw new Error('请回到地图场景再触发事件')
   if (currentMapId() !== mapId) throw new Error('只能触发当前地图的事件')
   const ev = gameMap()?.event?.(Math.floor(eventId))
@@ -189,10 +189,14 @@ export function runMapEvent({ mapId, eventId, page, from = 0 }: { mapId: number;
   const rawEvent = (g().$dataMap as { events?: unknown[] } | null)?.events?.[eventId] as { pages?: Array<{ list?: unknown }> } | null | undefined
   const selectedPage = page ?? Math.floor(Number(ev._pageIndex) || 0)
   const commands = normalizeCommands(rawEvent?.pages?.[selectedPage]?.list)
-  const safety = analyzeExecutionSafety(commands, (target) => {
-    const called = ($dataCommonEvents as unknown[] | null)?.[target] as { list?: unknown } | null | undefined
-    return called ? normalizeCommands(called.list) : null
-  })
+  const safety = analyzeExecutionSafety(
+    commands,
+    (target) => {
+      const called = ($dataCommonEvents as unknown[] | null)?.[target] as { list?: unknown } | null | undefined
+      return called ? normalizeCommands(called.list) : null
+    },
+    { allowOpaqueCommands: true }
+  )
   if (!safety.safe) throw new Error(safety.message)
   if (page != null) return startMapEventAt(eventId, page, from)
   if (ev._erased || !(Number(ev._pageIndex) >= 0)) throw new Error('该事件当前未出现，无法触发')

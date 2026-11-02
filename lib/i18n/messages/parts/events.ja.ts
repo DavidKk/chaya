@@ -115,6 +115,7 @@ export const eventsJa: { events: EventsMessages } = {
       selectHint: '一覧からマップを選択してください',
       loadFail: 'マップの読み込みに失敗しました',
       colName: '名前',
+      colNpc: 'NPC名',
       colPos: '座標',
       colType: '種類',
       colState: '状態',

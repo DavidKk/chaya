@@ -219,7 +219,7 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
               requestId: crypto.randomUUID(),
               gameId: gameRoomId(),
               summary: `执行公共事件 #${op.id}`,
-              items: [{ label: `公共事件 #${op.id}`, action: { kind: 'commonEvent', id: op.id, from: op.from } }],
+              items: [{ label: `公共事件 #${op.id}`, action: { kind: 'commonEvent', id: op.id, from: op.from, force: op.force } }],
             })
           )
         } else if (op.op === 'mapEvent') {
@@ -228,7 +228,7 @@ export function useOverlayEvents({ open, tab, selectTab, onClose, onSwitchChange
               requestId: crypto.randomUUID(),
               gameId: gameRoomId(),
               summary: `执行地图事件 #${op.eventId}`,
-              items: [{ label: `地图事件 #${op.eventId}`, action: { kind: 'mapEvent', mapId: op.mapId, eventId: op.eventId, page: op.page, from: op.from } }],
+              items: [{ label: `地图事件 #${op.eventId}`, action: { kind: 'mapEvent', mapId: op.mapId, eventId: op.eventId, page: op.page, from: op.from, force: op.force } }],
             })
           )
         } else if (op.op === 'selfSwitch') {

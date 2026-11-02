@@ -115,6 +115,7 @@ export const eventsZh: { events: EventsMessages } = {
       selectHint: '从列表选择一张地图',
       loadFail: '地图读取失败',
       colName: '名称',
+      colNpc: 'NPC 名称',
       colPos: '坐标',
       colType: '类型',
       colState: '状态',

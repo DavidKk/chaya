@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { IoArrowBack, IoArrowUndoOutline } from 'react-icons/io5'
+import { IoArrowBack, IoArrowUndoOutline, IoChatbubbleEllipsesOutline, IoNavigateOutline, IoPersonOutline } from 'react-icons/io5'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { countKey, type SessionState } from '@/components/game-edit/types'
@@ -14,7 +14,7 @@ import { type CommonEventsData, estimateActivePage, type MapDetailData, type Map
 import type { MapOperationItem, MapOperationValue } from '@/lib/runtime/game-link-protocol'
 import { cn } from '@/lib/utils'
 
-import { type EventState, isNpcEvent, TYPE_KEY } from './event-meta'
+import { type EventState, isNpcEvent, resolveNpcInfo, TYPE_KEY } from './event-meta'
 import { MapEventsTableSkeleton } from './EventsSkeleton'
 import { MapEncounters } from './MapEncounters'
 import { MapEventDetail } from './MapEventDetail'
@@ -22,7 +22,7 @@ import { MapTeleportField } from './MapTeleportField'
 import { MiniMap } from './MiniMap'
 import type { EventsOp, EventsSlot } from './types'
 
-export { type EventState, isNpcEvent, TYPE_KEY } from './event-meta'
+export { type EventState, isGenericEventName, isNpcEvent, resolveNpcInfo, TYPE_KEY } from './event-meta'
 
 /** Exact on the player's map, estimated from page conditions elsewhere, unknown offline */
 export function eventStateOf(ev: MapEventInfo, detail: MapDetailData, session: SessionState): EventState {
@@ -132,6 +132,19 @@ function targetConditionPage(event: MapEventInfo, detail: MapDetailData, session
 }
 
 /** One map: header with the coordinate teleport, mini map, event table; selecting an event opens its detail in place */
+export type MapNpcItem = {
+  key: string
+  name: string
+  rawName: string
+  isGeneric: boolean
+  npcInfo: ReturnType<typeof resolveNpcInfo>
+  primaryEvent: MapEventInfo
+  events: MapEventInfo[]
+  state: EventState
+  teleportX: number
+  teleportY: number
+}
+
 export function MapDetail({
   node,
   data,
@@ -163,9 +176,18 @@ export function MapDetail({
   const isMatch = useCallback(
     (ev: MapEventInfo) => {
       if (!query) return false
-      return (ev.name && ev.name.toLowerCase().includes(query)) || (ev.rawName && ev.rawName.toLowerCase().includes(query)) || String(ev.id) === query
+      const npcInfo = resolveNpcInfo(ev, detail?.texts, data.names.actors)
+      return (
+        (npcInfo.name && npcInfo.name.toLowerCase().includes(query)) ||
+        (ev.name && ev.name.toLowerCase().includes(query)) ||
+        (ev.rawName && ev.rawName.toLowerCase().includes(query)) ||
+        (npcInfo.faceName && npcInfo.faceName.toLowerCase().includes(query)) ||
+        (npcInfo.characterName && npcInfo.characterName.toLowerCase().includes(query)) ||
+        (npcInfo.dialogueSnippet && npcInfo.dialogueSnippet.toLowerCase().includes(query)) ||
+        String(ev.id) === query
+      )
     },
-    [query]
+    [data.names.actors, detail?.texts, query]
   )
 
   const sortedEvents: MapEventInfo[] = useMemo(() => {
@@ -181,15 +203,55 @@ export function MapDetail({
   }, [detail?.events, isMatch, query])
 
   const [eventTab, setEventTab] = useState<'all' | 'npc'>('all')
-  const npcEvents = useMemo(() => sortedEvents.filter(isNpcEvent), [sortedEvents])
-  const displayedEvents = eventTab === 'npc' ? npcEvents : sortedEvents
+
+  const npcList: MapNpcItem[] = useMemo(() => {
+    if (!detail?.events) return []
+    const map = new Map<string, MapNpcItem>()
+
+    for (const ev of sortedEvents) {
+      if (!isNpcEvent(ev, detail.texts, data.names.actors)) continue
+      const info = resolveNpcInfo(ev, detail.texts, data.names.actors)
+      const evState = eventStateOf(ev, detail, session)
+      const groupKey = info.name.trim() || `#${ev.id}`
+
+      const existing = map.get(groupKey)
+      if (!existing) {
+        map.set(groupKey, {
+          key: groupKey,
+          name: info.name,
+          rawName: info.rawName,
+          isGeneric: info.isGeneric,
+          npcInfo: info,
+          primaryEvent: ev,
+          events: [ev],
+          state: evState,
+          teleportX: ev.x,
+          teleportY: ev.y,
+        })
+      } else {
+        existing.events.push(ev)
+        if (evState.kind === 'shown' && existing.state.kind !== 'shown') {
+          existing.primaryEvent = ev
+          existing.state = evState
+          existing.teleportX = ev.x
+          existing.teleportY = ev.y
+          if (info.dialogueSnippet && !existing.npcInfo.dialogueSnippet) {
+            existing.npcInfo = info
+          }
+        }
+      }
+    }
+    return Array.from(map.values())
+  }, [data.names.actors, detail, session, sortedEvents])
+
+  const displayedEvents = sortedEvents
 
   const navItems: readonly SegmentedNavItem<'all' | 'npc'>[] = useMemo(
     () => [
       { id: 'all', label: `${t('events.map.tabAllEvents')} (${detail?.events.length ?? 0})` },
-      { id: 'npc', label: `${t('events.map.tabNpc')} (${npcEvents.length})` },
+      { id: 'npc', label: `${t('events.map.tabNpc')} (${npcList.length})` },
     ],
-    [t, detail?.events.length, npcEvents.length]
+    [t, detail?.events.length, npcList.length]
   )
 
   const toggleSelected = (eventId: number, checked: boolean) => {
@@ -374,8 +436,86 @@ export function MapDetail({
             <div className="flex items-center justify-between border-b border-line bg-paper-2 px-3 py-1.5">
               <SegmentedNav items={navItems} value={eventTab} onChange={setEventTab} aria-label={t('events.map.events')} />
             </div>
-            {eventTab === 'npc' && displayedEvents.length === 0 ? (
-              <EmptyState title={t('events.map.emptyNpc')} message={t('events.map.emptyNpcMsg')} className="min-h-full flex-1" />
+            {eventTab === 'npc' ? (
+              npcList.length === 0 ? (
+                <EmptyState title={t('events.map.emptyNpc')} message={t('events.map.emptyNpcMsg')} className="min-h-full flex-1" />
+              ) : (
+                <div className="flex flex-col divide-y divide-line/60">
+                  <div className="flex items-center justify-between border-b border-line bg-paper-2 px-3 py-1.5 text-xs text-ink-soft">
+                    <span className="font-medium text-ink">
+                      {t('events.map.colNpc')} ({npcList.length})
+                    </span>
+                    <span className="text-[0.7rem] text-ink-soft/75">点击卡片可查看对应事件详情</span>
+                  </div>
+                  {npcList.map((npc) => {
+                    const hit = isMatch(npc.primaryEvent)
+                    return (
+                      <div
+                        key={npc.key}
+                        data-navigation-id={`map-event:${node.id}:${npc.primaryEvent.id}`}
+                        role="listitem"
+                        className={cn('group flex items-start gap-3 p-3 transition-colors hover:bg-paper-2/70', hit && 'bg-[color-mix(in_oklab,var(--accent)_12%,transparent)]')}
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-line/80 bg-paper-1 text-accent shadow-xs">
+                          <IoPersonOutline className="text-[1.2rem]" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              type="button"
+                              className="m-0 cursor-pointer border-none bg-transparent p-0 text-left font-semibold text-ink text-[0.875rem] underline-offset-2 hover:text-accent hover:underline"
+                              onClick={() => slot.onSelectMap(node.id, npc.primaryEvent.id)}
+                              aria-label={t('events.map.openDetail', { name: npc.name })}
+                            >
+                              {npc.name}
+                            </button>
+                            <StateBadge state={npc.state} />
+                            {npc.events.map((ev) => (
+                              <button
+                                key={ev.id}
+                                type="button"
+                                onClick={() => slot.onSelectMap(node.id, ev.id)}
+                                className="shrink-0 rounded-[0.2rem] border border-line/60 bg-paper-1/80 px-1.5 py-0.5 font-mono text-[0.68rem] text-ink-soft hover:border-accent hover:text-accent"
+                                title={t('events.map.openDetail', { name: `${npc.name} #${ev.id}` })}
+                              >
+                                #{ev.id} ({ev.x},{ev.y})
+                              </button>
+                            ))}
+                            {(npc.npcInfo.faceName || npc.npcInfo.characterName) && (
+                              <span className="shrink-0 rounded-[0.2rem] bg-accent/10 px-1.5 py-0.5 font-mono text-[0.65rem] text-accent">
+                                {npc.npcInfo.faceName || npc.npcInfo.characterName}
+                              </span>
+                            )}
+                            {hit && <span className="shrink-0 rounded-[0.2rem] bg-accent/20 px-1.5 py-0.5 text-[0.65rem] font-semibold text-accent">NPC 匹配</span>}
+                          </div>
+                          {npc.npcInfo.dialogueSnippet ? (
+                            <div className="mt-1 flex items-start gap-1 text-[0.76rem] text-ink-soft">
+                              <IoChatbubbleEllipsesOutline className="mt-0.5 shrink-0 text-accent/70" />
+                              <span className="italic line-clamp-2">“{npc.npcInfo.dialogueSnippet}”</span>
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1 pt-0.5">
+                          <Tooltip content={tp.blocked || t(tp.near ? 'events.map.teleportBeside' : 'events.map.teleportTo', { name: npc.name })}>
+                            <Button
+                              size="mini"
+                              variant="ghost"
+                              disabled={!!tp.blocked || tp.busy}
+                              onClick={() => void tp.teleport(npc.teleportX, npc.teleportY)}
+                              className="flex items-center gap-1 font-mono text-[0.72rem]"
+                            >
+                              <IoNavigateOutline className="text-accent text-[0.85rem]" />
+                              <span>
+                                {npc.teleportX},{npc.teleportY}
+                              </span>
+                            </Button>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
             ) : (
               <>
                 {selected.size ? (

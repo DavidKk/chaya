@@ -146,7 +146,7 @@ export function applyEditCmd(cmd: GameEditCmd): void {
       return
     }
     case 'commonEvent':
-      runCommonEventOnMap(cmd.id, cmd.from)
+      runCommonEventOnMap(cmd.id, cmd.from, cmd.force)
       return
     case 'eventControl':
       controlCurrentEvent(cmd.action, cmd.target)

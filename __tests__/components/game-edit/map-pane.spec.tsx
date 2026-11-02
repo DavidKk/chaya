@@ -191,6 +191,23 @@ const villageDetail: MapDetailData = {
       pages: [page('a'), { ...page('b'), conditions: { switch1: 3, variable: { id: 4, value: 9 }, selfSwitch: 'C' } }],
     },
     { id: 6, name: '村长', rawName: '村长', x: 3, y: 4, type: 'npc', pages: [{ ...page('c'), conditions: { switch1: 7 } }] },
+    {
+      id: 7,
+      name: 'EV007',
+      rawName: 'EV007',
+      x: 5,
+      y: 6,
+      type: 'npc',
+      pages: [
+        {
+          ...page('d'),
+          list: [
+            { code: 101, indent: 0, parameters: ['1Diana', 0, 0, 2, '戴安娜'] },
+            { code: 401, indent: 0, parameters: ['你好，我是戴安娜！'] },
+          ],
+        },
+      ],
+    },
   ],
   texts: {},
   encounters: [],
@@ -301,4 +318,18 @@ test('does not show noMatch when not searching; falls back so maps remain listed
   await render(slot({ mapId: 3 }))
   expect(listed().length).toBeGreaterThan(0)
   expect(document.body.textContent).not.toContain('无匹配结果')
+})
+
+test('npc tab lists resolved NPC names and dialogue preview', async () => {
+  await render(slot({ mapId: 2, mapDetail: villageDetail }))
+  const npcTabBtn = [...document.querySelectorAll('[role="tab"]')].find((btn) => btn.textContent?.includes('NPC')) as HTMLButtonElement
+  expect(npcTabBtn).toBeDefined()
+  await act(async () => npcTabBtn.click())
+
+  const eventListText = document.querySelector('[role="list"][aria-label="事件"]')?.textContent ?? ''
+  expect(eventListText).toContain('戴安娜')
+  expect(eventListText).toContain('你好，我是戴安娜！')
+  expect(eventListText).toContain('#7')
+  expect(eventListText).toContain('村长')
+  expect(eventListText).toContain('门卫')
 })

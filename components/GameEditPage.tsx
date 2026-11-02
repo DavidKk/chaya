@@ -142,11 +142,13 @@ export function GameEditPage() {
     },
     onAct: async (op) => {
       if (op.op === 'commonEvent') {
-        assertMapOperationCompleted(await runMapChanges([{ label: `公共事件 #${op.id}`, action: { kind: 'commonEvent', id: op.id, from: op.from } }], `执行公共事件 #${op.id}`))
+        assertMapOperationCompleted(
+          await runMapChanges([{ label: `公共事件 #${op.id}`, action: { kind: 'commonEvent', id: op.id, from: op.from, force: op.force } }], `执行公共事件 #${op.id}`)
+        )
       } else if (op.op === 'mapEvent') {
         assertMapOperationCompleted(
           await runMapChanges(
-            [{ label: `地图事件 #${op.eventId}`, action: { kind: 'mapEvent', mapId: op.mapId, eventId: op.eventId, page: op.page, from: op.from } }],
+            [{ label: `地图事件 #${op.eventId}`, action: { kind: 'mapEvent', mapId: op.mapId, eventId: op.eventId, page: op.page, from: op.from, force: op.force } }],
             `执行地图事件 #${op.eventId}`
           )
         )

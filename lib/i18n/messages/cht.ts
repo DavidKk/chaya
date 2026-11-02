@@ -1614,6 +1614,7 @@ export const cht: MessageTree = {
       selectHint: '从列表選擇一张地图',
       loadFail: '地图读取失敗',
       colName: '名称',
+      colNpc: 'NPC 名稱',
       colPos: '坐标',
       colType: '类型',
       colState: '狀態',

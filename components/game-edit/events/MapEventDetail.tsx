@@ -11,6 +11,7 @@ import { Badge, Button, ScrollArea, SegmentedNav, TruncateText } from '@/compone
 import { type CommonEventsData, type EventEffects, isRiskyEffects, type MapDetailData, type MapEventInfo, type MapNode, reachableFrom, summarizeEffects } from '@/lib/game/events'
 
 import { CurrentEventActions } from './CurrentEventsPanel'
+import { resolveNpcInfo } from './event-meta'
 import { EventScript } from './EventScript'
 import { effectLabels } from './labels'
 import { eventStateOf, type Teleport, TYPE_KEY } from './MapDetail'
@@ -25,7 +26,9 @@ export function MapEventDetail({ ev, node, detail, data, slot, session, tp }: Pr
   const confirm = useConfirm()
   const notify = useNotification()
   const [busy, setBusy] = useState(false)
+  const npcInfo = useMemo(() => resolveNpcInfo(ev, detail.texts, data.names.actors), [ev, detail.texts, data.names.actors])
   const name = ev.name || `#${ev.id}`
+  const displayName = npcInfo.name && npcInfo.name !== name ? `${npcInfo.name} · ${name}` : name
   const state = eventStateOf(ev, detail, session)
   const texts = useMemo(() => ({ ...data.texts, ...detail.texts }), [data.texts, detail.texts])
   const activeIndex = state.kind !== 'unknown' && state.page > 0 ? state.page - 1 : -1
@@ -110,7 +113,7 @@ export function MapEventDetail({ ev, node, detail, data, slot, session, tp }: Pr
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
             <h2 className="m-0 flex min-w-0 text-[0.9rem] font-semibold text-ink">
-              <TruncateText text={name} />
+              <TruncateText text={displayName} />
             </h2>
             {onThisMap ? (
               <Badge dot={false} tone="info" className="shrink-0">

@@ -9,7 +9,7 @@ import { ScrollArea } from '@/components/sk'
 import type { MapDetailData, MapEventType } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
-import { type EventState, isNpcEvent, TYPE_KEY } from './event-meta'
+import { type EventState, isNpcEvent, resolveNpcInfo, TYPE_KEY } from './event-meta'
 import type { PlayerSpot } from './types'
 
 const TYPE_FILL: Record<MapEventType, string> = {
@@ -189,8 +189,14 @@ function MiniMapBody({
           {detail.events.map((ev) => {
             const state = stateOf(ev.id)
             const query = activeFilter?.trim().toLowerCase() || ''
-            const isMatch = !!query && ((ev.name && ev.name.toLowerCase().includes(query)) || (ev.rawName && ev.rawName.toLowerCase().includes(query)) || String(ev.id) === query)
-            const isNpc = isNpcEvent(ev)
+            const npcInfo = resolveNpcInfo(ev, detail.texts)
+            const isMatch =
+              !!query &&
+              ((npcInfo.name && npcInfo.name.toLowerCase().includes(query)) ||
+                (ev.name && ev.name.toLowerCase().includes(query)) ||
+                (ev.rawName && ev.rawName.toLowerCase().includes(query)) ||
+                String(ev.id) === query)
+            const isNpc = isNpcEvent(ev, detail.texts)
             const dimmed = subTab === 'npc' && !isNpc
             return (
               <g key={ev.id} className={dimmed ? 'opacity-25' : undefined}>
@@ -214,7 +220,7 @@ function MiniMapBody({
                     onSelectEvent(ev.id)
                   }}
                 >
-                  <title>{`${ev.name || `#${ev.id}`} (${ev.x},${ev.y}) · ${t(TYPE_KEY[ev.type])}`}</title>
+                  <title>{`${npcInfo.name && npcInfo.name !== (ev.name || `#${ev.id}`) ? `${npcInfo.name} (${ev.name || `#${ev.id}`})` : ev.name || `#${ev.id}`} (${ev.x},${ev.y}) · ${t(TYPE_KEY[ev.type])}`}</title>
                 </circle>
               </g>
             )
