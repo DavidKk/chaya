@@ -1,5 +1,7 @@
-import { Activity, type CSSProperties, lazy, type ReactNode, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { Activity, Component, type CSSProperties, type ErrorInfo, lazy, type ReactNode, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { IoCloseOutline } from 'react-icons/io5'
 
+import { BrandMarkInline } from '@/components/BrandMarkInline'
 import { ConfirmProvider } from '@/components/confirm/ConfirmProvider'
 import { UnsavedChangesProvider } from '@/components/confirm/UnsavedChangesProvider'
 import {
@@ -40,11 +42,13 @@ import { isToolPanelId, toggleToolPanel } from '@/components/game-tools/tool-pan
 import { GameToolTransportContext } from '@/components/game-tools/transport'
 import { useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useT } from '@/components/i18n/LocaleProvider'
+import { panelShell } from '@/components/layoutClasses'
 import { NotificationProvider } from '@/components/notification/NotificationProvider'
-import { EditTableSkeleton } from '@/components/sk'
+import { Button, EditTableSkeleton } from '@/components/sk'
 import type { TranslateRunMode, TranslateTabId } from '@/components/translate/tabs'
 import type { GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 import { isInputRecording } from '@/lib/game/input-assistance/recording'
+import { cn } from '@/lib/utils'
 import { readViewState, writeViewState } from '@/lib/view-state'
 import { FloatingGameSaves } from '@/plugins/shared/FloatingGameSaves'
 
@@ -164,6 +168,88 @@ function catalogSlicesFor(tab: TabId, actorPane: ActorPaneId): CatalogSlice[] {
     return slices
   }
   return []
+}
+
+function OverlayLoadingShell({ onClose, label }: { onClose: () => void; label: string }) {
+  const t = useT()
+  return (
+    <div
+      role="region"
+      aria-label={t('edit.panelAria')}
+      className={cn(panelShell, 'flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-line bg-panel shadow-[0_12px_40px_rgb(0_0_0/0.45)]')}
+    >
+      <div className="flex h-[3.25rem] shrink-0 items-center justify-between border-b border-line bg-[color-mix(in_oklab,var(--panel-2)_70%,transparent)] px-4">
+        <div className="flex items-center gap-2">
+          <BrandMarkInline className="size-7" animated />
+          <span className="text-xs text-ink-soft animate-pulse">{label}</span>
+        </div>
+        <Button variant="ghost" size="icon" aria-label={t('common.close')} tooltip={t('edit.closeEsc')} onClick={onClose}>
+          <IoCloseOutline size={17} aria-hidden />
+        </Button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden p-4">
+        <EditTableSkeleton label={label} />
+      </div>
+    </div>
+  )
+}
+
+type ErrorBoundaryProps = {
+  children: ReactNode
+  onClose: () => void
+  t: (key: any) => string
+}
+
+type ErrorBoundaryState = {
+  error: Error | null
+}
+
+class OverlayErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
+  override state: ErrorBoundaryState = { error: null }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { error }
+  }
+
+  override componentDidCatch(error: Error, info: ErrorInfo) {
+    // eslint-disable-next-line no-console
+    console.error('[ChayaGameEdit] Overlay error boundary caught:', error, info)
+  }
+
+  override render() {
+    if (this.state.error) {
+      const { onClose, t } = this.props
+      return (
+        <div
+          role="region"
+          aria-label={t('edit.panelAria')}
+          className={cn(panelShell, 'flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-line bg-panel p-6 shadow-[0_12px_40px_rgb(0_0_0/0.45)]')}
+        >
+          <div className="flex items-center justify-between border-b border-line pb-4">
+            <div className="flex items-center gap-2">
+              <BrandMarkInline className="size-7" />
+              <h2 className="text-base font-semibold text-ink">{t('edit.initFailed') || '加载异常'}</h2>
+            </div>
+            <Button variant="ghost" size="icon" aria-label={t('common.close')} tooltip={t('edit.closeEsc')} onClick={onClose}>
+              <IoCloseOutline size={17} aria-hidden />
+            </Button>
+          </div>
+          <div className="my-6 min-h-0 flex-1 overflow-auto rounded bg-paper-2 p-4 text-xs font-mono text-fail whitespace-pre-wrap">
+            {this.state.error.message || String(this.state.error)}
+          </div>
+          <div className="mt-auto flex justify-end gap-3 pt-2">
+            <Button variant="default" onClick={() => this.setState({ error: null })}>
+              {t('common.retry') || '重试'}
+            </Button>
+            <Button variant="accent" onClick={onClose}>
+              {t('common.close') || '关闭'}
+            </Button>
+          </div>
+        </div>
+      )
+    }
+    return this.props.children
+  }
 }
 
 /** In-game React panel: shared GameEditWorkbench + runtime data */
@@ -657,69 +743,71 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
       ) : null}
       {hasOpened ? (
         <Activity mode={open ? 'visible' : 'hidden'}>
-          <Suspense fallback={<EditTableSkeleton label={t('edit.loadPanel')} />}>
-            <GameEditWorkbench
-              surface="overlay"
-              agentRequest={pluginGameAgentRequest}
-              tab={tab}
-              setTab={selectTab}
-              lastEditTab={lastEditTab}
-              actorId={actorId}
-              setActorId={setActorId}
-              actorPane={actorPane}
-              setActorPane={setActorPane}
-              filter={filter}
-              setFilter={setFilter}
-              onlyOwned={onlyOwned}
-              setOnlyOwned={setOnlyOwned}
-              onlyNamed={onlyNamed}
-              setOnlyNamed={setOnlyNamed}
-              translateTab={translateTab}
-              setTranslateTab={setTranslateTab}
-              translateSection={translateSection}
-              setTranslateSection={setTranslateSection}
-              loading={bootstrapping}
-              error={error}
-              catalog={catalog}
-              session={session}
-              onClose={onRequestClose}
-              onGoldChange={setGold}
-              onGoldLockChange={setGoldLock}
-              onMoveRateChange={(rate) => {
-                applySpeed(rate, rate)
-                setSession((prev) => ({ ...prev, walkRate: rate, runRate: rate }))
-              }}
-              onGameSpeedChange={(rate) => {
-                applyGameSpeed(rate)
-                setSession((prev) => ({ ...prev, gameSpeed: rate }))
-              }}
-              onExpRateChange={(rate) => {
-                RunCheats.setExpRate(rate)
-                setSession((prev) => ({ ...prev, expRate: rate }))
-              }}
-              onRunFlagChange={setRunFlag}
-              onRunAction={runAction}
-              onHotkeysChange={(scope, hotkeys) => {
-                if (scope === 'game') {
-                  setGameHotkeysCache(hotkeys)
-                  setSession((prev) => ({ ...prev, hotkeys }))
-                  return
-                }
-                saveGlobalHotkeys(hotkeys)
-                setSession((prev) => ({ ...prev, hotkeysGlobal: hotkeys }))
-              }}
-              onCountChange={setCount}
-              onVarChange={setVar}
-              onSwitchChange={setSwitch}
-              onRowLockChange={setRowLock}
-              onActorChange={setActor}
-              onActorOwnedLockChange={setActorOwnedLock}
-              onActorVitalLockChange={setActorVitalLock}
-              onBattleLock={setBattleLock}
-              events={eventsSlot}
-              saveData={saveDataSlot}
-            />
-          </Suspense>
+          <OverlayErrorBoundary onClose={onRequestClose} t={t}>
+            <Suspense fallback={<OverlayLoadingShell onClose={onRequestClose} label={t('edit.loadPanel')} />}>
+              <GameEditWorkbench
+                surface="overlay"
+                agentRequest={pluginGameAgentRequest}
+                tab={tab}
+                setTab={selectTab}
+                lastEditTab={lastEditTab}
+                actorId={actorId}
+                setActorId={setActorId}
+                actorPane={actorPane}
+                setActorPane={setActorPane}
+                filter={filter}
+                setFilter={setFilter}
+                onlyOwned={onlyOwned}
+                setOnlyOwned={setOnlyOwned}
+                onlyNamed={onlyNamed}
+                setOnlyNamed={setOnlyNamed}
+                translateTab={translateTab}
+                setTranslateTab={setTranslateTab}
+                translateSection={translateSection}
+                setTranslateSection={setTranslateSection}
+                loading={bootstrapping}
+                error={error}
+                catalog={catalog}
+                session={session}
+                onClose={onRequestClose}
+                onGoldChange={setGold}
+                onGoldLockChange={setGoldLock}
+                onMoveRateChange={(rate) => {
+                  applySpeed(rate, rate)
+                  setSession((prev) => ({ ...prev, walkRate: rate, runRate: rate }))
+                }}
+                onGameSpeedChange={(rate) => {
+                  applyGameSpeed(rate)
+                  setSession((prev) => ({ ...prev, gameSpeed: rate }))
+                }}
+                onExpRateChange={(rate) => {
+                  RunCheats.setExpRate(rate)
+                  setSession((prev) => ({ ...prev, expRate: rate }))
+                }}
+                onRunFlagChange={setRunFlag}
+                onRunAction={runAction}
+                onHotkeysChange={(scope, hotkeys) => {
+                  if (scope === 'game') {
+                    setGameHotkeysCache(hotkeys)
+                    setSession((prev) => ({ ...prev, hotkeys }))
+                    return
+                  }
+                  saveGlobalHotkeys(hotkeys)
+                  setSession((prev) => ({ ...prev, hotkeysGlobal: hotkeys }))
+                }}
+                onCountChange={setCount}
+                onVarChange={setVar}
+                onSwitchChange={setSwitch}
+                onRowLockChange={setRowLock}
+                onActorChange={setActor}
+                onActorOwnedLockChange={setActorOwnedLock}
+                onActorVitalLockChange={setActorVitalLock}
+                onBattleLock={setBattleLock}
+                events={eventsSlot}
+                saveData={saveDataSlot}
+              />
+            </Suspense>
+          </OverlayErrorBoundary>
         </Activity>
       ) : null}
     </GameEditOverlayProviders>

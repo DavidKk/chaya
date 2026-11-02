@@ -9,7 +9,7 @@ import { ScrollArea } from '@/components/sk'
 import type { MapDetailData, MapEventType } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
-import { type EventState, TYPE_KEY } from './event-meta'
+import { type EventState, isNpcEvent, TYPE_KEY } from './event-meta'
 import type { PlayerSpot } from './types'
 
 const TYPE_FILL: Record<MapEventType, string> = {
@@ -58,6 +58,7 @@ type MiniMapProps = {
   onSelectEvent: (id: number) => void
   opacity?: MiniPanelOpacitySettings
   activeFilter?: string
+  subTab?: 'all' | 'npc'
 }
 
 /**
@@ -104,6 +105,7 @@ function MiniMapBody({
   cell,
   title,
   activeFilter,
+  subTab,
 }: MiniMapProps & { /** Fixed px per tile; omitted = scale to fit the panel */ cell?: number; title?: string }) {
   const t = useT()
   const gridId = useId()
@@ -188,9 +190,20 @@ function MiniMapBody({
             const state = stateOf(ev.id)
             const query = activeFilter?.trim().toLowerCase() || ''
             const isMatch = !!query && ((ev.name && ev.name.toLowerCase().includes(query)) || (ev.rawName && ev.rawName.toLowerCase().includes(query)) || String(ev.id) === query)
+            const isNpc = isNpcEvent(ev)
+            const dimmed = subTab === 'npc' && !isNpc
             return (
-              <g key={ev.id}>
-                {isMatch && <circle cx={ev.x + 0.5} cy={ev.y + 0.5} r="0.8" fill="none" className="stroke-accent stroke-[0.14] animate-pulse" pointerEvents="none" />}
+              <g key={ev.id} className={dimmed ? 'opacity-25' : undefined}>
+                {(isMatch || (subTab === 'npc' && isNpc)) && (
+                  <circle
+                    cx={ev.x + 0.5}
+                    cy={ev.y + 0.5}
+                    r={isMatch ? 0.8 : 0.65}
+                    fill="none"
+                    className={cn('stroke-accent stroke-[0.14]', isMatch && 'animate-pulse')}
+                    pointerEvents="none"
+                  />
+                )}
                 <circle
                   cx={ev.x + 0.5}
                   cy={ev.y + 0.5}

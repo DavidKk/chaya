@@ -8,13 +8,13 @@ import { countKey, type SessionState } from '@/components/game-edit/types'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { editCell, editHeadCell } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Badge, Button, EmptyState, FilterToggle, ScrollArea, Select, TruncateText } from '@/components/sk'
+import { Badge, Button, EmptyState, FilterToggle, ScrollArea, SegmentedNav, type SegmentedNavItem, Select, TruncateText } from '@/components/sk'
 import { Tooltip } from '@/components/sk/Tooltip/Tooltip'
 import { type CommonEventsData, estimateActivePage, type MapDetailData, type MapEventInfo, type MapNode, type SelfSwitchLetter } from '@/lib/game/events'
 import type { MapOperationItem, MapOperationValue } from '@/lib/runtime/game-link-protocol'
 import { cn } from '@/lib/utils'
 
-import { type EventState, TYPE_KEY } from './event-meta'
+import { type EventState, isNpcEvent, TYPE_KEY } from './event-meta'
 import { MapEventsTableSkeleton } from './EventsSkeleton'
 import { MapEncounters } from './MapEncounters'
 import { MapEventDetail } from './MapEventDetail'
@@ -22,7 +22,7 @@ import { MapTeleportField } from './MapTeleportField'
 import { MiniMap } from './MiniMap'
 import type { EventsOp, EventsSlot } from './types'
 
-export { type EventState, TYPE_KEY } from './event-meta'
+export { type EventState, isNpcEvent, TYPE_KEY } from './event-meta'
 
 /** Exact on the player's map, estimated from page conditions elsewhere, unknown offline */
 export function eventStateOf(ev: MapEventInfo, detail: MapDetailData, session: SessionState): EventState {
@@ -180,6 +180,18 @@ export function MapDetail({
     })
   }, [detail?.events, isMatch, query])
 
+  const [eventTab, setEventTab] = useState<'all' | 'npc'>('all')
+  const npcEvents = useMemo(() => sortedEvents.filter(isNpcEvent), [sortedEvents])
+  const displayedEvents = eventTab === 'npc' ? npcEvents : sortedEvents
+
+  const navItems: readonly SegmentedNavItem<'all' | 'npc'>[] = useMemo(
+    () => [
+      { id: 'all', label: `${t('events.map.tabAllEvents')} (${detail?.events.length ?? 0})` },
+      { id: 'npc', label: `${t('events.map.tabNpc')} (${npcEvents.length})` },
+    ],
+    [t, detail?.events.length, npcEvents.length]
+  )
+
   const toggleSelected = (eventId: number, checked: boolean) => {
     setSelected((current) => {
       const next = new Set(current)
@@ -283,6 +295,7 @@ export function MapDetail({
       onPickCell={(x, y) => void tp.pickCell(x, y)}
       onSelectEvent={(id) => slot.onSelectMap(node.id, id)}
       activeFilter={filter}
+      subTab={eventTab}
     />
   ) : null
 
@@ -358,106 +371,115 @@ export function MapDetail({
           <EmptyState title={t('events.map.emptyMap')} />
         ) : (
           <div className="text-[0.8125rem]" style={{ minWidth: '28rem' }} role="list" aria-label={t('events.map.events')}>
-            {selected.size ? (
-              <div className="sticky top-0 z-[3] flex h-10 items-center gap-2 border-b border-line bg-panel-2 px-2">
-                <span className="mr-auto text-xs text-ink-soft">{t('events.map.batchSelected', { count: selected.size })}</span>
-                <Select
-                  className="w-16"
-                  value={batchLetter}
-                  options={(['A', 'B', 'C', 'D'] as const).map((letter) => ({ value: letter, label: letter }))}
-                  onChange={(letter) => setBatchLetter(letter as SelfSwitchLetter)}
-                  aria-label={t('data.selfSwitchLetter')}
-                />
-                <Button size="mini" loading={batchBusy} disabled={!slot.onMapChanges} onClick={() => void batchSelfSwitch(true)}>
-                  {t('events.stateOn')}
-                </Button>
-                <Button size="mini" loading={batchBusy} disabled={!slot.onMapChanges} onClick={() => void batchSelfSwitch(false)}>
-                  {t('events.stateOff')}
-                </Button>
-                <Button size="mini" loading={batchBusy} disabled={!slot.onMapChanges} onClick={() => void satisfyConditions()}>
-                  {t('events.map.batchSatisfyShort')}
-                </Button>
-              </div>
-            ) : null}
-            <div className="sticky top-0 z-[2] grid h-9 items-center border-b border-line bg-paper-2" style={tableCols} role="presentation">
-              <div className={editHeadCell} data-list-heading="">
-                <input
-                  type="checkbox"
-                  checked={selected.size > 0 && selected.size === Math.min(50, detail.events.length)}
-                  aria-label={t('events.map.batchSelected', { count: selected.size })}
-                  onChange={(event) => setSelected(event.target.checked ? new Set(detail.events.slice(0, 50).map((item) => item.id)) : new Set())}
-                />
-              </div>
-              <div className={editHeadCell} data-list-heading="">
-                {t('events.map.colName')}
-              </div>
-              <div className={editHeadCell} data-list-heading="">
-                {t('events.map.colPos')}
-              </div>
-              <div className={editHeadCell} data-list-heading="">
-                {t('events.map.colType')}
-              </div>
-              <div className={editHeadCell} data-list-heading="">
-                {t('events.map.colState')}
-              </div>
+            <div className="flex items-center justify-between border-b border-line bg-paper-2 px-3 py-1.5">
+              <SegmentedNav items={navItems} value={eventTab} onChange={setEventTab} aria-label={t('events.map.events')} />
             </div>
-            {sortedEvents.map((ev, index) => {
-              const hit = isMatch(ev)
-              const name = ev.name || `#${ev.id}`
-              return (
-                <div
-                  key={ev.id}
-                  data-navigation-id={`map-event:${node.id}:${ev.id}`}
-                  className={cn(
-                    'grid items-center border-t border-line hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]',
-                    index === 0 && 'border-t-0',
-                    hit && 'bg-[color-mix(in_oklab,var(--accent)_14%,transparent)]'
-                  )}
-                  style={tableCols}
-                  role="listitem"
-                >
-                  <div className={editCell} data-list-cell="">
-                    <input type="checkbox" checked={selected.has(ev.id)} aria-label={name} onChange={(event) => toggleSelected(ev.id, event.target.checked)} />
+            {eventTab === 'npc' && displayedEvents.length === 0 ? (
+              <EmptyState title={t('events.map.emptyNpc')} message={t('events.map.emptyNpcMsg')} />
+            ) : (
+              <>
+                {selected.size ? (
+                  <div className="sticky top-0 z-[3] flex h-10 items-center gap-2 border-b border-line bg-panel-2 px-2">
+                    <span className="mr-auto text-xs text-ink-soft">{t('events.map.batchSelected', { count: selected.size })}</span>
+                    <Select
+                      className="w-16"
+                      value={batchLetter}
+                      options={(['A', 'B', 'C', 'D'] as const).map((letter) => ({ value: letter, label: letter }))}
+                      onChange={(letter) => setBatchLetter(letter as SelfSwitchLetter)}
+                      aria-label={t('data.selfSwitchLetter')}
+                    />
+                    <Button size="mini" loading={batchBusy} disabled={!slot.onMapChanges} onClick={() => void batchSelfSwitch(true)}>
+                      {t('events.stateOn')}
+                    </Button>
+                    <Button size="mini" loading={batchBusy} disabled={!slot.onMapChanges} onClick={() => void batchSelfSwitch(false)}>
+                      {t('events.stateOff')}
+                    </Button>
+                    <Button size="mini" loading={batchBusy} disabled={!slot.onMapChanges} onClick={() => void satisfyConditions()}>
+                      {t('events.map.batchSatisfyShort')}
+                    </Button>
                   </div>
-                  <div className={cn(editCell, 'min-w-0')} data-list-cell="">
-                    <button
-                      type="button"
-                      className="m-0 flex w-full min-w-0 cursor-pointer border-none bg-transparent p-0 text-left font-medium text-ink underline-offset-2 hover:underline"
-                      aria-label={t('events.map.openDetail', { name })}
-                      data-navigation-trigger=""
-                      onClick={() => slot.onSelectMap(node.id, ev.id)}
-                    >
-                      <TruncateText text={name} className="min-w-0 flex-1" />
-                      {hit && <span className="ml-1.5 shrink-0 rounded-[0.2rem] bg-accent/20 px-1.5 py-0.5 text-[0.65rem] font-semibold text-accent">NPC 匹配</span>}
-                    </button>
+                ) : null}
+                <div className="sticky top-0 z-[2] grid h-9 items-center border-b border-line bg-paper-2" style={tableCols} role="presentation">
+                  <div className={editHeadCell} data-list-heading="">
+                    <input
+                      type="checkbox"
+                      checked={selected.size > 0 && selected.size === Math.min(50, displayedEvents.length)}
+                      aria-label={t('events.map.batchSelected', { count: selected.size })}
+                      onChange={(event) => setSelected(event.target.checked ? new Set(displayedEvents.slice(0, 50).map((item) => item.id)) : new Set())}
+                    />
                   </div>
-                  <div className={cn(editCell, 'font-mono text-[0.72rem] text-ink-soft')} data-list-cell="">
-                    <Tooltip content={tp.blocked || t(tp.near ? 'events.map.teleportBeside' : 'events.map.teleportTo', { name })}>
-                      <button
-                        type="button"
-                        className="m-0 cursor-pointer border-none bg-transparent p-0 font-mono text-[0.72rem] text-ink-soft underline-offset-2 hover:text-accent hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:hover:text-ink-soft"
-                        disabled={!!tp.blocked || tp.busy}
-                        aria-label={t(tp.near ? 'events.map.teleportBeside' : 'events.map.teleportTo', { name })}
-                        onClick={() => void tp.teleport(ev.x, ev.y)}
-                      >
-                        {ev.x},{ev.y}
-                      </button>
-                    </Tooltip>
+                  <div className={editHeadCell} data-list-heading="">
+                    {t('events.map.colName')}
                   </div>
-                  <div className={cn(editCell, 'text-[0.75rem] text-ink-soft')} data-list-cell="">
-                    {t(TYPE_KEY[ev.type])}
+                  <div className={editHeadCell} data-list-heading="">
+                    {t('events.map.colPos')}
                   </div>
-                  <div className={editCell} data-list-cell="">
-                    <StateBadge state={eventStateOf(ev, detail, session)} />
-                    {slot.live && slot.eventActivity?.entries.some((entry) => entry.mapId === node.id && entry.eventId === ev.id && entry.commonEventId == null) ? (
-                      <Badge dot={false} tone="ok">
-                        {t('events.running')}
-                      </Badge>
-                    ) : null}
+                  <div className={editHeadCell} data-list-heading="">
+                    {t('events.map.colType')}
+                  </div>
+                  <div className={editHeadCell} data-list-heading="">
+                    {t('events.map.colState')}
                   </div>
                 </div>
-              )
-            })}
+                {displayedEvents.map((ev, index) => {
+                  const hit = isMatch(ev)
+                  const name = ev.name || `#${ev.id}`
+                  return (
+                    <div
+                      key={ev.id}
+                      data-navigation-id={`map-event:${node.id}:${ev.id}`}
+                      className={cn(
+                        'grid items-center border-t border-line hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]',
+                        index === 0 && 'border-t-0',
+                        hit && 'bg-[color-mix(in_oklab,var(--accent)_14%,transparent)]'
+                      )}
+                      style={tableCols}
+                      role="listitem"
+                    >
+                      <div className={editCell} data-list-cell="">
+                        <input type="checkbox" checked={selected.has(ev.id)} aria-label={name} onChange={(event) => toggleSelected(ev.id, event.target.checked)} />
+                      </div>
+                      <div className={cn(editCell, 'min-w-0')} data-list-cell="">
+                        <button
+                          type="button"
+                          className="m-0 flex w-full min-w-0 cursor-pointer border-none bg-transparent p-0 text-left font-medium text-ink underline-offset-2 hover:underline"
+                          aria-label={t('events.map.openDetail', { name })}
+                          data-navigation-trigger=""
+                          onClick={() => slot.onSelectMap(node.id, ev.id)}
+                        >
+                          <TruncateText text={name} className="min-w-0 flex-1" />
+                          {hit && <span className="ml-1.5 shrink-0 rounded-[0.2rem] bg-accent/20 px-1.5 py-0.5 text-[0.65rem] font-semibold text-accent">NPC 匹配</span>}
+                        </button>
+                      </div>
+                      <div className={cn(editCell, 'font-mono text-[0.72rem] text-ink-soft')} data-list-cell="">
+                        <Tooltip content={tp.blocked || t(tp.near ? 'events.map.teleportBeside' : 'events.map.teleportTo', { name })}>
+                          <button
+                            type="button"
+                            className="m-0 cursor-pointer border-none bg-transparent p-0 font-mono text-[0.72rem] text-ink-soft underline-offset-2 hover:text-accent hover:underline disabled:cursor-not-allowed disabled:no-underline disabled:hover:text-ink-soft"
+                            disabled={!!tp.blocked || tp.busy}
+                            aria-label={t(tp.near ? 'events.map.teleportBeside' : 'events.map.teleportTo', { name })}
+                            onClick={() => void tp.teleport(ev.x, ev.y)}
+                          >
+                            {ev.x},{ev.y}
+                          </button>
+                        </Tooltip>
+                      </div>
+                      <div className={cn(editCell, 'text-[0.75rem] text-ink-soft')} data-list-cell="">
+                        {t(TYPE_KEY[ev.type])}
+                      </div>
+                      <div className={editCell} data-list-cell="">
+                        <StateBadge state={eventStateOf(ev, detail, session)} />
+                        {slot.live && slot.eventActivity?.entries.some((entry) => entry.mapId === node.id && entry.eventId === ev.id && entry.commonEventId == null) ? (
+                          <Badge dot={false} tone="ok">
+                            {t('events.running')}
+                          </Badge>
+                        ) : null}
+                      </div>
+                    </div>
+                  )
+                })}
+              </>
+            )}
           </div>
         )}
       </ScrollArea>

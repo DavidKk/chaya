@@ -296,8 +296,24 @@ function clearErrorScreen(): boolean {
   return cleared
 }
 
+function ensureSceneManagerResume() {
+  if (typeof SceneManager !== 'undefined' && !(SceneManager as any).resume) {
+    ;(SceneManager as any).resume = function () {
+      this._stopped = false
+      if (typeof this.requestUpdate === 'function') {
+        try {
+          this.requestUpdate()
+        } catch {
+          /* */
+        }
+      }
+    }
+  }
+}
+
 export const RunCheats = {
   ensureHooks() {
+    ensureSceneManagerResume()
     ensureTouchHook()
     ensureSmartPathHook()
     ensureExpHook()
@@ -822,7 +838,11 @@ export const RunCheats = {
     try {
       if (typeof SceneManager !== 'undefined') {
         if (typeof SceneManager.resume === 'function') SceneManager.resume()
-        SceneManager._stopped = false
+        const sm = SceneManager as any
+        sm._stopped = false
+        if (typeof sm.requestUpdate === 'function') {
+          sm.requestUpdate()
+        }
       }
     } catch {
       /* */

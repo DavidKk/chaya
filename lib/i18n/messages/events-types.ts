@@ -247,6 +247,10 @@ export type EventsMapMessages = {
   colType: string
   colState: string
   typeNpc: string
+  tabAllEvents: string
+  tabNpc: string
+  emptyNpc: string
+  emptyNpcMsg: string
   typeTransfer: string
   typeChest: string
   typeTrigger: string
