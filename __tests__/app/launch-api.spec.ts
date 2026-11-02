@@ -184,7 +184,10 @@ it.each(['windowed', 'silent'] as const)('uses the host %s preference for remote
   expect((await remoteLaunch()).status).toBe(200)
   expect(diskOps.launchShellWithContent).toHaveBeenCalledWith('/data/shell/Chaya', '/game/www', { silent: launchMode === 'silent' })
   expect(diskOps.writeNwWindow).toHaveBeenCalledWith('/game/www', { show: launchMode !== 'silent' })
-  expect(writeLaunchEnv).toHaveBeenCalledWith(expect.anything(), expect.any(String), { silentMode: launchMode === 'silent', muteHostAudio: true })
+  expect(writeLaunchEnv).toHaveBeenCalledWith(expect.anything(), expect.any(String), {
+    silentMode: launchMode === 'silent',
+    muteHostAudio: launchMode === 'silent',
+  })
   expect(recordGameLaunch).toHaveBeenCalledWith('/game/www', 'cloud')
 })
 

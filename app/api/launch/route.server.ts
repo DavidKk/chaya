@@ -35,9 +35,10 @@ export const POST = defineApiRoute('post:/api/launch', async ({ request }) => {
   if (raw && typeof raw === 'object' && raw.remotePlay === true) {
     const settings = readRemotePlayHostSettings()
     mode = settings.launchMode
-    muteHostAudio = settings.muteHostAudio
+    muteHostAudio = mode === 'silent' ? settings.muteHostAudio : false
   } else if (raw && typeof raw === 'object' && raw.mode === 'silent') {
     mode = 'silent'
+    muteHostAudio = true
   }
   const isSilent = mode === 'silent'
 

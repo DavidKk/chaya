@@ -106,7 +106,7 @@ export function uninstallRgssRuntime() {
 
 export async function launchRgss(resolved: ResolvedGame, options?: { silent?: boolean; muteHostAudio?: boolean }) {
   const isSilent = Boolean(options?.silent)
-  const muteHostAudio = options?.muteHostAudio ?? isSilent
+  const muteHostAudio = isSilent && Boolean(options?.muteHostAudio ?? true)
   const root = path.resolve(resolved.contentRoot)
   if (anyRgssRunning()) throw new Error('An RGSS game is already running or starting')
   if (!['darwin', 'win32'].includes(process.platform)) throw new Error('Native RGSS launch is currently supported on macOS and Windows only')

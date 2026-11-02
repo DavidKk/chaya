@@ -313,7 +313,9 @@ module ChayaRGSS
         end
         @last_reload_check = Time.now.to_f
         @last_state_at = nil
-        if ENV.fetch('CHAYA_MUTE_HOST_AUDIO', ENV['CHAYA_RGSS_SILENT'] || ENV['CHAYA_SILENT_MODE']) == '1'
+        is_silent = ENV['CHAYA_RGSS_SILENT'] == '1' || ENV['CHAYA_SILENT_MODE'] == '1'
+        mute_host = is_silent && ENV.fetch('CHAYA_MUTE_HOST_AUDIO', '1') == '1'
+        if mute_host
           if defined?(Audio)
             [:bgm_play, :bgs_play, :me_play, :se_play].each do |m|
               Audio.define_singleton_method(m) { |*| }

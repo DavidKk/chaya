@@ -11,6 +11,7 @@ import {
   handleRemoteInput,
   handleRemoteTap,
   isolateHostAudio,
+  shouldMuteHostAudio,
 } from '@/plugins/mv/src/helpers/game/remote-stream'
 
 describe('remote-stream (WebRTC game streaming & input simulation)', () => {
@@ -187,6 +188,47 @@ describe('remote-stream (WebRTC game streaming & input simulation)', () => {
     // Unmute host toggle
     handleHostAudioToggle(true)
     expect(mockGain.connect).toHaveBeenCalledWith(mockCtx.destination)
+  })
+
+  it('shouldMuteHostAudio and isolateHostAudio only mute when silent/background mode is active', () => {
+    const g = globalThis as any
+    const mockDestNode = { stream: { getAudioTracks: () => [{ kind: 'audio' }] } }
+    const mockCtx = {
+      destination: { id: 'physical-speaker' },
+      createMediaStreamDestination: jest.fn(() => mockDestNode),
+    }
+    const mockGain = {
+      disconnect: jest.fn(),
+      connect: jest.fn(),
+    }
+    g.WebAudio = {
+      _context: mockCtx,
+      _masterGainNode: mockGain,
+    }
+
+    // 1. Ordinary local launch: no silent mode -> host physical audio MUST NOT be muted
+    delete g.CHAYA_SILENT_MODE
+    delete g.__CHAYA_SILENT_MODE__
+    delete g.__CHAYA_UNMUTE_HOST__
+    expect(shouldMuteHostAudio()).toBe(false)
+    isolateHostAudio()
+    expect(mockGain.disconnect).not.toHaveBeenCalled()
+
+    // 2. Silent/background mode: host audio should be muted
+    g.CHAYA_SILENT_MODE = true
+    expect(shouldMuteHostAudio()).toBe(true)
+    isolateHostAudio()
+    expect(mockGain.disconnect).toHaveBeenCalledWith(mockCtx.destination)
+
+    // 3. Silent mode with explicit unmuting preference
+    g.__CHAYA_UNMUTE_HOST__ = true
+    expect(shouldMuteHostAudio()).toBe(false)
+    isolateHostAudio()
+    expect(mockGain.connect).toHaveBeenCalledWith(mockCtx.destination)
+
+    delete g.CHAYA_SILENT_MODE
+    delete g.__CHAYA_UNMUTE_HOST__
+    delete g.WebAudio
   })
 
   it('applySilentWindowHiding hides NW.js desktop window when CHAYA_SILENT_MODE is active', () => {

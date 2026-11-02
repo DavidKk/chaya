@@ -48,10 +48,30 @@ export function closeGameMediaPeer(peer: RTCPeerConnection | null): void {
 }
 
 /**
- * Isolates WebAudio: disconnects host machine physical speakers (ctx.destination)
- * and pipes audio exclusively into a MediaStreamDestination for WebRTC streaming.
+ * Evaluates whether host machine physical speakers should be muted.
+ * ONLY mute if the game is running as a cloud instance in silent / background mode.
+ * Ordinary launches and visible/windowed games must keep host audio playing.
  */
-export function isolateHostAudio(unmuteHost = false): void {
+export function shouldMuteHostAudio(): boolean {
+  try {
+    const g = globalThis as any
+    const isSilent = Boolean(g.CHAYA_SILENT_MODE || g.__CHAYA_SILENT_MODE__)
+    if (!isSilent) return false
+    if (g.__CHAYA_UNMUTE_HOST__ === true) return false
+    if (g.__CHAYA_MUTE_HOST__ === false) return false
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Isolates WebAudio: disconnects host machine physical speakers (ctx.destination)
+ * ONLY when running as a cloud gaming instance in background / silent mode.
+ * In all other cases (normal local launch, windowed mode), host speakers keep playing music.
+ * Preserves piping audio into MediaStreamDestination for WebRTC streaming in all cases.
+ */
+export function isolateHostAudio(unmuteHost?: boolean): void {
   try {
     const g = globalThis as any
     const WebAudio = g.WebAudio
@@ -59,12 +79,25 @@ export function isolateHostAudio(unmuteHost = false): void {
     const gain = WebAudio?._masterGainNode as GainNode | undefined
     if (!ctx || !gain) return
 
-    // Only remove the physical output edge; preserve plugin and streaming connections.
-    if (!unmuteHost) {
+    const effectiveUnmute = typeof unmuteHost === 'boolean' ? unmuteHost : !shouldMuteHostAudio()
+
+    // 1. Physical speaker control
+    if (!effectiveUnmute) {
       try {
         gain.disconnect(ctx.destination)
+        ;(gain as any).__chaya_host_muted = true
       } catch {
         /* ignore if already disconnected or not supported */
+      }
+    } else {
+      // Reconnect physical speaker if it was previously muted or explicitly requested
+      if ((gain as any).__chaya_host_muted || unmuteHost === true) {
+        try {
+          gain.connect(ctx.destination)
+        } catch {
+          /* already connected */
+        }
+        ;(gain as any).__chaya_host_muted = false
       }
     }
 
@@ -96,15 +129,6 @@ export function isolateHostAudio(unmuteHost = false): void {
         }
       }
     }
-
-    // 3. If unmuting requested, reconnect physical speaker
-    if (unmuteHost) {
-      try {
-        gain.connect(ctx.destination)
-      } catch {
-        /* */
-      }
-    }
   } catch (err) {
     ChayaLog.warn('RemoteStream', 'isolateHostAudio failed', err)
   }
@@ -131,7 +155,7 @@ export function hookWebAudioMuting(): void {
       WebAudio.initialize = function (...args: any[]) {
         const res = origInit.apply(this, args)
         try {
-          isolateHostAudio(Boolean(g.__CHAYA_UNMUTE_HOST__))
+          isolateHostAudio()
         } catch {
           /* */
         }
@@ -140,7 +164,7 @@ export function hookWebAudioMuting(): void {
     }
 
     if (WebAudio._masterGainNode) {
-      isolateHostAudio(Boolean(g.__CHAYA_UNMUTE_HOST__))
+      isolateHostAudio()
     }
   } catch {
     /* */

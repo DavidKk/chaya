@@ -18,7 +18,9 @@ if ENV["CHAYA_RGSS_SILENT"] == "1" || ENV["CHAYA_SILENT_MODE"] == "1"
   end
 end
 
-if ENV.fetch("CHAYA_MUTE_HOST_AUDIO", ENV["CHAYA_RGSS_SILENT"] || ENV["CHAYA_SILENT_MODE"]) == "1" && defined?(Audio)
+is_silent = ENV["CHAYA_RGSS_SILENT"] == "1" || ENV["CHAYA_SILENT_MODE"] == "1"
+mute_host = is_silent && ENV.fetch("CHAYA_MUTE_HOST_AUDIO", "1") == "1"
+if mute_host && defined?(Audio)
   # Keep position queries and stop/fade methods intact for game scripts.
   [:bgm_play, :bgs_play, :me_play, :se_play].each do |m|
     Audio.define_singleton_method(m) { |*| }
