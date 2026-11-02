@@ -295,3 +295,10 @@ test('batch satisfies the writable conditions of selected events', async () => {
     '满足所选事件的出现条件'
   )
 })
+
+test('does not show noMatch when not searching; falls back so maps remain listed', async () => {
+  // mapId: 3 is "城", which has no children
+  await render(slot({ mapId: 3 }))
+  expect(listed().length).toBeGreaterThan(0)
+  expect(document.body.textContent).not.toContain('无匹配结果')
+})

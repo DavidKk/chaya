@@ -26,12 +26,12 @@ export function EmptyState({ title, message, hint, children, density = 'panel', 
       className={cn(
         'flex w-full items-center justify-center',
         // compact：作为 formCard 子项时由卡片 `[&>*]:p-4` 提供边距，自身不再叠 py-12 / min-h-48
-        compact ? 'p-0' : 'min-h-48 flex-1 px-6 py-12',
+        compact ? 'p-0' : 'm-auto min-h-48 flex-1 px-6 py-12',
         className
       )}
       role={role}
     >
-      <div className="max-w-md text-center">
+      <div className="flex max-w-md flex-col items-center justify-center text-center">
         <p className="m-0 text-xs font-medium text-ink-soft">{title}</p>
         {message ? <p className="mt-1 mb-0 text-xs leading-[1.55] text-ink-soft">{message}</p> : null}
         {hint ? <p className="mt-2 mb-0 text-xs leading-[1.55] text-[color-mix(in_oklab,var(--ink-soft)_75%,transparent)]">{hint}</p> : null}

@@ -368,14 +368,14 @@ export function MapDetail({
           <MapEncounters detail={detail} data={data} slot={slot} />
         )}
         {!detail ? null : !detail.events.length ? (
-          <EmptyState title={t('events.map.emptyMap')} />
+          <EmptyState title={t('events.map.emptyMap')} className="min-h-full" />
         ) : (
-          <div className="text-[0.8125rem]" style={{ minWidth: '28rem' }} role="list" aria-label={t('events.map.events')}>
+          <div className="flex min-h-full flex-1 flex-col text-[0.8125rem]" style={{ minWidth: '28rem' }} role="list" aria-label={t('events.map.events')}>
             <div className="flex items-center justify-between border-b border-line bg-paper-2 px-3 py-1.5">
               <SegmentedNav items={navItems} value={eventTab} onChange={setEventTab} aria-label={t('events.map.events')} />
             </div>
             {eventTab === 'npc' && displayedEvents.length === 0 ? (
-              <EmptyState title={t('events.map.emptyNpc')} message={t('events.map.emptyNpcMsg')} />
+              <EmptyState title={t('events.map.emptyNpc')} message={t('events.map.emptyNpcMsg')} className="min-h-full flex-1" />
             ) : (
               <>
                 {selected.size ? (
