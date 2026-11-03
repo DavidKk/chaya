@@ -6,7 +6,7 @@ import { FloatingToolPanel } from '@/components/game-tools/FloatingToolPanel'
 import type { MiniPanelOpacitySettings } from '@/components/game-tools/MiniPanelOpacityControl'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { ScrollArea } from '@/components/sk'
-import type { MapDetailData, MapEventType } from '@/lib/game/events'
+import type { MapDetailData, MapEntrance, MapEventType } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
 import { type EventState, isChestEvent, isNpcEvent, isTransferEvent, resolveNpcInfo, TYPE_KEY } from './event-meta'
@@ -58,7 +58,8 @@ type MiniMapProps = {
   onSelectEvent: (id: number) => void
   opacity?: MiniPanelOpacitySettings
   activeFilter?: string
-  subTab?: 'all' | 'npc' | 'chest' | 'transfer'
+  subTab?: 'all' | 'npc' | 'chest' | 'transfer' | 'entrance'
+  entrances?: readonly MapEntrance[]
 }
 
 /**
@@ -106,6 +107,7 @@ function MiniMapBody({
   title,
   activeFilter,
   subTab,
+  entrances,
 }: MiniMapProps & { /** Fixed px per tile; omitted = scale to fit the panel */ cell?: number; title?: string }) {
   const t = useT()
   const gridId = useId()
@@ -199,7 +201,7 @@ function MiniMapBody({
             const isNpc = isNpcEvent(ev, detail.texts)
             const isChest = isChestEvent(ev)
             const isTransfer = isTransferEvent(ev)
-            const isTabMatch = subTab === 'npc' ? isNpc : subTab === 'chest' ? isChest : subTab === 'transfer' ? isTransfer : true
+            const isTabMatch = subTab === 'npc' ? isNpc : subTab === 'chest' ? isChest : subTab === 'transfer' ? isTransfer : subTab === 'entrance' ? false : true
             const dimmed = subTab !== 'all' && subTab != null && !isTabMatch
             return (
               <g key={ev.id} className={dimmed ? 'opacity-25' : undefined}>
@@ -228,6 +230,22 @@ function MiniMapBody({
               </g>
             )
           })}
+          {subTab === 'entrance' &&
+            entrances?.map((ent, idx) => (
+              <g
+                key={`entrance-spot-${idx}`}
+                className="cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onPickCell(ent.x, ent.y)
+                }}
+              >
+                <circle cx={ent.x + 0.5} cy={ent.y + 0.5} r={0.65} fill="none" className="stroke-sky-400 stroke-[0.14] animate-pulse" pointerEvents="none" />
+                <circle cx={ent.x + 0.5} cy={ent.y + 0.5} r="0.38" className="fill-sky-400">
+                  <title>{`入口落点 (${ent.x},${ent.y})`}</title>
+                </circle>
+              </g>
+            ))}
           {onPlayerMap && player ? (
             <g pointerEvents="none" transform={`translate(${player.x + 0.5} ${player.y + 0.5})`}>
               <circle r="0.48" fill="none" className="stroke-ink" strokeWidth="0.1" />
@@ -248,6 +266,14 @@ function MiniMapBody({
               <path d={FACING_ARROW} transform="translate(5 5) scale(10)" className="fill-ink" />
             </svg>
             {t('events.map.minimapPlayer')}
+          </li>
+        ) : null}
+        {subTab === 'entrance' ? (
+          <li className="inline-flex items-center gap-1">
+            <svg viewBox="0 0 10 10" className="size-2.5" aria-hidden>
+              <circle cx="5" cy="5" r="4" className="fill-sky-400" />
+            </svg>
+            {t('events.map.tabEntrance')}
           </li>
         ) : null}
         {mask ? (

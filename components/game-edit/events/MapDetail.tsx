@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { IoArrowBack, IoArrowUndoOutline, IoChatbubbleEllipsesOutline, IoExitOutline, IoGiftOutline, IoNavigateOutline, IoPersonOutline } from 'react-icons/io5'
+import { IoArrowBack, IoArrowUndoOutline, IoChatbubbleEllipsesOutline, IoEnterOutline, IoExitOutline, IoGiftOutline, IoNavigateOutline, IoPersonOutline } from 'react-icons/io5'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { countKey, type SessionState } from '@/components/game-edit/types'
@@ -14,7 +14,18 @@ import { type CommonEventsData, estimateActivePage, type MapDetailData, type Map
 import type { MapOperationItem, MapOperationValue } from '@/lib/runtime/game-link-protocol'
 import { cn } from '@/lib/utils'
 
-import { type EventState, isChestEvent, isNpcEvent, isTransferEvent, resolveChestInfo, resolveNpcInfo, resolveTransferInfo, TYPE_KEY } from './event-meta'
+import {
+  type EntranceResolvedInfo,
+  type EventState,
+  isChestEvent,
+  isNpcEvent,
+  isTransferEvent,
+  resolveChestInfo,
+  resolveEntranceInfo,
+  resolveNpcInfo,
+  resolveTransferInfo,
+  TYPE_KEY,
+} from './event-meta'
 import { MapEventsTableSkeleton } from './EventsSkeleton'
 import { MapEncounters } from './MapEncounters'
 import { MapEventDetail } from './MapEventDetail'
@@ -22,7 +33,19 @@ import { MapTeleportField } from './MapTeleportField'
 import { MiniMap } from './MiniMap'
 import type { EventsOp, EventsSlot } from './types'
 
-export { type EventState, isChestEvent, isGenericEventName, isNpcEvent, isTransferEvent, resolveChestInfo, resolveNpcInfo, resolveTransferInfo, TYPE_KEY } from './event-meta'
+export {
+  type EntranceResolvedInfo,
+  type EventState,
+  isChestEvent,
+  isGenericEventName,
+  isNpcEvent,
+  isTransferEvent,
+  resolveChestInfo,
+  resolveEntranceInfo,
+  resolveNpcInfo,
+  resolveTransferInfo,
+  TYPE_KEY,
+} from './event-meta'
 
 /** Exact on the player's map, estimated from page conditions elsewhere, unknown offline */
 export function eventStateOf(ev: MapEventInfo, detail: MapDetailData, session: SessionState): EventState {
@@ -132,7 +155,7 @@ function targetConditionPage(event: MapEventInfo, detail: MapDetailData, session
 }
 
 /** One map: header with the coordinate teleport, mini map, event table; selecting an event opens its detail in place */
-export type MapEventTab = 'all' | 'npc' | 'chest' | 'transfer'
+export type MapEventTab = 'all' | 'npc' | 'chest' | 'transfer' | 'entrance'
 
 export type MapNpcItem = {
   key: string
@@ -163,6 +186,10 @@ export type MapTransferItem = {
   targetMapName: string
   targetCoords?: { x: number; y: number }
   state: EventState
+}
+
+export type MapEntranceItem = EntranceResolvedInfo & {
+  key: string
 }
 
 export function MapDetail({
@@ -300,6 +327,41 @@ export function MapDetail({
     })
   }, [data.names.maps, detail, session, sortedEvents])
 
+  const rawEntrances = useMemo(() => {
+    return data.mapIndex.entrances[node.id] || []
+  }, [data.mapIndex.entrances, node.id])
+
+  const entranceList: MapEntranceItem[] = useMemo(() => {
+    return rawEntrances.map((ent, idx) => {
+      const resolved = resolveEntranceInfo(ent, data.names)
+      return {
+        ...resolved,
+        key: `${ent.from.kind}:${ent.from.id}:${ent.from.eventId ?? 0}:${ent.from.page ?? 0}:${ent.x}:${ent.y}:${idx}`,
+      }
+    })
+  }, [data.names, rawEntrances])
+
+  const isEntranceMatch = useCallback(
+    (item: MapEntranceItem) => {
+      if (!query) return false
+      const q = query.toLowerCase()
+      return (
+        item.sourceName.toLowerCase().includes(q) ||
+        (item.sourceEventName && item.sourceEventName.toLowerCase().includes(q)) ||
+        item.title.toLowerCase().includes(q) ||
+        String(item.sourceId) === q ||
+        String(item.sourceEventId) === q ||
+        `${item.x},${item.y}`.includes(q)
+      )
+    },
+    [query]
+  )
+
+  const displayedEntrances = useMemo(() => {
+    if (!query) return entranceList
+    return entranceList.filter(isEntranceMatch)
+  }, [entranceList, isEntranceMatch, query])
+
   const displayedEvents = sortedEvents
 
   const navItems: readonly SegmentedNavItem<MapEventTab>[] = useMemo(
@@ -308,8 +370,9 @@ export function MapDetail({
       { id: 'npc', label: `${t('events.map.tabNpc')} (${npcList.length})` },
       { id: 'chest', label: `${t('events.map.tabChest')} (${chestList.length})` },
       { id: 'transfer', label: `${t('events.map.tabTransfer')} (${transferList.length})` },
+      { id: 'entrance', label: `${t('events.map.tabEntrance')} (${entranceList.length})` },
     ],
-    [t, detail?.events.length, npcList.length, chestList.length, transferList.length]
+    [t, detail?.events.length, npcList.length, chestList.length, transferList.length, entranceList.length]
   )
 
   const toggleSelected = (eventId: number, checked: boolean) => {
@@ -416,6 +479,7 @@ export function MapDetail({
       onSelectEvent={(id) => slot.onSelectMap(node.id, id)}
       activeFilter={filter}
       subTab={eventTab}
+      entrances={rawEntrances}
     />
   ) : null
 
@@ -728,6 +792,102 @@ export function MapDetail({
                               <IoNavigateOutline className="text-accent text-[0.85rem]" />
                               <span>
                                 {transfer.event.x},{transfer.event.y}
+                              </span>
+                            </Button>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            ) : eventTab === 'entrance' ? (
+              displayedEntrances.length === 0 ? (
+                <EmptyState title={t('events.map.emptyEntrance')} message={t('events.map.emptyEntranceMsg')} className="min-h-full flex-1" />
+              ) : (
+                <div className="flex flex-col divide-y divide-line/60">
+                  <div className="flex items-center justify-between border-b border-line bg-paper-2 px-3 py-1.5 text-xs text-ink-soft">
+                    <span className="font-medium text-ink">
+                      {t('events.map.tabEntrance')} ({displayedEntrances.length})
+                    </span>
+                    <span className="text-[0.7rem] text-ink-soft/75">点击落点坐标可传送，点击来源可查看对应地图</span>
+                  </div>
+                  {displayedEntrances.map((entrance) => {
+                    const hit = isEntranceMatch(entrance)
+                    const isFromMap = entrance.sourceKind === 'map'
+                    return (
+                      <div
+                        key={entrance.key}
+                        data-navigation-id={`map-entrance:${node.id}:${entrance.key}`}
+                        role="listitem"
+                        className={cn('group flex items-start gap-3 p-3 transition-colors hover:bg-paper-2/70', hit && 'bg-[color-mix(in_oklab,var(--accent)_12%,transparent)]')}
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-sky-500/20 bg-sky-500/10 text-sky-500 shadow-xs">
+                          <IoEnterOutline className="text-[1.2rem]" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            {isFromMap ? (
+                              <button
+                                type="button"
+                                className="m-0 cursor-pointer border-none bg-transparent p-0 text-left font-semibold text-ink text-[0.875rem] underline-offset-2 hover:text-accent hover:underline"
+                                onClick={() => slot.onSelectMap(entrance.sourceId, entrance.sourceEventId)}
+                                aria-label={t('events.map.openDetail', { name: entrance.sourceName })}
+                              >
+                                {t('events.map.entranceFrom')}「{entrance.sourceName}」
+                              </button>
+                            ) : (
+                              <span className="font-semibold text-ink text-[0.875rem]">
+                                {t('events.map.entranceFrom')}「{entrance.sourceName}」
+                              </span>
+                            )}
+                            <span className="shrink-0 rounded-[0.2rem] bg-sky-500/10 px-1.5 py-0.5 text-[0.68rem] font-medium text-sky-600 dark:text-sky-400">
+                              {isFromMap ? t('events.map.entranceSourceMap') : t('events.map.entranceCommonEvent')}
+                            </span>
+                            {entrance.sourceEventId && (
+                              <button
+                                type="button"
+                                onClick={() => slot.onSelectMap(entrance.sourceId, entrance.sourceEventId)}
+                                className="shrink-0 rounded-[0.2rem] border border-line/60 bg-paper-1/80 px-1.5 py-0.5 font-mono text-[0.68rem] text-ink-soft hover:border-accent hover:text-accent"
+                                title={t('events.map.openDetail', { name: `${entrance.sourceName} #${entrance.sourceEventId}` })}
+                              >
+                                #{entrance.sourceEventId} {entrance.sourceEventName || ''}
+                              </button>
+                            )}
+                            {entrance.directionArrow && (
+                              <span className="shrink-0 rounded-[0.2rem] border border-line/60 bg-paper-1/80 px-1.5 py-0.5 font-mono text-[0.65rem] text-ink-soft">
+                                {t('events.map.entranceFacing')}: {entrance.directionArrow}
+                              </span>
+                            )}
+                            {hit && <span className="shrink-0 rounded-[0.2rem] bg-accent/20 px-1.5 py-0.5 text-[0.65rem] font-semibold text-accent">入口匹配</span>}
+                          </div>
+                          <div className="mt-1 flex items-center gap-2 text-[0.74rem] text-ink-soft">
+                            <span>
+                              {t('events.map.entranceLanding')}: ({entrance.x}, {entrance.y})
+                            </span>
+                            {isFromMap && entrance.sourceId !== node.id && (
+                              <button
+                                type="button"
+                                onClick={() => slot.onSelectMap(entrance.sourceId, entrance.sourceEventId)}
+                                className="m-0 cursor-pointer border-none bg-transparent p-0 text-accent underline-offset-2 hover:underline"
+                              >
+                                {t('events.map.entranceViewSourceMap')}
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1 pt-0.5">
+                          <Tooltip content={tp.blocked || t(tp.near ? 'events.map.teleportBeside' : 'events.map.teleportTo', { name: entrance.title })}>
+                            <Button
+                              size="mini"
+                              variant="ghost"
+                              disabled={!!tp.blocked || tp.busy}
+                              onClick={() => void tp.teleport(entrance.x, entrance.y)}
+                              className="flex items-center gap-1 font-mono text-[0.72rem]"
+                            >
+                              <IoNavigateOutline className="text-accent text-[0.85rem]" />
+                              <span>
+                                {entrance.x},{entrance.y}
                               </span>
                             </Button>
                           </Tooltip>

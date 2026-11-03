@@ -389,3 +389,24 @@ test('transfer tab lists exits and destination map information', async () => {
   expect(eventListText).toContain('#9')
   expect(eventListText).toContain('城')
 })
+
+test('entrance tab lists inbound entrances leading to this map', async () => {
+  data.mapIndex.entrances[2] = [
+    {
+      x: 5,
+      y: 5,
+      direction: 2,
+      from: { kind: 'map', id: 1, name: '世界', eventId: 10, eventName: '进入村庄' },
+    },
+  ]
+  await render(slot({ mapId: 2, mapDetail: villageDetail }))
+  const entranceTabBtn = [...document.querySelectorAll('[role="tab"]')].find((btn) => btn.textContent?.includes('入口')) as HTMLButtonElement
+  expect(entranceTabBtn).toBeDefined()
+  await act(async () => entranceTabBtn.click())
+
+  const eventListText = document.querySelector('[role="list"][aria-label="事件"]')?.textContent ?? ''
+  expect(eventListText).toContain('世界')
+  expect(eventListText).toContain('进入村庄')
+  expect(eventListText).toContain('#10')
+  expect(eventListText).toContain('(5, 5)')
+})

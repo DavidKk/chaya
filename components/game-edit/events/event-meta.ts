@@ -1,4 +1,4 @@
-import type { MapDetailData, MapEventInfo, MapEventType } from '@/lib/game/events'
+import type { EventRefKind, MapDetailData, MapEntrance, MapEventInfo, MapEventType } from '@/lib/game/events'
 import type { MessageKey } from '@/lib/i18n'
 
 export const TYPE_KEY: Record<MapEventType, MessageKey> = {
@@ -261,5 +261,42 @@ export function resolveTransferInfo(ev: MapEventInfo, mapNames?: readonly string
     targetMapId,
     targetMapName,
     targetCoords,
+  }
+}
+
+export type EntranceResolvedInfo = {
+  sourceKind: EventRefKind
+  sourceId: number
+  sourceName: string
+  sourceEventId?: number
+  sourceEventName?: string
+  sourcePage?: number
+  x: number
+  y: number
+  direction: number
+  directionArrow: string
+  title: string
+}
+
+export function resolveEntranceInfo(entrance: MapEntrance, names?: { maps?: readonly string[]; commonEvents?: readonly string[] }): EntranceResolvedInfo {
+  const isMap = entrance.from.kind === 'map'
+  const sourceId = entrance.from.id
+  const sourceName = isMap ? names?.maps?.[sourceId] || entrance.from.name || `地图 #${sourceId}` : names?.commonEvents?.[sourceId] || entrance.from.name || `公共事件 #${sourceId}`
+  const sourceEventName = entrance.from.eventName || (entrance.from.eventId ? `事件 #${entrance.from.eventId}` : '')
+  const title = isMap ? `${sourceName}${sourceEventName ? ` · ${sourceEventName}` : ''}` : sourceName
+  const directionArrow = entrance.direction === 2 ? '↓' : entrance.direction === 4 ? '←' : entrance.direction === 6 ? '→' : entrance.direction === 8 ? '↑' : ''
+
+  return {
+    sourceKind: entrance.from.kind,
+    sourceId,
+    sourceName,
+    sourceEventId: entrance.from.eventId,
+    sourceEventName: entrance.from.eventName,
+    sourcePage: entrance.from.page,
+    x: entrance.x,
+    y: entrance.y,
+    direction: entrance.direction,
+    directionArrow,
+    title,
   }
 }

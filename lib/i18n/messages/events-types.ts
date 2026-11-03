@@ -258,6 +258,15 @@ export type EventsMapMessages = {
   tabTransfer: string
   emptyTransfer: string
   emptyTransferMsg: string
+  tabEntrance: string
+  emptyEntrance: string
+  emptyEntranceMsg: string
+  entranceFrom: string
+  entranceLanding: string
+  entranceFacing: string
+  entranceSourceMap: string
+  entranceCommonEvent: string
+  entranceViewSourceMap: string
   chestOpened: string
   chestUnopened: string
   chestReward: string
