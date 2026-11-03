@@ -10,6 +10,8 @@ import { useNotification } from '@/components/notification/useNotification'
 import { Badge, Button, ScrollArea, SegmentedNav, TruncateText } from '@/components/sk'
 import { type CommonEventsData, type EventEffects, isRiskyEffects, type MapDetailData, type MapEventInfo, type MapNode, reachableFrom, summarizeEffects } from '@/lib/game/events'
 
+import { CurrentEventActions } from './CurrentEventsPanel'
+import { resolveNpcInfo } from './event-meta'
 import { EventScript } from './EventScript'
 import { effectLabels } from './labels'
 import { eventStateOf, type Teleport, TYPE_KEY } from './MapDetail'
@@ -24,7 +26,9 @@ export function MapEventDetail({ ev, node, detail, data, slot, session, tp }: Pr
   const confirm = useConfirm()
   const notify = useNotification()
   const [busy, setBusy] = useState(false)
+  const npcInfo = useMemo(() => resolveNpcInfo(ev, detail.texts, data.names.actors), [ev, detail.texts, data.names.actors])
   const name = ev.name || `#${ev.id}`
+  const displayName = npcInfo.name && npcInfo.name !== name ? `${npcInfo.name} · ${name}` : name
   const state = eventStateOf(ev, detail, session)
   const texts = useMemo(() => ({ ...data.texts, ...detail.texts }), [data.texts, detail.texts])
   const activeIndex = state.kind !== 'unknown' && state.page > 0 ? state.page - 1 : -1
@@ -32,6 +36,12 @@ export function MapEventDetail({ ev, node, detail, data, slot, session, tp }: Pr
   const pickedPage = slot.eventPage != null && slot.eventPage < ev.pages.length ? slot.eventPage : null
   const shownIndex = pickedPage ?? Math.max(0, activeIndex)
   const shownPage = ev.pages[shownIndex]
+  const current = slot.live
+    ? slot.eventActivity?.entries
+        .slice()
+        .reverse()
+        .find((entry) => entry.mapId === node.id && entry.eventId === ev.id && entry.commonEventId == null && entry.page === shownIndex)
+    : undefined
   const pageTabs = ev.pages.map((_, i) => ({
     id: String(i),
     label: t('events.map.page', { page: i + 1 }) + (i === activeIndex ? ` · ${t(state.exact ? 'events.map.pageActive' : 'events.map.stateGuess')}` : ''),
@@ -103,11 +113,16 @@ export function MapEventDetail({ ev, node, detail, data, slot, session, tp }: Pr
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-2">
             <h2 className="m-0 flex min-w-0 text-[0.9rem] font-semibold text-ink">
-              <TruncateText text={name} />
+              <TruncateText text={displayName} />
             </h2>
             {onThisMap ? (
               <Badge dot={false} tone="info" className="shrink-0">
                 {t('events.map.current')}
+              </Badge>
+            ) : null}
+            {current ? (
+              <Badge dot={false} tone="ok">
+                {t('events.running')}
               </Badge>
             ) : null}
             {state.kind !== 'unknown' ? (
@@ -121,6 +136,7 @@ export function MapEventDetail({ ev, node, detail, data, slot, session, tp }: Pr
             <TruncateText text={`${node.name || `#${node.id}`} · (${ev.x},${ev.y}) · ${t(TYPE_KEY[ev.type])}`} />
           </p>
         </div>
+        {current ? <CurrentEventActions event={current} slot={slot} /> : null}
         <Button
           loading={tp.busy}
           disabled={!!tp.blocked || busy}
@@ -150,6 +166,7 @@ export function MapEventDetail({ ev, node, detail, data, slot, session, tp }: Pr
               runBlocked={fromBlocked}
               busy={busy}
               live={live}
+              current={current}
             />
           ) : null}
         </div>

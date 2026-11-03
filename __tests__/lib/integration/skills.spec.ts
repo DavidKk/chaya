@@ -1,4 +1,3 @@
-import { LOCALES } from '@/lib/i18n/locales'
 import { integrationSkillHref, isSkillId, skillInstallCommand, skillRawPath, SKILLS, splitFrontmatter } from '@/lib/integration/skills'
 import { readSkill, readSkillBody } from '@/services/integration/skills'
 
@@ -10,23 +9,18 @@ describe('integration skills', () => {
     expect(body.trim().length).toBeGreaterThan(200)
   })
 
-  it.each(SKILLS.map((skill) => skill.id))('%s agent copy is English and every locale has a display translation', (id) => {
+  it.each(SKILLS.map((skill) => skill.id))('%s copy is English and readSkillBody returns the skill body', (id) => {
     const { source } = readSkill(id)
     expect(source.replace(/`[^`\n]*`/g, '')).not.toMatch(/[\u3040-\u30ff\u4e00-\u9fff\uac00-\ud7af]/)
-    expect(readSkillBody(id, 'en')).toBe(readSkill(id).body)
-    for (const locale of LOCALES.filter((l) => l !== 'en')) {
-      const body = readSkillBody(id, locale)
-      expect(body).not.toBe(readSkill(id).body)
-      expect(body.startsWith('---')).toBe(false)
-    }
+    expect(readSkillBody(id)).toBe(readSkill(id).body)
   })
 
-  it('localizes every skill title and summary', () => {
+  it('defines English title and summary for every skill', () => {
     for (const skill of SKILLS) {
-      for (const locale of LOCALES) {
-        expect(skill.title[locale]).toBeTruthy()
-        expect(skill.summary[locale]).toBeTruthy()
-      }
+      expect(typeof skill.title).toBe('string')
+      expect(skill.title.length).toBeGreaterThan(0)
+      expect(typeof skill.summary).toBe('string')
+      expect(skill.summary.length).toBeGreaterThan(0)
     }
   })
 

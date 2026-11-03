@@ -3,7 +3,7 @@
 import { lazy, type ReactNode, Suspense, useMemo, useState } from 'react'
 import { IoCloseOutline } from 'react-icons/io5'
 import { MdExposurePlus1 } from 'react-icons/md'
-import { TbNumber99Small } from 'react-icons/tb'
+import { TbArrowBarToUp } from 'react-icons/tb'
 
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
 import { stopGameKeys } from '@/components/game-tools/game-keys'
@@ -163,11 +163,11 @@ function isRowLocked(row: TableRow, locks: SessionState['locks']) {
 
 const lockBtn = lockIconBtn
 
-const COUNT_MAX = 99
+const COUNT_MAX = 9999
 
-function clampCount(n: number) {
+function clampCount(n: number, max = COUNT_MAX) {
   if (!Number.isFinite(n)) return 0
-  return Math.min(COUNT_MAX, Math.max(0, Math.floor(n)))
+  return Math.min(max, Math.max(0, Math.floor(n)))
 }
 
 /** 输入框内小图标：disabled 时包 span 以便 hover 仍出 tooltip */
@@ -197,7 +197,7 @@ function InputIconBtn({
   return <Tooltip content={inactive && disabledTip ? disabledTip : tip}>{inactive ? <span className={cn('inline-flex', className)}>{btn}</span> : btn}</Tooltip>
 }
 
-/** 清零：与 +1 / 99 同显；已是 0 时禁用 */
+/** 清零：与 +1 / 满额同显；已是 0 时禁用 */
 function ClearIconBtn({ disabled, onClick }: { disabled?: boolean; onClick: () => void }) {
   const t = useT()
   return (
@@ -289,7 +289,7 @@ export function GameEditWorkbench({
           valueType: 'count',
         })
       }
-      out.sort((a, b) => Number((b.value as number) > 0) - Number((a.value as number) > 0) || a.id - b.id)
+      out.sort((a, b) => a.id - b.id)
       return out
     }
 
@@ -432,6 +432,11 @@ export function GameEditWorkbench({
                       {syncing ? t('edit.syncingNotice') : t('edit.readOnlyNotice')}
                     </p>
                   ) : null}
+                  {error ? (
+                    <p role="alert" className="m-0 mx-4 mt-3 rounded-[0.25rem] border border-fail/30 bg-fail/10 px-3 py-2 text-[0.75rem] text-fail">
+                      {error}
+                    </p>
+                  ) : null}
                   <GameEditRunSettings
                     value={{
                       gold: session.gold,
@@ -440,6 +445,7 @@ export function GameEditWorkbench({
                       gameSpeed: session.gameSpeed,
                       alwaysDash: session.alwaysDash,
                       fullscreen: session.fullscreen,
+                      screenStretch: session.screenStretch,
                       god: session.god,
                       autoWin: session.autoWin,
                       autoBattle: session.autoBattle,
@@ -636,40 +642,46 @@ export function GameEditWorkbench({
                             )}
                           </div>
                           <div className={cn(editCell, 'flex justify-center')} data-list-cell="">
-                            {row.valueType === 'count' && row.kind ? (
-                              <NumberInput
-                                value={row.value as number}
-                                min={0}
-                                max={COUNT_MAX}
-                                tooltip={t('edit.countEdit', { max: COUNT_MAX })}
-                                aria-label={t('edit.countOf', { name: row.name })}
-                                onValueChange={(v) => onCountChange(row.kind!, row.id, clampCount(v))}
-                                endAction={
-                                  <span className="inline-flex items-center gap-0.5">
-                                    <InputIconBtn
-                                      tip={t('edit.countInc')}
-                                      disabledTip={t('edit.countAtMax', { max: COUNT_MAX })}
-                                      disabled={(row.value as number) >= COUNT_MAX}
-                                      ariaLabel={t('edit.countInc')}
-                                      onClick={() => onCountChange(row.kind!, row.id, clampCount((row.value as number) + 1))}
-                                    >
-                                      <MdExposurePlus1 size={15} aria-hidden />
-                                    </InputIconBtn>
-                                    <InputIconBtn
-                                      tip={t('edit.countMaxTip', { max: COUNT_MAX })}
-                                      disabledTip={t('edit.countAtMaxIs', { max: COUNT_MAX })}
-                                      disabled={(row.value as number) >= COUNT_MAX}
-                                      ariaLabel={t('edit.countMaxTip', { max: COUNT_MAX })}
-                                      onClick={() => onCountChange(row.kind!, row.id, COUNT_MAX)}
-                                    >
-                                      <TbNumber99Small size={17} aria-hidden />
-                                    </InputIconBtn>
-                                    <ClearIconBtn disabled={(row.value as number) === 0} onClick={() => onCountChange(row.kind!, row.id, 0)} />
-                                    {lockAction}
-                                  </span>
-                                }
-                              />
-                            ) : null}
+                            {row.valueType === 'count' && row.kind
+                              ? (() => {
+                                  const val = Number(row.value) || 0
+                                  const rowMax = Math.max(COUNT_MAX, val)
+                                  return (
+                                    <NumberInput
+                                      value={val}
+                                      min={0}
+                                      max={rowMax}
+                                      tooltip={t('edit.countEdit', { max: rowMax })}
+                                      aria-label={t('edit.countOf', { name: row.name })}
+                                      onValueChange={(v) => onCountChange(row.kind!, row.id, clampCount(v, rowMax))}
+                                      endAction={
+                                        <span className="inline-flex items-center gap-0.5">
+                                          <InputIconBtn
+                                            tip={t('edit.countInc')}
+                                            disabledTip={t('edit.countAtMax', { max: rowMax })}
+                                            disabled={val >= rowMax}
+                                            ariaLabel={t('edit.countInc')}
+                                            onClick={() => onCountChange(row.kind!, row.id, clampCount(val + 1, rowMax))}
+                                          >
+                                            <MdExposurePlus1 size={15} aria-hidden />
+                                          </InputIconBtn>
+                                          <InputIconBtn
+                                            tip={t('edit.countMaxTip', { max: rowMax })}
+                                            disabledTip={t('edit.countAtMaxIs', { max: rowMax })}
+                                            disabled={val >= rowMax}
+                                            ariaLabel={t('edit.countMaxTip', { max: rowMax })}
+                                            onClick={() => onCountChange(row.kind!, row.id, rowMax)}
+                                          >
+                                            <TbArrowBarToUp size={16} aria-hidden />
+                                          </InputIconBtn>
+                                          <ClearIconBtn disabled={val === 0} onClick={() => onCountChange(row.kind!, row.id, 0)} />
+                                          {lockAction}
+                                        </span>
+                                      }
+                                    />
+                                  )
+                                })()
+                              : null}
                             {row.valueType === 'var' ? (
                               <NumberInput
                                 value={row.value as number}

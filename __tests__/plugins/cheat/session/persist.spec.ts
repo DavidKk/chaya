@@ -2,9 +2,70 @@
  * @jest-environment node
  */
 import { emptySession } from '@/components/game-edit/types'
-import { diskStateFromSession, mergeDiskIntoSession } from '@/plugins/mv/src/cheat/session/persist'
+import { applyRunFlag } from '@/plugins/mv/src/cheat/runtime/apply-run'
+import { Cheats } from '@/plugins/mv/src/cheat/runtime/cheats'
+import { RunCheats } from '@/plugins/mv/src/cheat/runtime/cheats-run'
+import {
+  applyGameEditDisk,
+  diskStateFromSession,
+  ensureGameEditDiskApplied,
+  mergeDiskIntoSession,
+  scheduleSaveGameEditDisk,
+  scheduleSaveRunFlag,
+} from '@/plugins/mv/src/cheat/session/persist'
+import { pluginStorageCall } from '@/plugins/mv/src/helpers/storage/client'
+
+jest.mock('@/plugins/mv/src/helpers/storage/client', () => ({ pluginPublicGameDirectory: jest.fn(), pluginStorageCall: jest.fn() }))
+jest.mock('@/plugins/mv/src/helpers/game/game-identity', () => ({ detectGameIdentity: () => ({ contentRoot: '/test/game' }) }))
+jest.mock('@/plugins/mv/src/cheat/runtime/apply-run', () => ({ applyRunFlag: jest.fn(), applySpeed: jest.fn(), applyGameSpeed: jest.fn() }))
 
 describe('cheat/persist session↔disk', () => {
+  it('enables dash and result confirmation by default while preserving explicit opt-outs', () => {
+    expect(emptySession()).toMatchObject({ alwaysDash: true, skipBattleResult: true })
+    Object.assign(globalThis, { $gameParty: {} })
+    jest.spyOn(Cheats, 'ensureHooks').mockImplementation(() => {})
+    jest.spyOn(RunCheats, 'ensureHooks').mockImplementation(() => {})
+    const disk = diskStateFromSession(emptySession())
+    applyGameEditDisk({ ...disk, run: {} })
+    expect(applyRunFlag).toHaveBeenCalledWith('alwaysDash', true)
+    expect(applyRunFlag).toHaveBeenCalledWith('skipBattleResult', true)
+    jest.mocked(applyRunFlag).mockClear()
+    applyGameEditDisk({ ...disk, run: { alwaysDash: false, skipBattleResult: false } })
+    expect(applyRunFlag).toHaveBeenCalledWith('alwaysDash', false)
+    expect(applyRunFlag).toHaveBeenCalledWith('skipBattleResult', false)
+    delete (globalThis as Record<string, unknown>).$gameParty
+  })
+
+  it('applies defaults on a fresh game without a settings file', () => {
+    const { pluginPublicGameDirectory } = jest.requireMock('@/plugins/mv/src/helpers/storage/client')
+    pluginPublicGameDirectory.mockReturnValue('/test/game/chaya')
+    Object.assign(globalThis, { $gameParty: {} })
+    jest.spyOn(Cheats, 'ensureHooks').mockImplementation(() => {})
+    jest.spyOn(RunCheats, 'ensureHooks').mockImplementation(() => {})
+    ensureGameEditDiskApplied()
+    expect(applyRunFlag).toHaveBeenCalledWith('alwaysDash', true)
+    expect(applyRunFlag).toHaveBeenCalledWith('skipBattleResult', true)
+    delete (globalThis as Record<string, unknown>).$gameParty
+  })
+  it('merges successive floating shortcuts with a pending save without replacing locks, speeds or hotkeys', () => {
+    jest.useFakeTimers()
+    const disk = diskStateFromSession({ ...emptySession(), walkRate: 3, locks: { 'item:1': 80 }, hotkeys: { 'flag:autoWin': 'KeyW' } })
+    scheduleSaveGameEditDisk(disk)
+    scheduleSaveRunFlag('autoBattle', true)
+    scheduleSaveRunFlag('autoWin', true)
+    jest.advanceTimersByTime(400)
+    expect(pluginStorageCall).toHaveBeenCalledWith('game.write', [
+      '/test/game',
+      'gameEdit',
+      expect.objectContaining({
+        run: expect.objectContaining({ walkRate: 3, autoBattle: true, autoWin: true }),
+        locks: { 'item:1': 80 },
+        hotkeys: disk.hotkeys,
+      }),
+    ])
+    jest.useRealTimers()
+  })
+
   it('diskStateFromSession only extracts persistable fields', () => {
     const session = {
       ...emptySession(),

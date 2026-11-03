@@ -49,10 +49,13 @@ export function displayNameFromPath(gameRoot: string, opts?: { skipGeneric?: boo
   if (!segments.length) return '未命名游戏'
   const lastRaw = segments[segments.length - 1]!
   const last = lastRaw.replace(/\.app$/i, '')
-  if (opts?.skipGeneric && new Set(['game', 'www', 'app.nw', 'package.nw']).has(last.toLowerCase()) && segments.length > 1) {
-    const parent = segments[segments.length - 2]!.replace(/\.app$/i, '').trim()
-    if (parent && !new Set(['game', 'www', 'app.nw', 'package.nw']).has(parent.toLowerCase())) {
-      return parent
+  const genericSet = new Set(['game', 'www', 'app.nw', 'package.nw'])
+  if (opts?.skipGeneric) {
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const seg = segments[i].replace(/\.app$/i, '').trim()
+      if (seg && !genericSet.has(seg.toLowerCase())) {
+        return seg
+      }
     }
   }
   return last || '未命名游戏'

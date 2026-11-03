@@ -11,6 +11,11 @@ describe('event execution safety', () => {
     expect(analyzeExecutionSafety([command(code)], () => null)).toMatchObject({ safe: false, issue: expected })
   })
 
+  it('permits opaque commands when allowOpaqueCommands is true', () => {
+    expect(analyzeExecutionSafety([command(356)], () => null, { allowOpaqueCommands: true })).toEqual({ safe: true, visited: 0 })
+    expect(analyzeExecutionSafety([command(355)], () => null, { allowOpaqueCommands: true })).toEqual({ safe: true, visited: 0 })
+  })
+
   it('rejects unconditional loops and allows a loop with break', () => {
     expect(analyzeExecutionSafety([command(112), command(413)], () => null)).toMatchObject({ safe: false, issue: 'unbounded-loop' })
     expect(analyzeExecutionSafety([command(112), command(113), command(413)], () => null)).toEqual({ safe: true, visited: 0 })

@@ -58,6 +58,25 @@ export function useDashboardActions({ status, shellSource, setShellSource, setBu
     }
   }
 
+  async function openPath(text: string) {
+    const next = text.trim()
+    if (!next) return
+    try {
+      const res = await fetch('/api/reveal', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: next }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        notify.error(readApiErrorMessage(data, '打开路径失败'))
+        return
+      }
+    } catch {
+      notify.error('打开路径失败')
+    }
+  }
+
   async function saveGameRemark(nextRemark: string) {
     if (!status?.config?.gameRoot) return
     setBusy(true)
@@ -197,5 +216,5 @@ export function useDashboardActions({ status, shellSource, setShellSource, setBu
     }
   }
 
-  return { chooseShell, bindShell, copyPath, saveGameRemark, removeGame, installShell, fetchLatestShell, uninstallShell, injectPlugins, clearPlugins }
+  return { chooseShell, bindShell, copyPath, openPath, saveGameRemark, removeGame, installShell, fetchLatestShell, uninstallShell, injectPlugins, clearPlugins }
 }

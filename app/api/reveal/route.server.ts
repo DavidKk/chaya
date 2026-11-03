@@ -1,3 +1,6 @@
+import fs from 'node:fs'
+import path from 'node:path'
+
 import { defineApiRoute } from '@/initializer/controller'
 import { apiBadRequest, apiError, apiOk } from '@/initializer/response'
 import { getResolvedFromConfig, openInFinder, requireDisk, revealInFinder } from '@/services/disk-ops'
@@ -11,18 +14,30 @@ export const POST = defineApiRoute('post:/api/reveal', async ({ request }) => {
   const body = (await request.json().catch(() => ({}))) as {
     target?: 'project' | 'shell' | 'content'
     reveal?: boolean
-  }
-  const resolved = getResolvedFromConfig()
-  if (!resolved.ok) {
-    return apiBadRequest(resolved.error)
+    path?: string
+    gameId?: string
+    gameRoot?: string
   }
 
-  const target = body.target === 'shell' ? resolved.shellApp : body.target === 'content' ? resolved.contentRoot : resolved.projectRoot
+  let target = typeof body.path === 'string' && body.path.trim() ? path.resolve(body.path.trim()) : undefined
+
+  if (!target) {
+    const resolved = getResolvedFromConfig(body.gameId ? { gameId: body.gameId } : body.gameRoot ? { gameRoot: body.gameRoot } : undefined)
+    if (!resolved.ok) {
+      return apiBadRequest(resolved.error)
+    }
+    target = body.target === 'shell' ? resolved.shellApp : body.target === 'content' ? resolved.contentRoot : resolved.projectRoot
+  }
+
+  if (!target || !fs.existsSync(target)) {
+    return apiError(404, 'PATH_NOT_FOUND', `路径不存在: ${target || ''}`)
+  }
 
   try {
-    if (body.reveal !== false && body.target === 'shell') {
-      await revealInFinder(target)
-    } else if (body.reveal) {
+    const stat = fs.statSync(target)
+    const isMacApp = target.toLowerCase().endsWith('.app')
+    const shouldReveal = body.reveal !== undefined ? body.reveal : stat.isFile() || isMacApp
+    if (shouldReveal) {
       await revealInFinder(target)
     } else {
       await openInFinder(target)

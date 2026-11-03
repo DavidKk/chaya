@@ -9,18 +9,22 @@ import { debugZh } from '@/lib/i18n/messages/parts/debug'
 import { downloadsZh } from '@/lib/i18n/messages/parts/downloads'
 import { editZh } from '@/lib/i18n/messages/parts/edit'
 import { eventsZh } from '@/lib/i18n/messages/parts/events'
+import { floatingBallZh } from '@/lib/i18n/messages/parts/floating-ball'
 import { integrationZh } from '@/lib/i18n/messages/parts/integration'
 import { legalZh } from '@/lib/i18n/messages/parts/legal'
 import { marketingZh } from '@/lib/i18n/messages/parts/marketing'
 import { mcpGatewayZh } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { panelsZh } from '@/lib/i18n/messages/parts/panels'
+import { playZh } from '@/lib/i18n/messages/parts/play'
 import { savesZh } from '@/lib/i18n/messages/parts/saves'
 import { translateZh } from '@/lib/i18n/messages/parts/translate'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 /** 简体中文（结构真源） */
 export const zh = {
+  floatingBall: floatingBallZh,
   debug: debugZh,
+  play: playZh,
   ...commonZh,
   ...marketingZh,
   ...dashboardZh,

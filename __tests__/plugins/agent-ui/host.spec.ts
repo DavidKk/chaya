@@ -1,6 +1,7 @@
 /** @jest-environment jsdom */
-
 import { ensureGameAgentHost } from '@/plugins/mv/src/agent-ui/host'
+import { startGameAgentHotkeys } from '@/plugins/mv/src/agent-ui/hotkeys'
+import { isGameAgentUiOpen, showGameAgentUi, unmountGameAgentUi } from '@/plugins/mv/src/agent-ui/mount'
 
 const TYPES = ['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click', 'touchstart', 'touchend', 'wheel']
 
@@ -61,4 +62,31 @@ test('removes a stale host tabindex when reusing the companion overlay', () => {
   expect(host.hasAttribute('tabindex')).toBe(false)
   expect(host.style.outline).toBe('none')
   expect(reused.mount.style.outline).toBe('none')
+})
+
+test('startGameAgentHotkeys blurs focused input on first Escape, then closes on second Escape', () => {
+  const focusSpy = jest.spyOn(window, 'focus').mockImplementation(() => {})
+
+  const dispose = startGameAgentHotkeys()
+  showGameAgentUi()
+  expect(isGameAgentUiOpen()).toBe(true)
+
+  const input = document.createElement('input')
+  document.body.appendChild(input)
+  input.focus()
+  expect(document.activeElement).toBe(input)
+
+  // 1. Press Escape while input is focused -> should blur input, UI remains open
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+  expect(document.activeElement).not.toBe(input)
+  expect(isGameAgentUiOpen()).toBe(true)
+
+  // 2. Press Escape again -> should close UI
+  window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+  expect(isGameAgentUiOpen()).toBe(false)
+
+  input.remove()
+  dispose()
+  unmountGameAgentUi()
+  focusSpy.mockRestore()
 })

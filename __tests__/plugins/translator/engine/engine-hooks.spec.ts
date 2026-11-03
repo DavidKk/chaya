@@ -165,6 +165,12 @@ it('translates direct canvas text without translating Bitmap text twice', () => 
     expect(canvas.measureText('敵の攻撃').width).toBe(4)
     expect(canvas.measureText('長い文言').width).toBe(1)
     translate.mockClear()
+    for (const text of ['123', '100 / 200', '-5.5%', '...']) {
+      expect(canvas.fillText(text)).toBe(text)
+      expect(canvas.strokeText(text)).toBe(text)
+      expect(canvas.measureText(text).width).toBe(text.length)
+    }
+    expect(translate).not.toHaveBeenCalled()
     expect(new BitmapStub().drawText('敵の攻撃')).toBe('敌人攻击')
     expect(translate).toHaveBeenCalledTimes(1)
     translate.mockClear()

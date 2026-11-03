@@ -7,10 +7,12 @@ import { debugJa } from '@/lib/i18n/messages/parts/debug'
 import { downloadsJa } from '@/lib/i18n/messages/parts/downloads'
 import { editJa } from '@/lib/i18n/messages/parts/edit.ja'
 import { eventsJa } from '@/lib/i18n/messages/parts/events.ja'
+import { floatingBallJa } from '@/lib/i18n/messages/parts/floating-ball'
 import { integrationJa } from '@/lib/i18n/messages/parts/integration'
 import { legalJa } from '@/lib/i18n/messages/parts/legal'
 import { mcpGatewayJa } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { panelsJa } from '@/lib/i18n/messages/parts/panels'
+import { playJa } from '@/lib/i18n/messages/parts/play'
 import { savesJa } from '@/lib/i18n/messages/parts/saves.ja'
 import { translateJa } from '@/lib/i18n/messages/parts/translate.ja'
 import type { MessageTree } from '@/lib/i18n/messages/types'
@@ -35,6 +37,9 @@ const base = {
     logs: 'ログ',
     integration: '連携',
     settings: '設定',
+    remotePlay: 'クラウド',
+    remoteInstances: 'インスタンス',
+    remoteSettings: '設定',
     about: '概要',
   },
   common: {
@@ -239,8 +244,12 @@ const base = {
     windowSize: 'サイズ',
     windowSizeDesc: '起動サイズ',
     changePath: 'パス変更',
+    openGamePath: 'パスを開く',
+
     copyGamePath: 'パス複製',
     pickShell: 'シェル選択',
+    openShellPath: 'シェル元を開く',
+
     copyShellPath: 'シェル元複製',
     remoteNoPath: 'リモート不可',
     remoteNoShell: 'リモート不可',
@@ -318,7 +327,9 @@ const base = {
 } as const
 
 export const ja: MessageTree = {
+  floatingBall: floatingBallJa,
   debug: debugJa,
+  play: playJa,
   ...base,
   ...translateJa,
   ...editJa,

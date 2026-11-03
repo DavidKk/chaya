@@ -67,6 +67,10 @@ describe('party-items', () => {
     const r = setItemLike(db, 1, 5)
     expect(r).toMatchObject({ id: 1, count: 5, eq: 1, inv: 4 })
 
+    // Target count > 99 (e.g. plugins with higher item caps)
+    const rBig = setItemLike(db, 1, 9999)
+    expect(rBig).toMatchObject({ id: 1, count: 9999, eq: 1, inv: 9998 })
+
     // Target 0: inventory goes to 0; equipped stays (delta<0 with includeEquip only when unequipping)
     const r0 = setItemLike(db, 1, 0)
     expect(r0?.inv).toBe(0)

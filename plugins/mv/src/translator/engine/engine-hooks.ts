@@ -11,6 +11,7 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
   const preserveDialogue = (win: unknown) =>
     (getMode() === 'subtitle' && typeof Window_Message !== 'undefined' && win instanceof Window_Message) ||
     (getMode() !== 'pretranslated' && typeof Window_ChoiceList !== 'undefined' && win instanceof Window_ChoiceList)
+  const NON_TEXT_RE = /^[\d\s+\-.,/\\:;%#!?()[\]<>=~'"*`^_]+$/
   let preserveBitmap = false
   function render(text: string): string {
     const result = translate(text)
@@ -97,7 +98,10 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
         'measureText',
         (original) =>
           function (text: string, ...args: unknown[]) {
-            return original.call(this, preserveBitmap ? text : translate(text), ...args)
+            if (preserveBitmap || typeof text !== 'string' || !text || NON_TEXT_RE.test(text)) {
+              return original.call(this, text, ...args)
+            }
+            return original.call(this, translate(text), ...args)
           }
       )
     )
@@ -108,7 +112,10 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
           method,
           (original) =>
             function (text: string, ...args: unknown[]) {
-              return original.call(this, preserveBitmap ? text : render(text), ...args)
+              if (preserveBitmap || typeof text !== 'string' || !text || NON_TEXT_RE.test(text)) {
+                return original.call(this, text, ...args)
+              }
+              return original.call(this, render(text), ...args)
             }
         )
       )

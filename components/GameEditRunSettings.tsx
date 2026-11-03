@@ -19,6 +19,7 @@ export type GameEditRunSettingsState = Pick<
   | 'walkRate'
   | 'gameSpeed'
   | 'fullscreen'
+  | 'screenStretch'
   | 'alwaysDash'
   | 'god'
   | 'autoWin'
@@ -38,9 +39,9 @@ export type GameEditRunSettingsState = Pick<
 
 type Props = {
   value: GameEditRunSettingsState
-  /** 局内可执行动作；网页预览可传空操作 */
+  /** Executable in-game actions; web previews may pass a no-op. */
   actionsEnabled?: boolean
-  /** 未连接游戏：数值为默认值，所有控件只看不改 */
+  /** Disconnected previews display defaults with read-only controls. */
   readOnly?: boolean
   supportedFlags?: ReadonlySet<RunFlagKey> | ((key: RunFlagKey) => boolean)
   supportedActions?: ReadonlySet<RunActionId> | ((id: RunActionId) => boolean)
@@ -54,7 +55,7 @@ type Props = {
   onExpRateChange: (rate: number) => void
   onFlagChange: (key: RunFlagKey, on: boolean) => void
   onAction: (id: RunActionId) => void
-  /** Opens 修改 › 战斗 */
+  /** Open the battle editor. */
   onOpenBattle?: () => void
 }
 
@@ -79,7 +80,7 @@ const lockBtn = cn(
   'focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[color-mix(in_oklab,var(--accent)_55%,transparent)]'
 )
 
-/** 运行页：标题/说明占满左栏，右侧控件按内容宽 */
+/** Let labels fill the left column while controls use their natural width. */
 const runField = cn(formFieldInlineDense, 'grid-cols-[minmax(12rem,1fr)_auto]')
 
 type ActionItem = {
@@ -113,10 +114,11 @@ const SCENE_GROUPS: ActionGroup[] = [
   },
   {
     labelKey: 'edit.groupOther',
-    cols: 2,
+    cols: 3,
     items: [
       { id: 'scene:debug', labelKey: 'edit.actDebug' },
       { id: 'scene:pop', labelKey: 'edit.actPop' },
+      { id: 'battle:start', labelKey: 'events.troop.encounterNow', variant: 'accent' },
     ],
   },
 ]
@@ -242,7 +244,7 @@ function ActionCard({
   )
 }
 
-/** 左配置 / 右工具：紧凑 formCard，尽量一屏看完 */
+/** Compact settings on the left and tools on the right. */
 export function GameEditRunSettings({
   value,
   actionsEnabled = true,
@@ -416,16 +418,6 @@ export function GameEditRunSettings({
             t={t}
           />
           <ActionCard
-            title={t('edit.fixTitle')}
-            description={t('edit.fixDesc')}
-            groups={FIX_GROUPS}
-            disabled={!canAct}
-            disabledReason={readOnly ? readOnlyTip : previewDisabled}
-            onAction={onAction}
-            supportedActions={supportedActions}
-            t={t}
-          />
-          <ActionCard
             title={t('edit.battleTitle')}
             description={onOpenBattle ? t('events.battle.runMoved') : t('edit.battleDesc')}
             groups={BATTLE_GROUPS}
@@ -434,6 +426,16 @@ export function GameEditRunSettings({
             onAction={onAction}
             supportedActions={supportedActions}
             extra={onOpenBattle ? <TextAction onClick={onOpenBattle}>{t('events.battle.openBattle')}</TextAction> : null}
+            t={t}
+          />
+          <ActionCard
+            title={t('edit.fixTitle')}
+            description={t('edit.fixDesc')}
+            groups={FIX_GROUPS}
+            disabled={!canAct}
+            disabledReason={readOnly ? readOnlyTip : previewDisabled}
+            onAction={onAction}
+            supportedActions={supportedActions}
             t={t}
           />
         </div>

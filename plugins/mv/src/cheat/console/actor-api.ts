@@ -2,6 +2,7 @@
  * Console `ChayaEdit.actor(id)` chainable API.
  */
 import { createLogger } from '../../helpers'
+import { markBattleVitalOverridden } from '../session/live-party'
 
 const log = createLogger('ChayaEdit')
 
@@ -27,11 +28,17 @@ export function actorApi(actorId: number) {
       return api
     },
     hp(n?: number) {
+      if (typeof $gameParty !== 'undefined' && $gameParty?.inBattle?.()) {
+        markBattleVitalOverridden()
+      }
       if (n == null) actor.setHp(actor.mhp)
       else actor.setHp(Number(n))
       return api
     },
     mp(n?: number) {
+      if (typeof $gameParty !== 'undefined' && $gameParty?.inBattle?.()) {
+        markBattleVitalOverridden()
+      }
       if (n == null) actor.setMp(actor.mmp)
       else actor.setMp(Number(n))
       return api
@@ -131,7 +138,26 @@ export function actorApi(actorId: number) {
       }
       return actor.param(id)
     },
+    inParty(join?: boolean) {
+      if (join != null && typeof $gameParty !== 'undefined' && $gameParty) {
+        if (join) {
+          $gameParty.addActor?.(actorId)
+        } else {
+          $gameParty.removeActor?.(actorId)
+        }
+      }
+      return Boolean(
+        typeof $gameParty !== 'undefined' &&
+        $gameParty &&
+        (($gameParty._actors && $gameParty._actors.includes(actorId)) || $gameParty.members?.()?.some((a: { actorId?: () => number }) => a?.actorId?.() === actorId))
+      )
+    },
     status() {
+      const inParty = Boolean(
+        typeof $gameParty !== 'undefined' &&
+        $gameParty &&
+        (($gameParty._actors && $gameParty._actors.includes(actorId)) || $gameParty.members?.()?.some((a: { actorId?: () => number }) => a?.actorId?.() === actorId))
+      )
       const o: Record<string, unknown> = {
         id: actorId,
         name: actor.name(),
@@ -142,6 +168,7 @@ export function actorApi(actorId: number) {
         hp: `${actor.hp}/${actor.mhp}`,
         mp: `${actor.mp}/${actor.mmp}`,
         classId: actor._classId,
+        inParty,
         skills: (actor.skills() || []).map((s: { id?: number }) => s && s.id).filter(Boolean),
         states: (actor.states() || []).map((s: { id?: number }) => s && s.id).filter(Boolean),
       }

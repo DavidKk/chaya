@@ -26,6 +26,8 @@ const CORS = {
 type Body = {
   action?: string
   roomId?: string
+  peerId?: string
+  role?: string
   sdp?: SignalingSdp
   connected?: boolean
 }
@@ -44,8 +46,18 @@ const bad = (message: string) => fail(400, 'BAD_REQUEST', message)
  * 客户端地址：优先反代覆盖写入的 `x-real-ip`（Vercel / nginx 常规配置），再退回 `x-forwarded-for` 首段（可被客户端伪造，仅尽力而为）。
  * 取不到时不按来源限制，只受房间总数上限约束。
  */
-function clientIp(request: Request): string | undefined {
-  return request.headers.get('x-real-ip')?.trim() || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || undefined
+function cleanIp(ip: string): string {
+  let cleaned = ip.trim()
+  if (cleaned.startsWith('::ffff:')) cleaned = cleaned.slice(7)
+  return cleaned
+}
+
+export function clientIp(request: Request): string | undefined {
+  const req = request as any
+  const headerIp = request.headers.get('x-real-ip')?.trim() || request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || request.headers.get('cf-connecting-ip')?.trim()
+  if (headerIp) return cleanIp(headerIp)
+  if (typeof req.ip === 'string' && req.ip.trim()) return cleanIp(req.ip)
+  return undefined
 }
 
 /**
@@ -65,29 +77,32 @@ function roomGate(request: Request, roomId: string, claim: boolean): { access: R
 
 /** WebRTC 信令：offer / answer / 连接态（内存板）；局内需 CORS */
 export const GET = defineApiRoute('get:/api/runtime/webrtc', async ({ request }) => {
-  const roomId = String(new URL(request.url).searchParams.get('roomId') || '').trim()
+  const url = new URL(request.url)
+  const roomId = String(url.searchParams.get('roomId') || '').trim()
+  const peerId = String(url.searchParams.get('peerId') || '').trim() || undefined
   if (!roomId) return bad('缺少 roomId')
   const gate = roomGate(request, roomId, false)
   if ('response' in gate) return gate.response
-  return json({ ok: true, room: gate.access === 'absent' ? null : getSignalingRoom(roomId) }, { headers: CORS })
+  return json({ ok: true, room: gate.access === 'absent' ? null : getSignalingRoom(roomId, peerId), clientIp: clientIp(request) }, { headers: CORS })
 })
 
 export const POST = defineApiRoute('post:/api/runtime/webrtc', async ({ request }) => {
   const body = (await request.json().catch(() => null)) as Body | null
   const action = String(body?.action || '').trim()
   const roomId = String(body?.roomId || '').trim()
+  const peerId = String(body?.peerId || '').trim() || undefined
   if (!roomId) return bad('缺少 roomId')
 
   if (action === 'offer' || action === 'reset') {
-    const gate = roomGate(request, roomId, true)
+    const gate = roomGate(request, roomId, !peerId)
     if ('response' in gate) return gate.response
     if (action === 'reset') {
-      resetSignalingRoom(roomId)
-      return json({ ok: true, reset: true, roomId }, { headers: CORS })
+      resetSignalingRoom(roomId, peerId)
+      return json({ ok: true, reset: true, roomId, peerId }, { headers: CORS })
     }
     const sdp = body?.sdp
     if (!sdp?.type || sdp.type !== 'offer') return bad('缺少 offer sdp')
-    return json({ ok: true, room: publishOffer(roomId, sdp) }, { headers: CORS })
+    return json({ ok: true, room: publishOffer(roomId, sdp, clientIp(request), peerId) }, { headers: CORS })
   }
 
   if (action === 'answer' || action === 'connected') {
@@ -96,10 +111,10 @@ export const POST = defineApiRoute('post:/api/runtime/webrtc', async ({ request 
     if (action === 'answer') {
       const sdp = body?.sdp
       if (!sdp?.type || sdp.type !== 'answer') return bad('缺少 answer sdp')
-      const room = publishAnswer(roomId, sdp)
+      const room = publishAnswer(roomId, sdp, peerId)
       return room ? json({ ok: true, room }, { headers: CORS }) : fail(404, 'ROOM_NOT_FOUND', '房间不存在或已过期')
     }
-    return json({ ok: true, room: setWebConnected(roomId, !!body?.connected) }, { headers: CORS })
+    return json({ ok: true, room: setWebConnected(roomId, !!body?.connected, peerId) }, { headers: CORS })
   }
 
   return bad(`未知 action: ${action || '(empty)'}`)

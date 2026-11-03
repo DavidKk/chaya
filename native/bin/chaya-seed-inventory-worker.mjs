@@ -8,12 +8,12 @@ var __export = (target2, all) => {
 // services/translate/scheduler/seed-inventory-worker.ts
 import fs20 from "node:fs";
 import os2 from "node:os";
-import path14 from "node:path";
+import path15 from "node:path";
 import { parentPort as parentPort2, workerData } from "node:worker_threads";
 
 // services/translate/shared-cache/index.ts
 import fs11 from "node:fs";
-import path8 from "node:path";
+import path9 from "node:path";
 
 // node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/entity.js
 var entityKind = /* @__PURE__ */ Symbol.for("drizzle:entityKind");
@@ -943,7 +943,7 @@ function makeJitQueryMapperInner(columns, joinsNotNullableMap = {}) {
   const objectIds = {};
   const decodes = Array.from({ length: columns.length });
   for (let idx = 0; idx < columns.length; ++idx) {
-    const { field, path: path15, codec, arrayDimensions } = columns[idx];
+    const { field, path: path16, codec, arrayDimensions } = columns[idx];
     let decoder;
     let decoderStr;
     let decoderFieldDestructure;
@@ -971,26 +971,26 @@ function makeJitQueryMapperInner(columns, joinsNotNullableMap = {}) {
     if (codec) decodedValue = `codec${idx}(${decodedValue}, ${arrayDimensions})`;
     if (decoderStr) decodedValue = `${decoderStr}(${decodedValue})`;
     decodes[idx] = colStr === decodedValue ? `${colStr}` : `${colStr} === null ? ${colStr} : ${decodedValue}`;
-    if (path15.length !== 2 || !isColumn) continue;
-    if (objectIds[path15[0]] === void 0) objectIds[path15[0]] = [`c${idx}`];
-    else objectIds[path15[0]]?.push(`c${idx}`);
-    const [objectName] = path15;
+    if (path16.length !== 2 || !isColumn) continue;
+    if (objectIds[path16[0]] === void 0) objectIds[path16[0]] = [`c${idx}`];
+    else objectIds[path16[0]]?.push(`c${idx}`);
+    const [objectName] = path16;
     const tableName = getTableName(field.table);
     nullifyMap[objectName] = joinsNotNullableMap[tableName] ? false : typeof nullifyMap[objectName] === "string" ? nullifyMap[objectName] === tableName ? tableName : false : tableName;
   }
   fn.push(`mapped[i] = {`);
   let currentObjectPath = [];
   for (let idx = 0; idx < columns.length; ++idx) {
-    const { path: path15 } = columns[idx];
-    const jsonPath = path15.map((e) => JSON.stringify(e));
+    const { path: path16 } = columns[idx];
+    const jsonPath = path16.map((e) => JSON.stringify(e));
     const decodedValue = decodes[idx];
-    const objectPath = path15.slice(0, -1);
+    const objectPath = path16.slice(0, -1);
     let commonLen = 0;
     while (commonLen < currentObjectPath.length && commonLen < objectPath.length && currentObjectPath[commonLen] === objectPath[commonLen]) commonLen++;
     for (let d = currentObjectPath.length - 1; d >= commonLen; --d) fn.push(`${"	".repeat(d + 1)}},`);
-    for (let d = commonLen; d < objectPath.length; ++d) fn.push(`${"	".repeat(d + 1)}${jsonPath[d]}: ${d === 0 && objectPath.length === 1 && typeof nullifyMap[path15[0]] === "string" ? `${objectIds[path15[0]]?.map((c) => `${c} === null`).join(" && ")} ? null : {` : "{"}`);
+    for (let d = commonLen; d < objectPath.length; ++d) fn.push(`${"	".repeat(d + 1)}${jsonPath[d]}: ${d === 0 && objectPath.length === 1 && typeof nullifyMap[path16[0]] === "string" ? `${objectIds[path16[0]]?.map((c) => `${c} === null`).join(" && ")} ? null : {` : "{"}`);
     currentObjectPath = objectPath;
-    fn.push(`${"	".repeat(path15.length)}${jsonPath[path15.length - 1]}: ${decodedValue},`);
+    fn.push(`${"	".repeat(path16.length)}${jsonPath[path16.length - 1]}: ${decodedValue},`);
   }
   for (let d = currentObjectPath.length - 1; d >= 0; --d) fn.push(`${"	".repeat(d + 1)}},`);
   fn.push(`};`);
@@ -1027,13 +1027,13 @@ function jitCompatCheck(isEnabled) {
   }
 }
 function makeDefaultQueryMapper(columns, joinsNotNullableMap) {
-  const interpretedData = columns.map(({ field, codec, arrayDimensions, path: path15 }) => {
+  const interpretedData = columns.map(({ field, codec, arrayDimensions, path: path16 }) => {
     let processNullifyMap;
     let decoderSrc;
     if (is(field, Column)) {
       decoderSrc = field;
-      if (joinsNotNullableMap && path15.length === 2) {
-        const objectName = path15[0];
+      if (joinsNotNullableMap && path16.length === 2) {
+        const objectName = path16[0];
         processNullifyMap = (nullifyMap, value) => {
           if (!(objectName in nullifyMap)) nullifyMap[objectName] = value === null ? getTableName(field.table) : false;
           else if (typeof nullifyMap[objectName] === "string" && nullifyMap[objectName] !== getTableName(field.table)) nullifyMap[objectName] = false;
@@ -1049,9 +1049,9 @@ function makeDefaultQueryMapper(columns, joinsNotNullableMap) {
   });
   return ((rows) => rows.map((row) => {
     const nullifyMap = {};
-    const result = columns.reduce((result2, { path: path15 }, columnIndex) => {
+    const result = columns.reduce((result2, { path: path16 }, columnIndex) => {
       let node = result2;
-      for (const [pathChunkIndex, pathChunk] of path15.entries()) if (pathChunkIndex < path15.length - 1) {
+      for (const [pathChunkIndex, pathChunk] of path16.entries()) if (pathChunkIndex < path16.length - 1) {
         if (!(pathChunk in node)) node[pathChunk] = {};
         node = node[pathChunk];
       } else {
@@ -3729,7 +3729,7 @@ function normalizeCacheCategory(raw) {
 import { spawn } from "node:child_process";
 import fs4 from "node:fs";
 import os from "node:os";
-import path3 from "node:path";
+import path4 from "node:path";
 import { Worker } from "node:worker_threads";
 
 // constants/paths.ts
@@ -3855,8 +3855,11 @@ function processMcpPortEnv(home) {
 
 // services/log/operation.ts
 import { AsyncLocalStorage } from "node:async_hooks";
-import { randomUUID } from "node:crypto";
+import { randomUUID as randomUUID2 } from "node:crypto";
 import { isMainThread, parentPort, threadId } from "node:worker_threads";
+
+// services/log/bus.ts
+import path2 from "node:path";
 
 // lib/log/types.ts
 var LOG_LEVELS = ["ok", "warn", "fail", "info", "debug"];
@@ -3869,6 +3872,120 @@ function normalizeLogLevel(raw) {
   if (LEVEL_SET.has(v)) return v;
   return "info";
 }
+
+// lib/log/entry.ts
+var MAX_LOG_ENTRY_BYTES = 16 * 1024;
+var IMPORTANT_KEYS = ["operationId", "parentId", "requestId", "id", "operation", "method", "path", "status", "elapsedMs", "state", "outcome", "phase", "startedAt", "finishedAt"];
+function utf8Bytes(text2) {
+  let bytes = 0;
+  for (const character of text2) {
+    const point = character.codePointAt(0);
+    bytes += point < 128 ? 1 : point < 2048 ? 2 : point < 65536 ? 3 : 4;
+  }
+  return bytes;
+}
+function compactMeta(value, depth = 0, budget = { nodes: 128, characters: 4e3 }) {
+  if (--budget.nodes < 0) return "[omitted]";
+  if (typeof value === "string") {
+    const limit = Math.max(0, Math.min(1024, budget.characters));
+    budget.characters -= Math.min(value.length, limit);
+    return value.length > limit ? `${value.slice(0, limit)} [truncated]` : value;
+  }
+  if (!value || typeof value !== "object") {
+    if (typeof value === "bigint") return String(value).slice(0, 128);
+    return typeof value === "function" || typeof value === "symbol" ? void 0 : value;
+  }
+  if (depth >= 4) return "[omitted]";
+  if (Array.isArray(value)) {
+    const out2 = [];
+    for (let i = 0; i < Math.min(value.length, 16) && budget.nodes > 0; i++) out2.push(compactMeta(value[i], depth + 1, budget));
+    return out2;
+  }
+  const out = [];
+  for (const key2 in value) {
+    if (!Object.prototype.hasOwnProperty.call(value, key2)) continue;
+    if (out.length >= 24 || budget.nodes <= 0) {
+      out.push(["truncated", true]);
+      break;
+    }
+    out.push([key2.slice(0, 128), compactMeta(value[key2], depth + 1, budget)]);
+  }
+  return Object.fromEntries(out);
+}
+function serializeLogEntry(entry) {
+  const meta = entry.meta;
+  let reduced;
+  const important = {};
+  try {
+    for (const key2 of IMPORTANT_KEYS) {
+      const value = meta?.[key2];
+      if (["string", "number", "boolean"].includes(typeof value)) important[key2] = typeof value === "string" ? value.slice(0, 128) : value;
+    }
+    reduced = compactMeta(meta);
+  } catch {
+    reduced = { truncated: true };
+  }
+  const compact = {
+    id: String(entry.id).slice(0, 128),
+    ts: Number.isFinite(entry.ts) ? entry.ts : Date.now(),
+    level: entry.level,
+    source: String(entry.source).slice(0, 64),
+    message: String(entry.message).slice(0, 2e3),
+    meta: reduced && typeof reduced === "object" && !Array.isArray(reduced) ? { ...reduced, ...important } : reduced
+  };
+  let line = `${JSON.stringify(compact)}
+`;
+  if (utf8Bytes(line) <= MAX_LOG_ENTRY_BYTES) return line;
+  compact.meta = { truncated: true, ...important };
+  line = `${JSON.stringify(compact)}
+`;
+  return utf8Bytes(line) <= MAX_LOG_ENTRY_BYTES ? line : `${JSON.stringify({ ...compact, message: compact.message.slice(0, 500) })}
+`;
+}
+function compactLogEntry(entry) {
+  return JSON.parse(serializeLogEntry(entry));
+}
+function logEntryBytes(entry) {
+  return utf8Bytes(`${JSON.stringify(entry)}
+`);
+}
+
+// lib/log/buffer.ts
+var LogBuffer = class {
+  constructor(capacity = 2e3, maxBytes = 8 * 1024 * 1024) {
+    this.capacity = capacity;
+    this.maxBytes = maxBytes;
+    this.rows = [];
+    this.sizes = [];
+    this.bytes = 0;
+    this.dropped = 0;
+  }
+  append(raw) {
+    const entry = compactLogEntry(raw);
+    const size = logEntryBytes(entry);
+    this.rows.push(entry);
+    this.sizes.push(size);
+    this.bytes += size;
+    while (this.rows.length > this.capacity || this.bytes > this.maxBytes) {
+      this.rows.shift();
+      this.bytes -= this.sizes.shift();
+      this.dropped++;
+    }
+    return entry;
+  }
+  list() {
+    return this.rows;
+  }
+  clear() {
+    this.rows = [];
+    this.sizes = [];
+    this.bytes = 0;
+    this.dropped = 0;
+  }
+  stats() {
+    return { sizeBytes: this.bytes, maxBytes: this.maxBytes, maxEntryBytes: MAX_LOG_ENTRY_BYTES, droppedEntries: this.dropped };
+  }
+};
 
 // lib/service-mode/target.ts
 function parseBuildTarget(value) {
@@ -3910,10 +4027,233 @@ function canUseDisk(mode = getServiceMode()) {
 }
 
 // services/log/file-store.ts
+import { randomUUID } from "node:crypto";
 import fs2 from "node:fs";
 import path from "node:path";
 var DEFAULT_RETENTION_DAYS = 14;
 var DEFAULT_HYDRATE_LIMIT = 2e3;
+var MAX_HYDRATE_BYTES = 4 * 1024 * 1024;
+var READ_CHUNK_BYTES = 64 * 1024;
+var FLUSH_INTERVAL_MS = 100;
+var MAX_PENDING_BYTES = 64 * 1024;
+var MAX_QUEUED_BYTES = 1024 * 1024;
+var MAX_QUEUED_ENTRIES = 2e3;
+var MAX_PENDING_FILES = 32;
+var DAY_MS = 24 * 60 * 60 * 1e3;
+var LOG_FILE_NAME = /^(\d{4}-\d{2}-\d{2})(?:\.\d{13}-[a-f0-9-]+)?\.ndjson$/;
+var LEVEL_PRIORITY = { debug: 0, info: 1, ok: 1, warn: 2, fail: 3 };
+var WRITER = /* @__PURE__ */ Symbol.for("chaya.log-file-writer");
+var host = globalThis;
+var writer = host[WRITER] ??= { pending: /* @__PURE__ */ new Map() };
+var pendingClears = writer.clears ??= /* @__PURE__ */ new Set();
+function pendingStats() {
+  const batches = [...writer.pending.values()];
+  return {
+    sizeBytes: batches.reduce((sum2, batch) => sum2 + batch.bytes, 0),
+    entries: batches.reduce((sum2, batch) => sum2 + batch.lines.length, 0),
+    files: writer.pending.size,
+    maxBytes: MAX_QUEUED_BYTES,
+    maxEntries: MAX_QUEUED_ENTRIES,
+    maxFiles: MAX_PENDING_FILES,
+    droppedEntries: writer.droppedEntries ?? 0
+  };
+}
+function trimPending() {
+  let { sizeBytes, entries } = pendingStats();
+  for (const [file, batch] of writer.pending) {
+    while (batch.lines.length && (sizeBytes > MAX_QUEUED_BYTES || entries > MAX_QUEUED_ENTRIES || writer.pending.size > MAX_PENDING_FILES)) {
+      const size = Buffer.byteLength(batch.lines.shift());
+      batch.bytes -= size;
+      sizeBytes -= size;
+      entries--;
+      writer.droppedEntries = (writer.droppedEntries ?? 0) + 1;
+    }
+    if (!batch.lines.length) writer.pending.delete(file);
+    if (sizeBytes <= MAX_QUEUED_BYTES && entries <= MAX_QUEUED_ENTRIES && writer.pending.size <= MAX_PENDING_FILES) break;
+  }
+}
+function diskLogLevel() {
+  const level = normalizeLogLevel(process.env.CHAYA_LOG_LEVEL?.trim() || "info");
+  return level === "debug" ? "info" : level;
+}
+function filePolicy(logDir) {
+  const slow = path.basename(path.resolve(logDir)) === "slow-http";
+  return {
+    minimumLevel: diskLogLevel(),
+    flushIntervalMs: FLUSH_INTERVAL_MS,
+    maxEntryBytes: MAX_LOG_ENTRY_BYTES,
+    maxPendingBytes: MAX_QUEUED_BYTES,
+    maxPendingEntries: MAX_QUEUED_ENTRIES,
+    maxPendingFiles: MAX_PENDING_FILES,
+    maxFileBytes: (slow ? 4 : 32) * 1024 * 1024,
+    maxTotalBytes: (slow ? 32 : 256) * 1024 * 1024,
+    retentionDays: DEFAULT_RETENTION_DAYS,
+    automaticCleanup: true,
+    readWindowDays: DEFAULT_RETENTION_DAYS
+  };
+}
+function logFiles(logDir) {
+  if (!fs2.existsSync(logDir)) return [];
+  return fs2.readdirSync(logDir).filter((name2) => LOG_FILE_NAME.test(name2)).sort().flatMap((name2) => {
+    try {
+      const file = path.join(logDir, name2);
+      const stat = fs2.statSync(file);
+      return stat.isFile() ? [{ name: name2, file, size: stat.size }] : [];
+    } catch {
+      return [];
+    }
+  });
+}
+function withDirectoryLock(logDir, run) {
+  fs2.mkdirSync(logDir, { recursive: true });
+  const lock = path.join(logDir, ".write-lock");
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let fd;
+    try {
+      fd = fs2.openSync(lock, "wx");
+    } catch (error) {
+      if (error.code !== "EEXIST") throw error;
+      try {
+        const owner = Number(fs2.readFileSync(lock, "utf8"));
+        let stale = !owner && Date.now() - fs2.statSync(lock).mtimeMs > 5e3;
+        if (Number.isInteger(owner) && owner > 0) {
+          try {
+            process.kill(owner, 0);
+          } catch (error2) {
+            stale = error2.code === "ESRCH";
+          }
+        }
+        if (!stale) return false;
+        fs2.unlinkSync(lock);
+      } catch {
+      }
+      continue;
+    }
+    try {
+      fs2.writeFileSync(fd, String(process.pid));
+      run();
+      return true;
+    } finally {
+      fs2.closeSync(fd);
+      fs2.unlinkSync(lock);
+    }
+  }
+  return false;
+}
+function shrinkLegacyFile(file, maxBytes) {
+  const fd = fs2.openSync(file, "r");
+  let text2;
+  try {
+    const size = fs2.fstatSync(fd).size;
+    const length = Math.min(size, maxBytes, MAX_HYDRATE_BYTES);
+    const buffer2 = Buffer.alloc(length);
+    const read = fs2.readSync(fd, buffer2, 0, length, size - length);
+    const tail = buffer2.subarray(0, read);
+    const boundary = size > length ? tail.indexOf(10) : -1;
+    text2 = size > length ? boundary < 0 ? "" : tail.subarray(boundary + 1).toString("utf8") : tail.toString("utf8");
+  } finally {
+    fs2.closeSync(fd);
+  }
+  const retained = [];
+  let bytes = 0;
+  const lines = text2.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const entry = parseLine(lines[i], file, i + 1);
+    if (!entry || entry.level === "debug" || entry.ts < Date.now() - DEFAULT_RETENTION_DAYS * DAY_MS) continue;
+    const line = serializeLogEntry(entry);
+    bytes += Buffer.byteLength(line);
+    if (bytes > maxBytes) break;
+    retained.push(line);
+  }
+  const temporary = `${file}.compact.tmp`;
+  try {
+    fs2.writeFileSync(temporary, retained.reverse().join(""), "utf8");
+    fs2.renameSync(temporary, file);
+  } finally {
+    if (fs2.existsSync(temporary)) fs2.unlinkSync(temporary);
+  }
+}
+function pruneFiles(logDir) {
+  const policy = filePolicy(logDir);
+  const cutoff = dayKey(Date.now() - policy.retentionDays * DAY_MS);
+  for (const file of logFiles(logDir)) {
+    if (file.name.slice(0, 10) < cutoff) fs2.unlinkSync(file.file);
+    else if (file.size > policy.maxFileBytes) shrinkLegacyFile(file.file, policy.maxFileBytes);
+  }
+  const files = logFiles(logDir);
+  let total = files.reduce((sum2, file) => sum2 + file.size, 0);
+  for (const file of files) {
+    if (total <= policy.maxTotalBytes) break;
+    fs2.unlinkSync(file.file);
+    total -= file.size;
+  }
+}
+function writeBatch(file, batch) {
+  const logDir = path.dirname(file);
+  return withDirectoryLock(logDir, () => {
+    pruneFiles(logDir);
+    const { maxFileBytes } = filePolicy(logDir);
+    let size = fs2.existsSync(file) ? fs2.statSync(file).size : 0;
+    let lines = [];
+    let bytes = 0;
+    const append = () => {
+      if (!lines.length) return;
+      if (size && size + bytes > maxFileBytes) {
+        fs2.renameSync(file, path.join(logDir, `${path.basename(file, ".ndjson")}.${Date.now()}-${randomUUID()}.ndjson`));
+        size = 0;
+      }
+      fs2.appendFileSync(file, lines.join(""), "utf8");
+      size += bytes;
+      lines = [];
+      bytes = 0;
+    };
+    for (const line of batch.lines) {
+      const length = Buffer.byteLength(line);
+      if (bytes + length > maxFileBytes) append();
+      lines.push(line);
+      bytes += length;
+    }
+    append();
+    pruneFiles(logDir);
+  });
+}
+function scheduleFlush() {
+  if (!writer.pending.size && !pendingClears.size || writer.timer) return;
+  writer.timer = setTimeout(() => {
+    writer.timer = void 0;
+    flushLogFiles();
+  }, FLUSH_INTERVAL_MS);
+  writer.timer.unref?.();
+}
+function flushLogFiles(logDir) {
+  for (const dir of pendingClears) {
+    if (logDir && dir !== path.resolve(logDir)) continue;
+    try {
+      if (!withDirectoryLock(dir, () => {
+        for (const name2 of fs2.readdirSync(dir)) {
+          if (name2.endsWith(".ndjson")) fs2.unlinkSync(path.join(dir, name2));
+        }
+      }))
+        continue;
+    } catch {
+    }
+    pendingClears.delete(dir);
+  }
+  for (const [file, batch] of writer.pending) {
+    if (logDir && path.dirname(file) !== path.resolve(logDir)) continue;
+    if (pendingClears.has(path.dirname(file))) continue;
+    try {
+      if (!writeBatch(file, batch)) continue;
+    } catch {
+    }
+    writer.pending.delete(file);
+  }
+  if (!writer.pending.size && !pendingClears.size && writer.timer) {
+    clearTimeout(writer.timer);
+    writer.timer = void 0;
+  }
+  scheduleFlush();
+}
 function resolvePluginLogDir() {
   const fromEnv = process.env.CHAYA_LOG_DIR;
   if (fromEnv && fromEnv.trim()) {
@@ -3927,15 +4267,23 @@ function dayKey(ts) {
 function dayFile(dir, day) {
   return path.join(dir, `${day}.ndjson`);
 }
-function ensureDir(dir) {
-  fs2.mkdirSync(dir, { recursive: true });
-}
-function appendLogToFile(entry, logDir = resolvePluginLogDir()) {
+function appendLogToFile(entry, logDir = resolvePluginLogDir(), options = {}) {
+  if (entry.level === "debug") return;
+  if (!options.force && LEVEL_PRIORITY[entry.level] < LEVEL_PRIORITY[diskLogLevel()]) return;
   try {
-    ensureDir(logDir);
-    const file = dayFile(logDir, dayKey(entry.ts));
-    fs2.appendFileSync(file, `${JSON.stringify(entry)}
-`, "utf8");
+    const file = path.resolve(dayFile(logDir, dayKey(entry.ts)));
+    const line = serializeLogEntry(entry);
+    const batch = writer.pending.get(file) ?? { lines: [], bytes: 0 };
+    batch.lines.push(line);
+    batch.bytes += Buffer.byteLength(line);
+    writer.pending.set(file, batch);
+    trimPending();
+    if (!writer.exitRegistered) {
+      process.once("exit", () => flushLogFiles());
+      writer.exitRegistered = true;
+    }
+    if (batch.bytes >= MAX_PENDING_BYTES) flushLogFiles(logDir);
+    scheduleFlush();
   } catch {
   }
 }
@@ -3962,38 +4310,84 @@ function loadLogsFromFiles(opts) {
   const logDir = opts?.logDir ?? resolvePluginLogDir();
   const retentionDays = opts?.retentionDays ?? DEFAULT_RETENTION_DAYS;
   const limit = opts?.limit ?? DEFAULT_HYDRATE_LIMIT;
+  if (limit <= 0) return [];
+  flushLogFiles(logDir);
+  if (pendingClears.has(path.resolve(logDir))) return [];
   if (!fs2.existsSync(logDir)) return [];
   const cutoff = Date.now() - retentionDays * 24 * 60 * 60 * 1e3;
-  const files = fs2.readdirSync(logDir).filter((n) => /^\d{4}-\d{2}-\d{2}\.ndjson$/.test(n)).sort();
+  const files = fs2.readdirSync(logDir).filter((n) => LOG_FILE_NAME.test(n)).sort().reverse();
   const out = [];
+  let remainingBytes = MAX_HYDRATE_BYTES;
   for (const name2 of files) {
+    if (out.length >= limit || remainingBytes <= 0) break;
     const day = name2.slice(0, 10);
     const dayTs = Date.parse(`${day}T00:00:00.000Z`);
     if (Number.isFinite(dayTs) && dayTs < cutoff - 24 * 60 * 60 * 1e3) {
       continue;
     }
     const full = path.join(logDir, name2);
-    let text2 = "";
+    let fd;
     try {
-      text2 = fs2.readFileSync(full, "utf8");
+      fd = fs2.openSync(full, "r");
+      let position = fs2.fstatSync(fd).size;
+      let pending = Buffer.alloc(0);
+      while (position > 0 && remainingBytes > 0 && out.length < limit) {
+        const size = Math.min(READ_CHUNK_BYTES, position, remainingBytes);
+        position -= size;
+        remainingBytes -= size;
+        const chunk = Buffer.allocUnsafe(size);
+        const read = fs2.readSync(fd, chunk, 0, size, position);
+        if (read !== size) break;
+        const data = Buffer.concat([chunk, pending]);
+        let end = data.length;
+        for (let i = data.length - 1; i >= 0 && out.length < limit; i--) {
+          if (data[i] !== 10) continue;
+          const entry = parseLine(data.subarray(i + 1, end).toString("utf8"), full, `byte-${position + i + 1}`);
+          if (entry && entry.ts >= cutoff) out.push(entry);
+          end = i;
+        }
+        pending = data.subarray(0, end);
+      }
+      if (position === 0 && out.length < limit) {
+        const entry = parseLine(pending.toString("utf8"), full, 1);
+        if (entry && entry.ts >= cutoff) out.push(entry);
+      }
     } catch {
-      continue;
-    }
-    const lines = text2.split("\n");
-    for (let i = 0; i < lines.length; i++) {
-      const entry = parseLine(lines[i], full, i + 1);
-      if (!entry) continue;
-      if (entry.ts < cutoff) continue;
-      out.push(entry);
+    } finally {
+      if (fd !== void 0) fs2.closeSync(fd);
     }
   }
-  out.sort((a, b) => a.ts - b.ts);
+  out.reverse().sort((a, b) => a.ts - b.ts);
   return out.length > limit ? out.slice(-limit) : out;
+}
+function pluginLogFileStats(logDir = resolvePluginLogDir()) {
+  const policy = filePolicy(logDir);
+  flushLogFiles(logDir);
+  if (fs2.existsSync(logDir)) {
+    try {
+      withDirectoryLock(logDir, () => pruneFiles(logDir));
+    } catch {
+    }
+  }
+  if (!fs2.existsSync(logDir)) {
+    return { dir: logDir, files: 0, sizeBytes: 0, policy, pending: pendingStats() };
+  }
+  let files = 0;
+  let sizeBytes = 0;
+  for (const name2 of fs2.readdirSync(logDir)) {
+    if (!name2.endsWith(".ndjson")) continue;
+    files += 1;
+    try {
+      sizeBytes += fs2.statSync(path.join(logDir, name2)).size;
+    } catch {
+    }
+  }
+  return { dir: logDir, files, sizeBytes, policy, pending: pendingStats() };
 }
 
 // services/log/bus.ts
 var MAX = 2e3;
-var buffer = [];
+var buffer = new LogBuffer(MAX);
 var listeners = /* @__PURE__ */ new Set();
 var seq = 0;
 var hydrated = false;
@@ -4007,24 +4401,23 @@ function hydrateOnce() {
   if (!canUseDisk()) return;
   try {
     const loaded = loadLogsFromFiles({ limit: MAX });
-    buffer.push(...loaded);
-    if (buffer.length > MAX) buffer.splice(0, buffer.length - MAX);
-    seq = buffer.length;
+    for (const entry of loaded) buffer.append(entry);
+    pluginLogFileStats();
+    pluginLogFileStats(path2.join(resolvePluginLogDir(), "slow-http"));
+    seq = buffer.list().length;
   } catch {
   }
 }
 function appendLog(partial) {
   hydrateOnce();
-  const entry = {
+  const entry = buffer.append({
     id: nextId(),
     ts: partial.ts ?? Date.now(),
     level: normalizeLogLevel(partial.level),
     source: String(partial.source || "unknown").slice(0, 64),
     message: String(partial.message ?? "").slice(0, 8e3),
     meta: partial.meta
-  };
-  buffer.push(entry);
-  if (buffer.length > MAX) buffer.splice(0, buffer.length - MAX);
+  });
   if (canUseDisk()) appendLogToFile(entry);
   for (const fn of listeners) {
     try {
@@ -4047,7 +4440,7 @@ function runtimeEvent(level, source, message, meta, forward = false, ts = Date.n
   }
 }
 function operationId(value) {
-  return value && /^[a-zA-Z0-9:_-]{1,100}$/.test(value) ? value : randomUUID();
+  return value && /^[a-zA-Z0-9:_-]{1,100}$/.test(value) ? value : randomUUID2();
 }
 function startOperation(source, operation, meta = {}, options = {}) {
   const id = operationId(options.operationId);
@@ -4093,7 +4486,7 @@ function startOperation(source, operation, meta = {}, options = {}) {
 
 // services/storage/daemon-lock.ts
 import fs3 from "node:fs";
-import path2 from "node:path";
+import path3 from "node:path";
 import { DatabaseSync } from "node:sqlite";
 function isPidAlive(pid) {
   if (!Number.isInteger(pid) || pid <= 0) return false;
@@ -4118,9 +4511,9 @@ function readMetaSafe(file) {
   }
 }
 function readStorageDaemonMeta(dataDir) {
-  const resolvedDir = typeof dataDir === "string" && dataDir ? dataDir : path2.join(process.cwd(), "data");
-  const metaFile = path2.join(resolvedDir, "runtime", "storage-daemon.json");
-  const lockFile = path2.join(resolvedDir, "runtime", "storage-daemon.lock");
+  const resolvedDir = typeof dataDir === "string" && dataDir ? dataDir : path3.join(process.cwd(), "data");
+  const metaFile = path3.join(resolvedDir, "runtime", "storage-daemon.json");
+  const lockFile = path3.join(resolvedDir, "runtime", "storage-daemon.lock");
   const meta = readMetaSafe(metaFile);
   const owner = readMetaSafe(lockFile);
   if (!meta || !owner || !meta.instanceId || meta.instanceId !== owner.instanceId) return null;
@@ -4131,14 +4524,14 @@ function readStorageDaemonMeta(dataDir) {
 // services/storage/client.ts
 function resolveNativeBin(name2) {
   const root = typeof ROOT_PATH === "string" && ROOT_PATH ? ROOT_PATH : process.cwd();
-  const direct = path3.join(root, "native/bin", name2);
+  const direct = path4.join(root, "native/bin", name2);
   if (fs4.existsSync(direct)) return direct;
-  const cwdCandidate = path3.join(process.cwd(), "native/bin", name2);
+  const cwdCandidate = path4.join(process.cwd(), "native/bin", name2);
   if (fs4.existsSync(cwdCandidate)) return cwdCandidate;
   return direct;
 }
 function resolveDataDir() {
-  return typeof DATA_DIR === "string" && DATA_DIR ? DATA_DIR : path3.join(process.cwd(), "data");
+  return typeof DATA_DIR === "string" && DATA_DIR ? DATA_DIR : path4.join(process.cwd(), "data");
 }
 var worker;
 var responseBuffer;
@@ -4146,9 +4539,10 @@ var pause = new Int32Array(new SharedArrayBuffer(4));
 var locatorPublished = false;
 function publishLocator() {
   if (locatorPublished) return;
+  if (process.env.NODE_ENV === "test" || process.env.JEST_WORKER_ID !== void 0) return;
   const dir = mcpPortConfigDir(processMcpPortEnv(os.homedir()));
   fs4.mkdirSync(dir, { recursive: true, mode: 448 });
-  const file = path3.join(dir, "storage-runtime.json");
+  const file = path4.join(dir, "storage-runtime.json");
   const tmp = `${file}.${process.pid}.tmp`;
   const entry = resolveNativeBin("chaya-storage-daemon.mjs");
   const dataDir = resolveDataDir();
@@ -4172,8 +4566,8 @@ function ensureStorageDaemon() {
     env: {
       ...process.env,
       ELECTRON_RUN_AS_NODE: "1",
-      CHAYA_ROOT: typeof ROOT_PATH === "string" && ROOT_PATH && fs4.existsSync(path3.join(ROOT_PATH, "native/bin")) ? ROOT_PATH : process.cwd(),
-      CHAYA_DATA_DIR: typeof DATA_DIR === "string" && DATA_DIR ? DATA_DIR : path3.join(process.cwd(), "data")
+      CHAYA_ROOT: typeof ROOT_PATH === "string" && ROOT_PATH && fs4.existsSync(path4.join(ROOT_PATH, "native/bin")) ? ROOT_PATH : process.cwd(),
+      CHAYA_DATA_DIR: typeof DATA_DIR === "string" && DATA_DIR ? DATA_DIR : path4.join(process.cwd(), "data")
     }
   });
   let spawnError;
@@ -4390,7 +4784,7 @@ import fs6 from "node:fs";
 
 // lib/game/content-files.ts
 import fs5 from "node:fs";
-import path5 from "node:path";
+import path6 from "node:path";
 
 // lib/game/content-paths.ts
 var GAME_CONTENT_DIR = CONTENT_FILE_PREFIX;
@@ -4434,18 +4828,18 @@ function gameContentRelPath(kind) {
 }
 
 // services/storage/game-files.ts
-import path4 from "node:path";
+import path5 from "node:path";
 var ownerDirectories = /* @__PURE__ */ new Map();
 var mountedDirectories = /* @__PURE__ */ new Map();
 var ownerWriters = /* @__PURE__ */ new Map();
 function appendPublicCacheFile(file, rows) {
-  const writer = ownerWriters.get(file);
-  if (!writer) return false;
-  writer(rows);
+  const writer2 = ownerWriters.get(file);
+  if (!writer2) return false;
+  writer2(rows);
   return true;
 }
 function publicGameFiles(contentRoot) {
-  const key2 = path4.resolve(contentRoot);
+  const key2 = path5.resolve(contentRoot);
   const local = ownerDirectories.get(key2) ?? mountedDirectories.get(key2);
   if (local) return local;
   if (process.env.CHAYA_STORAGE_OWNER === "1") {
@@ -4458,7 +4852,7 @@ function publicGameFiles(contentRoot) {
   return remote;
 }
 function publicGameFile(contentRoot, kind) {
-  return path4.join(publicGameFiles(contentRoot).directory, GAME_CONTENT_RELS[kind]);
+  return path5.join(publicGameFiles(contentRoot).directory, GAME_CONTENT_RELS[kind]);
 }
 
 // lib/game/content-files.ts
@@ -4475,7 +4869,7 @@ var STORAGE_DOCUMENT_KINDS = /* @__PURE__ */ new Set([
 var registryCache = null;
 function storageDirectoryRegistry() {
   if (typeof DATA_DIR !== "string" || !DATA_DIR) return null;
-  const file = path5.join(DATA_DIR, "runtime", "game-directories.json");
+  const file = path6.join(DATA_DIR, "runtime", "game-directories.json");
   let mtimeMs = 0;
   try {
     mtimeMs = fs5.statSync(file, { throwIfNoEntry: false })?.mtimeMs ?? 0;
@@ -4494,7 +4888,7 @@ function storageDirectoryRegistry() {
       for (const [root, state] of Object.entries(raw)) {
         if (!state || typeof state !== "object") continue;
         const directory = state.directory;
-        if (typeof directory === "string" && directory) byRoot.set(path5.resolve(root), path5.resolve(directory));
+        if (typeof directory === "string" && directory) byRoot.set(path6.resolve(root), path6.resolve(directory));
       }
     }
   } catch {
@@ -4505,7 +4899,7 @@ function storageDirectoryRegistry() {
 function storageGameDirectory(contentRoot) {
   const registry = storageDirectoryRegistry();
   if (!registry) return null;
-  const key2 = path5.resolve(contentRoot);
+  const key2 = path6.resolve(contentRoot);
   const direct = registry.byRoot.get(key2);
   if (direct) return direct;
   try {
@@ -4522,17 +4916,17 @@ function storageGameDirectory(contentRoot) {
 }
 function gameContentPath(contentRoot, kind) {
   if (STORAGE_DOCUMENT_KINDS.has(kind)) return publicGameFile(contentRoot, kind);
-  return path5.join(path5.resolve(contentRoot), gameContentRelPath(kind));
+  return path6.join(path6.resolve(contentRoot), gameContentRelPath(kind));
 }
 function gameContentCandidatePaths(contentRoot, kind, opts) {
   if (STORAGE_DOCUMENT_KINDS.has(kind)) return [publicGameFile(contentRoot, kind)];
-  const root = path5.resolve(contentRoot);
-  const dirs = opts?.alsoParent ? [root, path5.dirname(root)] : [root];
+  const root = path6.resolve(contentRoot);
+  const dirs = opts?.alsoParent ? [root, path6.dirname(root)] : [root];
   const out = [];
   for (const dir of dirs) {
-    out.push(path5.join(dir, gameContentRelPath(kind)));
+    out.push(path6.join(dir, gameContentRelPath(kind)));
     for (const name2 of LEGACY_FLAT_FILES[kind]) {
-      out.push(path5.join(dir, name2));
+      out.push(path6.join(dir, name2));
     }
   }
   return out;
@@ -4544,18 +4938,18 @@ function localGameContentFile(contentRoot, kind) {
   if (STORAGE_DOCUMENT_KINDS.has(kind)) {
     const directory = storageGameDirectory(contentRoot);
     if (directory) {
-      const canonical = path5.join(directory, GAME_CONTENT_RELS[kind]);
+      const canonical = path6.join(directory, GAME_CONTENT_RELS[kind]);
       if (fs5.existsSync(canonical)) return canonical;
     }
   }
-  const roots = [path5.resolve(contentRoot)];
-  const parent = path5.dirname(roots[0]);
+  const roots = [path6.resolve(contentRoot)];
+  const parent = path6.dirname(roots[0]);
   if (parent !== roots[0]) roots.push(parent);
   for (const root of roots) {
-    const primary = path5.join(root, GAME_CONTENT_DIR, GAME_CONTENT_RELS[kind]);
+    const primary = path6.join(root, GAME_CONTENT_DIR, GAME_CONTENT_RELS[kind]);
     if (fs5.existsSync(primary)) return primary;
     for (const name2 of LEGACY_FLAT_FILES[kind]) {
-      const candidate = path5.join(root, name2);
+      const candidate = path6.join(root, name2);
       if (fs5.existsSync(candidate)) return candidate;
     }
   }
@@ -4563,7 +4957,7 @@ function localGameContentFile(contentRoot, kind) {
 }
 function ensureGameContentDir(contentRoot, kind) {
   const file = gameContentPath(contentRoot, kind);
-  fs5.mkdirSync(path5.dirname(file), { recursive: true });
+  fs5.mkdirSync(path6.dirname(file), { recursive: true });
   return file;
 }
 
@@ -5640,7 +6034,7 @@ function confirmRecordSegments(index2, parent, pairs, pair, opts) {
 
 // services/translate/shared-cache/db.ts
 import fs10 from "node:fs";
-import path7 from "node:path";
+import path8 from "node:path";
 import { DatabaseSync as DatabaseSync4 } from "node:sqlite";
 
 // node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/count.js
@@ -8626,8 +9020,8 @@ function drizzle(...params) {
   const { connection, client, ...config } = params[0];
   if (client) return construct(client, config);
   if (typeof connection === "object") {
-    const { path: path15, ...options } = connection;
-    return construct(new DatabaseSync2(path15 ?? ":memory:", options), config);
+    const { path: path16, ...options } = connection;
+    return construct(new DatabaseSync2(path16 ?? ":memory:", options), config);
   }
   return construct(new DatabaseSync2(connection ?? ":memory:"), config);
 }
@@ -9139,7 +9533,7 @@ function createMatchIndex(client) {
 
 // services/translate/shared-cache/migrate-bg.ts
 import fs9 from "node:fs";
-import path6 from "node:path";
+import path7 from "node:path";
 import { DatabaseSync as DatabaseSync3 } from "node:sqlite";
 
 // services/jobs/single-flight.ts
@@ -9168,7 +9562,7 @@ function isSharedIdenticalPair(src, tgt) {
   return Boolean(a) && isIdenticalTranslation(a, b);
 }
 function runSharedCacheHeavyMigrateSync(dbPath) {
-  const resolved = path6.resolve(dbPath);
+  const resolved = path7.resolve(dbPath);
   if (!fs9.existsSync(resolved)) return;
   const client = new DatabaseSync3(resolved);
   try {
@@ -9185,7 +9579,7 @@ function runSharedCacheHeavyMigrateSync(dbPath) {
   }
 }
 function scheduleSharedCacheHeavyMigrate(dbPath) {
-  const resolved = path6.resolve(dbPath);
+  const resolved = path7.resolve(dbPath);
   if (!fs9.existsSync(resolved)) return;
   if (process.env.JEST_WORKER_ID) {
     runSharedCacheHeavyMigrateSync(resolved);
@@ -9493,8 +9887,8 @@ function ensureSchema(db, client) {
   db.insert(cacheMeta).values({ key: "nsfw_backfill", value: "1" }).onConflictDoUpdate({ target: cacheMeta.key, set: { value: "1" } }).run();
 }
 function openSharedCacheDb(dbPath = defaultSharedDbPath()) {
-  const resolved = path7.resolve(dbPath);
-  fs10.mkdirSync(path7.dirname(resolved), { recursive: true });
+  const resolved = path8.resolve(dbPath);
+  fs10.mkdirSync(path8.dirname(resolved), { recursive: true });
   const client = new DatabaseSync4(resolved);
   client.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON");
   const db = drizzle({ client });
@@ -9895,7 +10289,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
   return cache;
 }
 function openSharedCache(dbPath = defaultSharedDbPath()) {
-  if (process.env.NODE_ENV === "test" || path8.resolve(dbPath) !== path8.resolve(defaultSharedDbPath()) || process.env.CHAYA_STORAGE_OWNER === "1")
+  if (process.env.NODE_ENV === "test" || path9.resolve(dbPath) !== path9.resolve(defaultSharedDbPath()) || process.env.CHAYA_STORAGE_OWNER === "1")
     return openOwnedSharedCache(dbPath);
   return new Proxy({ path: dbPath }, {
     get(target2, name2) {
@@ -9921,11 +10315,11 @@ import { DatabaseSync as DatabaseSync7 } from "node:sqlite";
 
 // services/extract/lib/rgss.ts
 import fs18 from "node:fs";
-import path13 from "node:path";
+import path14 from "node:path";
 
 // services/game/rgss-archive.ts
 import fs12 from "node:fs";
-import path9 from "node:path";
+import path10 from "node:path";
 import { inflateSync } from "node:zlib";
 
 // services/extract/lib/rgss/marshal.ts
@@ -10190,9 +10584,9 @@ function readAceMember(archive, member) {
 function readRgssScripts(contentRoot) {
   const names = fs12.readdirSync(contentRoot);
   const data = names.find((name2) => name2.toLowerCase() === "data");
-  const script = data && fs12.readdirSync(path9.join(contentRoot, data)).find((name2) => /^scripts\.rvdata2?$/i.test(name2));
+  const script = data && fs12.readdirSync(path10.join(contentRoot, data)).find((name2) => /^scripts\.rvdata2?$/i.test(name2));
   const archive = names.find((name2) => name2.toLowerCase() === "game.rgss3a");
-  const bytes = script ? fs12.readFileSync(path9.join(contentRoot, data, script)) : archive ? readAceMember(path9.join(contentRoot, archive), "Data/Scripts.rvdata2") : null;
+  const bytes = script ? fs12.readFileSync(path10.join(contentRoot, data, script)) : archive ? readAceMember(path10.join(contentRoot, archive), "Data/Scripts.rvdata2") : null;
   if (!bytes) return [];
   const value = parseRubyMarshal(bytes);
   if (!value || typeof value !== "object" || value.kind !== "array") return [];
@@ -10335,7 +10729,7 @@ import fs15 from "node:fs";
 // services/translate/seed-job-state.ts
 import { createHash as createHash3 } from "node:crypto";
 import fs14 from "node:fs";
-import path10 from "node:path";
+import path11 from "node:path";
 var MAX_SEED_JOB_LOGS = 120;
 function idleSeedJob(contentRoot = "") {
   return {
@@ -10355,10 +10749,10 @@ function idleSeedJob(contentRoot = "") {
   };
 }
 function seedJobKey(contentRoot) {
-  return createHash3("sha1").update(path10.resolve(contentRoot)).digest("hex").slice(0, 16);
+  return createHash3("sha1").update(path11.resolve(contentRoot)).digest("hex").slice(0, 16);
 }
 function seedJobFile(contentRoot) {
-  return path10.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
+  return path11.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
 }
 function readSeedJobState(contentRoot) {
   const file = seedJobFile(contentRoot);
@@ -10491,7 +10885,7 @@ function extractRgssScriptUiStrings(contentRoot) {
 
 // services/extract/lib/rgss/writeback.ts
 import fs16 from "node:fs";
-import path11 from "node:path";
+import path12 from "node:path";
 
 // lib/translate/name-glossary.ts
 var TOKEN_RE2 = new RegExp(SENTENCE_TOKEN_SOURCE, "g");
@@ -10661,7 +11055,7 @@ function fieldCategory(className, field, fallback) {
   return category;
 }
 function loadOneDataFile(dataDir, name2) {
-  const file = path11.join(dataDir, name2);
+  const file = path12.join(dataDir, name2);
   const value = parseRubyMarshal(fs16.readFileSync(file));
   const backup = `${file}.chaya.bak`;
   const original = fs16.existsSync(backup) ? parseRubyMarshal(fs16.readFileSync(backup)) : value;
@@ -10712,14 +11106,14 @@ function loadRgssItems(dataDir) {
 
 // services/extract/lib/rgss-sources-index.ts
 import fs17 from "node:fs";
-import path12 from "node:path";
+import path13 from "node:path";
 var SOURCE_INDEX_VERSION = 2;
 function rgssDataSignature(dataDir) {
   const files = fs17.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
   return JSON.stringify([
     SOURCE_INDEX_VERSION,
     ...files.map((name2) => {
-      const stat = fs17.statSync(path12.join(dataDir, name2));
+      const stat = fs17.statSync(path13.join(dataDir, name2));
       return [name2, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
   ]);
@@ -10758,7 +11152,7 @@ function ensureRgssSourcesIndex(contentRoot, dataDir, build) {
 function findChild(dir, name2) {
   try {
     const hit = fs18.readdirSync(dir).find((entry) => entry.toLowerCase() === name2.toLowerCase());
-    return hit ? path13.join(dir, hit) : null;
+    return hit ? path14.join(dir, hit) : null;
   } catch {
     return null;
   }
@@ -10911,7 +11305,7 @@ try {
     cache.close();
   }
   const inv = readSeedInventory(contentRoot);
-  const out = path14.join(os2.tmpdir(), `chaya-seed-inv-${process.pid}-${Date.now()}.json`);
+  const out = path15.join(os2.tmpdir(), `chaya-seed-inv-${process.pid}-${Date.now()}.json`);
   fs20.writeFileSync(out, JSON.stringify(inv));
   parentPort2?.postMessage({ ok: true, path: out, pending: inv.pending.length, total: inv.progress.total });
 } catch (error) {

@@ -9,10 +9,11 @@ const number = (value: unknown) => Math.floor(Number(value) || 0)
 export function analyzeExecutionSafety(
   commands: readonly EventCommand[],
   resolveCommon: (id: number) => readonly EventCommand[] | null,
-  options?: { maxDepth?: number; maxUniqueEvents?: number }
+  options?: { maxDepth?: number; maxUniqueEvents?: number; allowOpaqueCommands?: boolean }
 ): ExecutionSafety {
   const maxDepth = options?.maxDepth ?? 8
   const maxUnique = options?.maxUniqueEvents ?? 128
+  const allowOpaque = options?.allowOpaqueCommands ?? false
   const visited = new Set<number>()
   const stack = new Set<number>()
   const fail = (issue: ExecutionSafetyIssue, message: string): ExecutionSafety => ({ safe: false, issue, message, visited: visited.size })
@@ -21,8 +22,10 @@ export function analyzeExecutionSafety(
     if (depth > maxDepth) return fail('depth', `公共事件调用超过 ${maxDepth} 层`)
     for (let index = 0; index < list.length; index++) {
       const command = list[index]
-      if (command.code === 355 || command.code === 655) return fail('script', '事件包含脚本指令，不能由 Chaya 启动')
-      if (command.code === 356 || command.code === 357) return fail('plugin-command', '事件包含插件指令，不能由 Chaya 启动')
+      if (!allowOpaque) {
+        if (command.code === 355 || command.code === 655) return fail('script', '事件包含脚本指令，不能由 Chaya 启动')
+        if (command.code === 356 || command.code === 357) return fail('plugin-command', '事件包含插件指令，不能由 Chaya 启动')
+      }
       if (command.code === 112) {
         let nested = 0
         let hasBreak = false

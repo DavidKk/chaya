@@ -9,11 +9,15 @@ import type { IntegrationMessages } from '@/lib/i18n/messages/integration-types'
 import type { LegalMessages } from '@/lib/i18n/messages/legal-types'
 import type { McpGatewayMessages } from '@/lib/i18n/messages/mcp-gateway-types'
 import type { DebugMessages } from '@/lib/i18n/messages/parts/debug'
+import type { FloatingBallMessages } from '@/lib/i18n/messages/parts/floating-ball'
+import type { PlayMessages } from '@/lib/i18n/messages/parts/play'
 import type { SavesMessages } from '@/lib/i18n/messages/saves-types'
 
 /** 叶子为 string 的同构文案树 */
 export type MessageTree = {
+  floatingBall: FloatingBallMessages
   debug: DebugMessages
+  play: PlayMessages
   locale: { label: string; switch: string; auto: string }
   nav: {
     main: string
@@ -32,6 +36,9 @@ export type MessageTree = {
     translate: string
     logs: string
     integration: string
+    remotePlay: string
+    remoteInstances: string
+    remoteSettings: string
     settings: string
     about: string
   }
@@ -231,8 +238,10 @@ export type MessageTree = {
     windowSize: string
     windowSizeDesc: string
     changePath: string
+    openGamePath: string
     copyGamePath: string
     pickShell: string
+    openShellPath: string
     copyShellPath: string
     remoteNoPath: string
     remoteNoShell: string
@@ -350,6 +359,17 @@ export type MessageTree = {
     playTabDesc: string
     enginesTab: string
     enginesTabDesc: string
+    silentTranslateTitle: string
+    silentTranslateDesc: string
+    silentTranslateEnable: string
+    silentTranslateDisable: string
+    silentTranslateEnabledMsg: string
+    silentTranslateDisabledMsg: string
+    silentTranslateEngine: string
+    silentTranslateDefaultEngine: string
+    silentTranslateEngineHint: string
+    silentTranslateSaved: string
+    silentTranslateSaveFailed: string
     extract: string
     updateSource: string
     importFile: string
@@ -850,6 +870,8 @@ export type MessageTree = {
     cliKindOrphan: string
     cliSourceChaya: string
     cliSourceSystem: string
+    cliIncludeSystem: string
+    cliSystemEmptyMsg: string
     cliProxyComplete: string
     cliProxyPartial: string
     cliProxyNone: string

@@ -65,4 +65,5 @@ export { getTranslateEngineSwitches, setTranslateEngineSwitches, type TranslateE
 export { fillMissingFromSeed } from '@/services/translate/fill-missing'
 export { liveTranslateTexts } from '@/services/translate/live-translate'
 export { getSeedJobSnapshot, pauseSeedJob, refreshSeedJobProgress, startSeedJob } from '@/services/translate/seed-job'
+export { getSilentTranslateConfig, setSilentTranslateConfig, type SilentTranslateConfig, triggerSilentTranslateIfEnabled } from '@/services/translate/silent-translate'
 export { exportSourcesJob, getSourcesJobStatus, importSourcesJob, resumeSourcesJob, searchSourcesJob } from '@/services/translate/sources-job'

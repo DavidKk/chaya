@@ -2,7 +2,7 @@
 
 import type { ReactNode } from 'react'
 import { IoCopyOutline, IoGameControllerOutline } from 'react-icons/io5'
-import { LuHardDrive } from 'react-icons/lu'
+import { LuFolderOpen, LuHardDrive } from 'react-icons/lu'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import {
@@ -56,6 +56,8 @@ type Props = {
   onChooseGame: () => void
   onChooseShell: () => void
   onCopyPath: (text: string) => void
+  onOpenPath?: (text: string) => void
+  activeShellPath?: string
   onPatchWin: (key: keyof DashboardWindowConfig, value: DashboardWindowConfig[keyof DashboardWindowConfig], immediate?: boolean) => void
   onPatchWinSize: (size: { width: number; height: number }) => void
   boundGameRoot: string
@@ -64,7 +66,7 @@ type Props = {
   autoUpdatePlugins?: { enabled: boolean; supported: boolean; hint?: string; onChange: (next: boolean) => void }
 }
 
-type PathAction = { label: string; tooltip: string; onClick: () => void }
+type PathAction = { label: string; tooltip: string; disabled?: boolean; onClick: () => void }
 
 /** 路径行：标题 + 说明 + 等宽输入 + 选择 / 复制按钮；只读（远程 / 浏览器）时不提交 */
 function PathField({
@@ -77,6 +79,7 @@ function PathField({
   onChange,
   onCommit,
   pick,
+  open,
   copy,
 }: {
   title: string
@@ -88,6 +91,7 @@ function PathField({
   onChange: (value: string) => void
   onCommit: () => void
   pick: PathAction & { icon: ReactNode; primary?: boolean }
+  open?: PathAction
   copy?: PathAction
 }) {
   return (
@@ -117,6 +121,18 @@ function PathField({
         <Button size="icon" variant={pick.primary ? undefined : 'ghost'} disabled={disabled} aria-label={pick.label} tooltip={pick.tooltip} onClick={pick.onClick}>
           {pick.icon}
         </Button>
+        {open ? (
+          <Button
+            variant="ghost"
+            size="icon"
+            disabled={open.disabled !== undefined ? open.disabled : readOnly || !value.trim()}
+            aria-label={open.label}
+            tooltip={open.tooltip}
+            onClick={open.onClick}
+          >
+            <LuFolderOpen size={16} aria-hidden />
+          </Button>
+        ) : null}
         {copy ? (
           <Button variant="ghost" size="icon" disabled={readOnly || !value.trim()} aria-label={copy.label} tooltip={copy.tooltip} onClick={copy.onClick}>
             <IoCopyOutline size={15} aria-hidden />
@@ -152,6 +168,8 @@ export function DashboardSettings({
   onPatchWinSize,
   boundGameRoot,
   boundShellSource,
+  onOpenPath,
+  activeShellPath,
   autoUpdatePlugins: autoUpdate,
 }: Props) {
   const t = useT()
@@ -206,6 +224,15 @@ export function DashboardSettings({
           primary: true,
           onClick: onChooseGame,
         }}
+        open={
+          browserMode || !onOpenPath
+            ? undefined
+            : {
+                label: t('settings.openGamePath'),
+                tooltip: remote ? t('settings.remoteNoPath') : t('settings.openGamePath'),
+                onClick: () => onOpenPath(gameRoot),
+              }
+        }
         copy={
           browserMode
             ? undefined
@@ -231,6 +258,16 @@ export function DashboardSettings({
             icon: <LuHardDrive size={16} aria-hidden />,
             onClick: onChooseShell,
           }}
+          open={
+            !onOpenPath
+              ? undefined
+              : {
+                  label: t('settings.openShellPath'),
+                  tooltip: remote ? t('settings.remoteNoShell') : t('settings.openShellPath'),
+                  disabled: remote || (!shellValue.trim() && !activeShellPath),
+                  onClick: () => onOpenPath(shellValue.trim() || activeShellPath || ''),
+                }
+          }
           copy={{ label: t('settings.copyShellPath'), tooltip: remote ? t('settings.remoteNoShell') : t('settings.copyShellPath'), onClick: () => onCopyPath(shellSource) }}
         />
       )}

@@ -5,6 +5,7 @@
 
 import type { GameLinkLogEntry } from '@/lib/runtime/game-link-protocol'
 
+import { compactLogEntry } from './entry'
 import { type LogEntry, normalizeLogLevel } from './types'
 
 const MAX = 1000
@@ -30,17 +31,19 @@ export function appendLinkLogs(batch: readonly GameLinkLogEntry[]): void {
   const fresh: LogEntry[] = []
   for (const e of batch) {
     if (!e || typeof e.message !== 'string' || Number(e.ts) <= clearedAt) continue
-    const id = `${e.ts}-${e.id}`
+    const id = `${Number(e.ts)}-${String(e.id).slice(0, 80)}`
     if (seen.has(id)) continue
     seen.add(id)
-    fresh.push({
-      id,
-      ts: Number(e.ts) || Date.now(),
-      level: normalizeLogLevel(e.level),
-      source: String(e.source || 'plugin').slice(0, 64),
-      message: e.message.slice(0, 8000),
-      meta: e.meta,
-    })
+    fresh.push(
+      compactLogEntry({
+        id,
+        ts: Number(e.ts) || Date.now(),
+        level: normalizeLogLevel(e.level),
+        source: String(e.source || 'plugin').slice(0, 64),
+        message: e.message.slice(0, 8000),
+        meta: e.meta,
+      })
+    )
   }
   if (!fresh.length) return
   appendEntries(fresh)
@@ -58,14 +61,14 @@ function appendEntries(fresh: LogEntry[]): void {
 /** Browser-side events such as Cloud Agent calls share the same log view as game-link logs. */
 export function appendBrowserLog(entry: { level: string; source: string; message: string; meta?: unknown }): void {
   appendEntries([
-    {
+    compactLogEntry({
       id: `browser-${++browserLogId}`,
       ts: Date.now(),
       level: normalizeLogLevel(entry.level),
       source: entry.source.slice(0, 64),
       message: entry.message.slice(0, 8000),
       meta: entry.meta,
-    },
+    }),
   ])
 }
 

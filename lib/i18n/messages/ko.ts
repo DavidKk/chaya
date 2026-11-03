@@ -7,10 +7,12 @@ import { debugKo } from '@/lib/i18n/messages/parts/debug'
 import { downloadsKo } from '@/lib/i18n/messages/parts/downloads'
 import { editKo } from '@/lib/i18n/messages/parts/edit.ko'
 import { eventsKo } from '@/lib/i18n/messages/parts/events.ko'
+import { floatingBallKo } from '@/lib/i18n/messages/parts/floating-ball'
 import { integrationKo } from '@/lib/i18n/messages/parts/integration'
 import { legalKo } from '@/lib/i18n/messages/parts/legal'
 import { mcpGatewayKo } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { panelsKo } from '@/lib/i18n/messages/parts/panels'
+import { playKo } from '@/lib/i18n/messages/parts/play'
 import { savesKo } from '@/lib/i18n/messages/parts/saves.ko'
 import { translateKo } from '@/lib/i18n/messages/parts/translate.ko'
 import type { MessageTree } from '@/lib/i18n/messages/types'
@@ -35,6 +37,9 @@ const base = {
     logs: '로그',
     integration: '연동',
     settings: '설정',
+    remotePlay: '클라우드',
+    remoteInstances: '인스턴스',
+    remoteSettings: '설정',
     about: '정보',
   },
   common: {
@@ -239,8 +244,12 @@ const base = {
     windowSize: '크기',
     windowSizeDesc: '시작 크기',
     changePath: '경로 변경',
+    openGamePath: '경로 열기',
+
     copyGamePath: '경로 복사',
     pickShell: '셸 선택',
+    openShellPath: '셸 원본 열기',
+
     copyShellPath: '셸 원본 복사',
     remoteNoPath: '원격 불가',
     remoteNoShell: '원격 불가',
@@ -318,7 +327,9 @@ const base = {
 } as const
 
 export const ko: MessageTree = {
+  floatingBall: floatingBallKo,
   debug: debugKo,
+  play: playKo,
   ...base,
   ...translateKo,
   ...editKo,

@@ -2,7 +2,7 @@
 
 import { Menu } from '@base-ui/react/menu'
 import Link from 'next/link'
-import { type DragEvent, useCallback, useEffect, useEffectEvent, useRef, useState } from 'react'
+import { type DragEvent, useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from 'react'
 import { IoAdd } from 'react-icons/io5'
 import { LuArrowRight } from 'react-icons/lu'
 
@@ -10,7 +10,7 @@ import { BergamotDebug, BergamotDebugGuide, statusFor, useBergamotDebugScenario 
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { settingsCardColumn } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { Badge, ScrollArea, Tooltip } from '@/components/sk'
+import { Badge, ScrollArea, Select, type SelectOption, SwitchToggle, Tooltip } from '@/components/sk'
 import { controlDisabled } from '@/components/sk/control'
 import { dropdownItemClass, dropdownPopupClass, dropdownTriggerClass } from '@/components/sk/dropdownMenu'
 import { useSafePathname, useSafeRouter, useSafeSearchParams } from '@/components/translate/safe-navigation'
@@ -45,6 +45,7 @@ import {
   type TranslateEngineState,
   type TranslateEngineSwitches,
 } from '@/lib/translate/engines'
+import { DEFAULT_SILENT_TRANSLATE_CONFIG, type SilentTranslateConfig } from '@/lib/translate/silent'
 import { cn } from '@/lib/utils'
 
 type EngineId = TranslateEngineId
@@ -100,6 +101,7 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [view, setView] = useState<EngineView>(INITIAL)
+  const [silentConfig, setSilentConfig] = useState<SilentTranslateConfig>(DEFAULT_SILENT_TRANSLATE_CONFIG)
   const [systemStatus, setSystemStatus] = useState<Partial<Record<OfflineEngine, OfflineStatus>>>({})
   const statusController = useRef<AbortController | null>(null)
 
@@ -219,6 +221,9 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
         }
         const merged = mergeEngineState(json)
         setView({ switches: merged.switches, agents: merged.agents, order: merged.order, configs: merged.configs })
+        if ((json as { silent?: SilentTranslateConfig }).silent) {
+          setSilentConfig((json as { silent?: SilentTranslateConfig }).silent!)
+        }
         for (const id of ['apple', 'bergamot'] as const) void checkSystemStatus(id, controller.signal)
       } catch (err) {
         if (!cancelled) reportError(err instanceof Error ? err.message : t('translate.enginesLoadFailed'))
@@ -384,6 +389,76 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
     return isBuiltinEngineId(id) ? view.switches[id] : !!findAgentEntry(view.agents, id)?.enabled
   }
 
+  async function toggleSilent(checked: boolean) {
+    const next = { ...silentConfig, enabled: checked }
+    setSilentConfig(next)
+    try {
+      const res = await translationFetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'silent-config', config: next }),
+      })
+      const json = (await res.json()) as { ok?: boolean; error?: unknown }
+      if (!res.ok || json.ok === false) {
+        setSilentConfig(silentConfig)
+        notify.error(readApiErrorMessage(json, t('translate.silentTranslateSaveFailed')))
+        return
+      }
+      notify.success(t(checked ? 'translate.silentTranslateEnabledMsg' : 'translate.silentTranslateDisabledMsg'))
+    } catch (err) {
+      setSilentConfig(silentConfig)
+      notify.error(err instanceof Error ? err.message : t('translate.silentTranslateSaveFailed'))
+    }
+  }
+
+  async function changeSilentEngine(engine: string) {
+    const next = { ...silentConfig, engine }
+    setSilentConfig(next)
+    try {
+      const res = await translationFetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'silent-config', config: next }),
+      })
+      const json = (await res.json()) as { ok?: boolean; error?: unknown }
+      if (!res.ok || json.ok === false) {
+        setSilentConfig(silentConfig)
+        notify.error(readApiErrorMessage(json, t('translate.silentTranslateSaveFailed')))
+        return
+      }
+      notify.success(t('translate.silentTranslateSaved'))
+    } catch (err) {
+      setSilentConfig(silentConfig)
+      notify.error(err instanceof Error ? err.message : t('translate.silentTranslateSaveFailed'))
+    }
+  }
+
+  const silentEngineOptions = useMemo<SelectOption[]>(() => {
+    const opts: SelectOption[] = [
+      { value: 'default', label: t('translate.silentTranslateDefaultEngine') },
+      { value: 'google', label: t('translate.engineGoogle'), group: t('translate.groupPlatform') },
+      { value: 'bing', label: t('translate.engineBing') },
+      { value: 'apple', label: t('translate.engineApple'), group: t('translate.groupSystem') },
+      { value: 'bergamot', label: t('translate.engineBergamot') },
+    ]
+    if (view.agents.length > 0) {
+      view.agents.forEach((agent, index) => {
+        const p = agentProfiles.profiles.find((item) => item.id === agent.profileId)
+        const label = p?.label || agent.profileId
+        const model = agent.model || p?.defaultModel
+        opts.push({
+          value: agentEngineKey(agent.id),
+          label: model ? `${label} (${model})` : label,
+          group: index === 0 ? t('translate.groupAgent') : undefined,
+        })
+      })
+    }
+    if (silentConfig.engine && !opts.some((o) => o.value === silentConfig.engine)) {
+      opts.push({ value: silentConfig.engine, label: silentConfig.engine })
+    }
+    return opts
+  }, [agentProfiles.profiles, silentConfig.engine, t, view.agents])
+
   if (loading) {
     return <TranslateEnginesSkeleton view={pathEntryId || selectedEngineId ? 'detail' : 'overview'} />
   }
@@ -481,6 +556,42 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
       {process.env.NODE_ENV === 'development' ? <BergamotDebug /> : null}
       <ScrollArea className="min-h-0 flex-1" scrollClassName="p-4" indicator="vertical" reserveGutter={false} scrollProps={{ 'aria-label': t('translate.enginesList') }}>
         <div className={cn(settingsCardColumn, 'max-w-3xl')}>
+          <section className="flex flex-col overflow-hidden rounded-md border border-line bg-panel" aria-label={t('translate.silentTranslateTitle')}>
+            <div className="flex min-h-[3.25rem] shrink-0 items-center justify-between gap-4 border-b border-line px-4 py-3">
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                <span className={groupLabel}>{t('translate.silentTranslateTitle')}</span>
+                <span className="text-[0.7rem] leading-snug text-ink-soft/80">{t('translate.silentTranslateDesc')}</span>
+              </div>
+              <SwitchToggle
+                id="silent-translate-toggle"
+                checked={silentConfig.enabled}
+                onCheckedChange={(checked) => void toggleSilent(checked)}
+                disabled={loading || saving}
+                aria-label={t('translate.silentTranslateEnable')}
+                tooltip={silentConfig.enabled ? t('translate.silentTranslateDisable') : t('translate.silentTranslateEnable')}
+              />
+            </div>
+            {silentConfig.enabled ? (
+              <div className="flex flex-col gap-2 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <label htmlFor="silent-translate-engine" className="text-[0.78rem] font-medium text-ink">
+                    {t('translate.silentTranslateEngine')}
+                  </label>
+                  <Select
+                    id="silent-translate-engine"
+                    className="min-w-[15rem] max-w-full"
+                    value={silentConfig.engine}
+                    options={silentEngineOptions}
+                    onChange={(val) => void changeSilentEngine(val)}
+                    disabled={loading || saving}
+                    aria-label={t('translate.silentTranslateEngine')}
+                  />
+                </div>
+                <p className="m-0 text-[0.7rem] leading-relaxed text-ink-soft">{t('translate.silentTranslateEngineHint')}</p>
+              </div>
+            ) : null}
+          </section>
+
           {GROUPS.map((group) => {
             const ids = view.order.filter((id) => engineGroup(id) === group.id)
             return (

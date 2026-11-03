@@ -1,4 +1,5 @@
 import { type CompanionCharacter, normalizeCompanionCharacter } from './companion'
+import { DEFAULT_FLOATING_SHORTCUTS, type FloatingShortcutId, normalizeFloatingShortcuts } from './floating-ball'
 
 export const MINI_PANEL_IDS = ['miniMap', 'companion', 'autoSaves', 'quickSaves'] as const
 export type MiniPanelId = (typeof MINI_PANEL_IDS)[number]
@@ -9,6 +10,8 @@ export type PanelDockItem = (typeof PANEL_DOCK_ITEMS)[number]
 export type PanelDockOrientation = 'horizontal' | 'vertical'
 
 export type ToolSettings = {
+  floatingBallEnabled: boolean
+  floatingBallShortcuts: FloatingShortcutId[]
   companionEnabled: boolean
   miniMapEnabled: boolean
   /** 游戏内的自动存档 / 快速存档迷你面板 */
@@ -26,6 +29,8 @@ export type ToolSettings = {
 }
 
 export const DEFAULT_TOOL_SETTINGS: ToolSettings = {
+  floatingBallEnabled: false,
+  floatingBallShortcuts: [...DEFAULT_FLOATING_SHORTCUTS],
   companionEnabled: false,
   miniMapEnabled: false,
   autoSavePanelEnabled: false,
@@ -43,6 +48,8 @@ export const TOOL_SETTINGS_STORAGE_KEY = 'chaya.gameAgent.toolSettings.v1'
 export function normalizeToolSettings(value: unknown): ToolSettings {
   const source = value && typeof value === 'object' ? (value as Partial<ToolSettings> & { companionPersona?: string }) : {}
   return {
+    floatingBallEnabled: source.floatingBallEnabled === true,
+    floatingBallShortcuts: normalizeFloatingShortcuts(source.floatingBallShortcuts),
     companionEnabled: typeof source.companionEnabled === 'boolean' ? source.companionEnabled : false,
     miniMapEnabled: typeof source.miniMapEnabled === 'boolean' ? source.miniMapEnabled : false,
     autoSavePanelEnabled: typeof source.autoSavePanelEnabled === 'boolean' ? source.autoSavePanelEnabled : false,

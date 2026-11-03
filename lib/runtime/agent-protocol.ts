@@ -35,6 +35,7 @@ export type AgentCommand = AgentCommandBody & { deadline?: number }
 
 type AgentCommandBody =
   | { id: string; method: 'game.state'; params: Record<string, never> }
+  | { id: string; method: 'game.events'; params: Record<string, never> }
   | { id: string; method: 'game.ui'; params: Record<string, never> }
   | {
       id: string
@@ -72,6 +73,7 @@ export type AgentParams<M extends AgentMethod> = Extract<AgentCommand, { method:
 /** Commands accepted over the game DataChannel (Cloud signaling is unauthenticated, so no eval). */
 export const AGENT_LINK_METHODS = [
   'game.state',
+  'game.events',
   'game.ui',
   'game.saves',
   'game.history',

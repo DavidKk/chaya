@@ -121,7 +121,7 @@ export function seedJobWorkerReady(): boolean {
   return globalStore.__chayaSeedJobWorkerClient?.status === 'ready'
 }
 
-export async function commandSeedJobWorker(command: SeedJobWorkerCommand, contentRoot?: string): Promise<SeedJobSnapshot> {
+export async function commandSeedJobWorker(command: SeedJobWorkerCommand, contentRoot?: string, engines?: string[]): Promise<SeedJobSnapshot> {
   const timing = startOperation('translate', 'seed.worker.roundtrip', { command }, { start: command !== 'snapshot' })
   let readyMs = 0
   let sentAt = 0
@@ -136,7 +136,15 @@ export async function commandSeedJobWorker(command: SeedJobWorkerCommand, conten
     const snapshot = await new Promise<SeedJobSnapshot>((resolve, reject) => {
       const id = client.nextId++
       sentAt = Date.now()
-      const request: SeedJobWorkerRequest = { type: 'request', id, command, requestId: timing.id, sentAt, ...(contentRoot ? { contentRoot } : {}) }
+      const request: SeedJobWorkerRequest = {
+        type: 'request',
+        id,
+        command,
+        requestId: timing.id,
+        sentAt,
+        ...(contentRoot ? { contentRoot } : {}),
+        ...(engines && engines.length > 0 ? { engines } : {}),
+      }
       const timer = setTimeout(() => {
         client.pending.delete(id)
         reject(new Error(`Seed translation worker did not answer "${command}" in time`))

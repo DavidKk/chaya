@@ -14,6 +14,7 @@
 | Agent 配置、聊天、工具权限 | [助手基线](game-agent.md)：配置 §6.8–6.9，Prompt §7，权限 §9 | [Agent 实现](technical/game-agent.md)；先看页头的托管替代关系 |
 | 自主托管、连续目标 | [托管](game-assistance.md) | [托管实现](technical/game-assistance.md)；覆盖助手基线旧停止契约 |
 | CLI Agent、授权、供应商 | [CLI 接入](agent-cli-providers.md) | [CLI 设计](technical/agent-cli-providers.md)；仅相关供应商章节 |
+| CLI 按需启动、空闲回收、进程来源与资源占用 | [资源优化需求](agent-cli-resources.md) | [资源管理技术方案](technical/agent-cli-resources.md)；覆盖当前文本模型的空闲池与日志页 |
 | 活动日志、游戏操作轨迹 | [活动记录](agent-activity-log.md) / [操作轨迹](agent-gameplay-trace.md) | [日志实现](technical/agent-activity-log.md)；覆盖范围见轨迹页头 |
 | Agent 分层任务、batch | [助手](game-agent.md) / [托管](game-assistance.md) | [任务执行](technical/game-agent-jobs.md)；只覆盖执行层 |
 | 旅伴陪玩、反射引擎、情绪反馈 | [旅伴](companion.md) / [现状问题](companion-optimization.md) | [陪玩实现](technical/companion.md) |
@@ -23,8 +24,12 @@
 | 本波补齐、可恢复性、冻结清单 | [能力补齐](capability-supplement.md) §3–9 | [补齐设计](technical/capability-supplement.md)；排期才读 [backlog](backlog-2026-10-08.md) |
 | 数据修改、地图事件 | [数据](edit-save-data.md) / [地图](edit-map-events.md) | [数据设计](technical/edit-save-data.md) / [地图设计](technical/edit-map-events.md) |
 | 当前战斗、敌群 | [战斗](edit-battle.md) / [敌群](edit-troops.md) | [战斗设计](technical/edit-battle.md) / [敌群设计](technical/edit-troops.md) |
+| 自动战斗、情境感知、全技能菜单决策、防缴械卡死 | [自动战斗情境决策](auto-battle-smart-tactics.md) | [自动战斗技术方案](technical/auto-battle-smart-tactics.md) |
 | 存档、键鼠、迷你面板、寻路 | [存档](game-saves.md) / [键鼠](input-assistance.md) / [面板](mini-panels.md) / [寻路](smart-path.md) | 各需求页头链接到对应技术方案，仅选相关功能 |
 | RGSS、内嵌 WebView、WebRTC | [RGSS 重构](rgss-webview-overlay.md) | [宿主与通信](technical/rgss-webview-overlay.md) |
+| WebRTC 远程串流、后台静默、多游戏并发 | [串流静默与多实例需求](remote-play-silent-multi-instance.md) | [技术方案](technical/remote-play-silent-multi-instance.md) |
+| 远程串流封面直出免截屏、MV/VX 极致加速 | [封面直出与加速需求](remote-play-acceleration-and-cover.md) | [加速技术方案](technical/remote-play-acceleration-and-cover.md) |
+| 远程串流局内工作台、全屏铺满、修改与调试日志解耦、移动端低功耗 | [工作台需求](remote-play-overlay-workspace.md) | [工作台技术方案](technical/remote-play-overlay-workspace.md) |
 | RGSS 游玩实时翻译、悬浮字幕 | [游玩翻译](rgss-play-realtime-translation.md) | [实时翻译技术设计](technical/rgss-play-realtime-translation.md) |
 | RGSS 游戏加速、移动倍率、一键胜利与运行动作 | [RGSS 加速与动作](rgss-boost-and-actions.md) | [RGSS 加速与动作技术方案](technical/rgss-boost-and-actions.md) |
 | 翻译调度、并发、重试、限流 | [调度基线](translation-scheduling.md) §9 差距、§13–14 性能与接线 | [管线](technical/translation-pipeline.md) 相关章节 |
@@ -45,6 +50,7 @@
 | 游戏语言包、语料回写 | [语言包](game-multilingual-locales.md) | [语言包设计](technical/game-multilingual-locales.md) |
 | 安装、启动、外部 Agent 用法 | [setup](../skills/chaya-setup/SKILL.md) / [launch](../skills/chaya-launch/SKILL.md) / [mcp](../skills/chaya-mcp/SKILL.md) | Agent 安装英文源；`i18n` 仅页面译文，改译文时才读 |
 | 下载中心、打包、API / 日志规范 | [下载](technical/download-center.md) / [App](technical/electron-app.md) / [代码与日志规范](technical/api-and-logs-standard.md) | 独立开发文档，无需补同名需求 |
+| 页面 / API 请求慢、请求 ID、HTTP 耗时、慢请求集中查看 | [HTTP 请求追踪](technical/http-request-tracing.md) | 1 秒预警、精简汇总 API、阶段含义与日志恢复上限 |
 | GitHub 分发、资源/匹配算法下发、插件/业务包/App 更新 | [更新前置需求](application-updates.md) | [统一更新设计](technical/application-updates.md)；排期与阶段验收才读 [更新里程碑](milestones/application-updates.md) |
 | 本机 data/ 布局、备份、Agent 配置多副本 | [数据布局](technical/data-layout.md) | 与 `constants/paths`、局内 `content-paths` 对照 |
 | 存储三桶：公共 / 游戏内 / IndexedDB | [存储策略](technical/storage-policy.md) | 技术方案；公共单实例服务、SQLite 分库、身份签名与迁移自愈 |

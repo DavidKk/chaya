@@ -26,7 +26,8 @@ export async function mayAccessApi(request: Request): Promise<boolean> {
             .catch(() => null)
         : null
     const room = body?.roomId ?? url.searchParams.get('roomId')
-    if (room !== (session.libraryId || session.token)) return false
+    const expected = session.libraryId || session.token
+    if (room !== expected && room !== `${expected}:observer`) return false
     return request.method === 'GET' || (request.method === 'POST' && body?.action === 'answer')
   }
   if (path === '/api/runtime/agent' && request.method === 'POST') {

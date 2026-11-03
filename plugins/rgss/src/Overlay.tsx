@@ -11,6 +11,7 @@ import type { GameLinkMessage } from '@/lib/runtime/game-link-protocol'
 import { createTranslationRpc, type TranslationPacket } from '@/lib/runtime/translation-rpc'
 import { FloatingGameSaves } from '@/plugins/shared/FloatingGameSaves'
 
+import { RgssFloatingShortcuts } from './FloatingShortcuts'
 import { setupHitTestManager } from './hit-test-manager'
 import { initHostBridge, onGameMessage, postToGame } from './host-bridge'
 import { RgssMiniMap } from './MiniMap'
@@ -95,16 +96,49 @@ export function RgssOverlayRoot() {
       })
     }
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {
-        setOpen(false)
-        return
+      const isField = (node: unknown): node is HTMLElement =>
+        node instanceof HTMLElement && (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA' || node.tagName === 'SELECT' || node.isContentEditable)
+
+      const path = typeof event.composedPath === 'function' ? event.composedPath() : []
+      if (path.some((node) => node instanceof HTMLElement && node.hasAttribute('data-floating-ball'))) return
+      let focusedInput: HTMLElement | null = null
+      for (const node of path) {
+        if (isField(node)) {
+          focusedInput = node
+          break
+        }
       }
-      if (event.code === 'Backquote' || event.key === '`') {
-        if (event.ctrlKey || event.metaKey || event.altKey) return
-        const target = event.composedPath()[0]
-        if (target instanceof HTMLElement && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)) {
+      if (!focusedInput) {
+        const ae = document.activeElement
+        if (isField(ae)) focusedInput = ae
+        else if (ae instanceof HTMLElement && ae.shadowRoot?.activeElement && isField(ae.shadowRoot.activeElement)) {
+          focusedInput = ae.shadowRoot.activeElement
+        } else {
+          const host = document.getElementById('chaya-rgss-overlay-container')
+          const shadowAe = host?.shadowRoot?.activeElement
+          if (isField(shadowAe)) focusedInput = shadowAe
+        }
+      }
+
+      if (event.key === 'Escape') {
+        if (open && focusedInput) {
+          if (typeof focusedInput.blur === 'function') {
+            focusedInput.blur()
+          }
+          event.preventDefault()
+          event.stopPropagation()
           return
         }
+        if (open) {
+          event.preventDefault()
+          event.stopPropagation()
+          setOpen(false)
+        }
+        return
+      }
+
+      if (event.code === 'Backquote' || event.key === '`') {
+        if (event.ctrlKey || event.metaKey || event.altKey) return
         event.preventDefault()
         event.stopPropagation()
         setOpen((value) => {
@@ -115,15 +149,15 @@ export function RgssOverlayRoot() {
       }
     }
     const onEsc = () => setOpen(false)
-    document.addEventListener('keydown', onKey)
+    window.addEventListener('keydown', onKey, true)
     document.addEventListener('chaya:toggle', toggle)
     document.addEventListener('chaya:esc', onEsc)
     return () => {
       document.removeEventListener('chaya:toggle', toggle)
       document.removeEventListener('chaya:esc', onEsc)
-      document.removeEventListener('keydown', onKey)
+      window.removeEventListener('keydown', onKey, true)
     }
-  }, [])
+  }, [open])
 
   useEffect(() => {
     // 1. Initialize native host postMessage bridge
@@ -159,8 +193,12 @@ export function RgssOverlayRoot() {
         onConnected: () => {
           setGatewayConnected(true)
           postToGame({ type: 'edit.subscribe' })
+          postToGame({ type: 'remote.stream.active', active: true })
         },
-        onDisconnected: () => setGatewayConnected(false),
+        onDisconnected: () => {
+          setGatewayConnected(false)
+          postToGame({ type: 'remote.stream.active', active: false })
+        },
         onMessage: (msg: GameLinkMessage) => {
           if (msg.type === 'translation.rpc') {
             translation.receive(msg)
@@ -169,7 +207,7 @@ export function RgssOverlayRoot() {
           postToGame(msg)
         },
       },
-      { linkToken: overlayConfig.linkToken, launchToken: overlayConfig.launchToken }
+      { linkToken: overlayConfig.linkToken, launchToken: overlayConfig.launchToken, enableObserver: true }
     )
     gatewayInstance = gateway
     gateway.start()
@@ -203,6 +241,7 @@ export function RgssOverlayRoot() {
                 )}
                 <SubtitleOverlay />
                 <RgssMiniMap tools={tools} />
+                {tools.loaded && !tools.unavailable && tools.settings.floatingBallEnabled && <RgssFloatingShortcuts settings={tools.settings} onClose={() => setOpen(false)} />}
                 {tools.settings.panelDockEnabled && <MiniPanelDock settings={tools.settings} update={tools.update} />}
                 {(tools.settings.quickSavePanelEnabled || tools.settings.autoSavePanelEnabled) && <FloatingGameSaves settings={tools.settings} tools={tools} />}
               </ConfirmProvider>

@@ -80,6 +80,7 @@ module ChayaRGSS
 
         on_map = !!($game_map && $game_player)
         { 'type' => 'edit.state', 'ready' => true, 'session' => session, 'onMap' => on_map,
+          'inBattle' => !!EditRuntime.live_battle_scene,
           'mapId' => on_map ? $game_map.map_id : 0, 'playerX' => on_map ? $game_player.x : 0,
           'playerY' => on_map ? $game_player.y : 0, 'playerDir' => on_map && $game_player.respond_to?(:direction) ? $game_player.direction : 2 }
       end
@@ -185,13 +186,52 @@ module ChayaRGSS
               if defined?(ChayaRGSS::Translation) && ChayaRGSS::Translation.respond_to?(:handle_dialogue_result)
                 ChayaRGSS::Translation.handle_dialogue_result(cmd)
               end
+            elsif cmd['type'] == 'remote.stream.active'
+              @remote_streaming = !!cmd['active']
+              @last_stream_heartbeat = Time.now.to_f
+            elsif cmd['type'] == 'remote.input'
+              @remote_streaming = true
+              @last_stream_heartbeat = Time.now.to_f
+              ChayaRGSS.handle_remote_input(cmd['key'], cmd['action']) if defined?(ChayaRGSS) && ChayaRGSS.respond_to?(:handle_remote_input)
+            elsif cmd['type'] == 'remote.tap'
+              @remote_streaming = true
+              @last_stream_heartbeat = Time.now.to_f
+              ChayaRGSS.handle_remote_tap(cmd['x'], cmd['y'], cmd['phase']) if defined?(ChayaRGSS) && ChayaRGSS.respond_to?(:handle_remote_tap)
+            elsif cmd['type'] == 'quit'
+              exit(0)
             end
           rescue StandardError => err
             dispatch_reply({ 'type' => 'edit.ack', 'cmdId' => cmd['cmdId'], 'ok' => false, 'error' => err.message[0, 200], 'fields' => [] })
           end
         end
 
+        ChayaRGSS.tick_remote_input if defined?(ChayaRGSS) && ChayaRGSS.respond_to?(:tick_remote_input)
         EditRuntime.tick
+
+        # Low-frequency dashboard preview only; live video uses native window capture.
+        now = Time.now.to_f
+        snap_interval = 180.0
+        if @last_snap_at.nil? || (now - @last_snap_at >= snap_interval)
+          @last_snap_at = now
+          begin
+            session_dir = ENV['CHAYA_RGSS_SESSION']
+            if session_dir && File.directory?(session_dir) && defined?(Graphics) && Graphics.respond_to?(:screenshot)
+              snap_tmp = File.join(session_dir, 'current_frame.tmp.jpg')
+              snap_file = File.join(session_dir, 'current_frame.jpg')
+              begin
+                Graphics.screenshot(snap_tmp)
+                File.rename(snap_tmp, snap_file) if File.file?(snap_tmp)
+              rescue StandardError
+                snap_tmp = File.join(session_dir, 'current_frame.tmp.png')
+                snap_file = File.join(session_dir, 'current_frame.png')
+                Graphics.screenshot(snap_tmp)
+                File.rename(snap_tmp, snap_file) if File.file?(snap_tmp)
+              end
+            end
+          rescue StandardError => _e
+            # ignore
+          end
+        end
 
         # Periodic state sync (1s interval)
         now = Time.now.to_f
@@ -273,6 +313,15 @@ module ChayaRGSS
         end
         @last_reload_check = Time.now.to_f
         @last_state_at = nil
+        is_silent = ENV['CHAYA_RGSS_SILENT'] == '1' || ENV['CHAYA_SILENT_MODE'] == '1'
+        mute_host = is_silent && ENV.fetch('CHAYA_MUTE_HOST_AUDIO', '1') == '1'
+        if mute_host
+          if defined?(Audio)
+            [:bgm_play, :bgs_play, :me_play, :se_play].each do |m|
+              Audio.define_singleton_method(m) { |*| }
+            end
+          end
+        end
         NativeWebview.start
         # Install before the first held-confirm frame; tick alone can be a frame late.
         EditRuntime.ensure_hooks

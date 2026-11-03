@@ -75,7 +75,8 @@ export function installConsoleApi() {
     },
 
     item(id: number, count?: number) {
-      const info = setItemLike($dataItems, id, count == null ? 99 : count)
+      const defaultMax = typeof $gameParty?.maxItems === 'function' ? $gameParty.maxItems($dataItems?.[id]) : 99
+      const info = setItemLike($dataItems, id, count == null ? defaultMax : count)
       if (info) log.ok('Updated', info)
       return info
     },
@@ -100,7 +101,7 @@ export function installConsoleApi() {
         console.table(hits)
         return hits
       }
-      return window.ChayaEdit.item(hits[0].id, count == null ? 99 : count)
+      return window.ChayaEdit.item(hits[0].id, count)
     },
 
     var(id: number, value?: number) {
@@ -210,7 +211,7 @@ export function installConsoleApi() {
     },
     troop(id: number, canEscape = true, canLose = false, count?: number) {
       try {
-        startTroopBattle({ id, canEscape, canLose, count })
+        startTroopBattle({ id, canEscape, canLose, count, interruptEvent: true })
         log.ok('troop #' + id)
         return true
       } catch (err) {

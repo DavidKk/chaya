@@ -34,6 +34,107 @@ type Actor = {
 /** MV `Game_Actor.paramMax` for max HP / MP, for games whose actors lack `paramMax` */
 const ACTOR_VITAL_CAP = 9999
 
+type BattleVitalSnapshot = {
+  hp: number
+  mp: number
+  tp: number
+}
+
+const preBattleVitalSnapshots = new Map<number, BattleVitalSnapshot>()
+let hasBattleVitalOverrides = false
+
+export function ensureBattleVitalSnapshot(): void {
+  installBattleLifecycleHooks()
+  const party = g().$gameParty
+  if (!party?.members) return
+  for (const actor of party.members()) {
+    const id = actor.actorId()
+    if (!preBattleVitalSnapshots.has(id)) {
+      preBattleVitalSnapshots.set(id, {
+        hp: whole(actor.hp),
+        mp: whole(actor.mp),
+        tp: whole(actor.tp ?? 0),
+      })
+    }
+  }
+}
+
+export function markBattleVitalOverridden(): void {
+  ensureBattleVitalSnapshot()
+  hasBattleVitalOverrides = true
+}
+
+export function restorePreBattleVitals(): void {
+  if (!hasBattleVitalOverrides || preBattleVitalSnapshots.size === 0) {
+    preBattleVitalSnapshots.clear()
+    hasBattleVitalOverrides = false
+    return
+  }
+  const party = g().$gameParty
+  if (party?.members) {
+    for (const actor of party.members()) {
+      const snap = preBattleVitalSnapshots.get(actor.actorId())
+      if (snap) {
+        if (snap.hp > 0 && !actor.isAlive()) {
+          liftDeath(actor)
+        }
+        actor.setHp(snap.hp)
+        actor.setMp(snap.mp)
+        actor.setTp?.(snap.tp)
+      }
+    }
+  }
+  preBattleVitalSnapshots.clear()
+  hasBattleVitalOverrides = false
+}
+
+export function installBattleLifecycleHooks(): void {
+  const gWin = globalThis as any
+  const bm = gWin.BattleManager
+  if (bm && !bm.__chaya_vital_hooked) {
+    bm.__chaya_vital_hooked = true
+    const origSetup = bm.setup
+    if (typeof origSetup === 'function') {
+      bm.setup = function (...args: any[]) {
+        const res = origSetup.apply(this, args)
+        try {
+          preBattleVitalSnapshots.clear()
+          hasBattleVitalOverrides = false
+          ensureBattleVitalSnapshot()
+        } catch {
+          /* */
+        }
+        return res
+      }
+    }
+    const origEndBattle = bm.endBattle
+    if (typeof origEndBattle === 'function') {
+      bm.endBattle = function (...args: any[]) {
+        try {
+          restorePreBattleVitals()
+        } catch {
+          /* */
+        }
+        return origEndBattle.apply(this, args)
+      }
+    }
+  }
+
+  const sb = gWin.Scene_Battle
+  if (sb?.prototype && !sb.prototype.__chaya_vital_hooked) {
+    sb.prototype.__chaya_vital_hooked = true
+    const origTerminate = sb.prototype.terminate
+    sb.prototype.terminate = function (...args: any[]) {
+      try {
+        restorePreBattleVitals()
+      } catch {
+        /* */
+      }
+      return origTerminate?.apply(this, args)
+    }
+  }
+}
+
 const g = () =>
   globalThis as unknown as {
     $gameParty?: {
@@ -50,6 +151,8 @@ const g = () =>
 const whole = (n: number) => Math.max(0, Math.floor(Number(n) || 0))
 
 export function readParty(): BattleActorState[] {
+  installBattleLifecycleHooks()
+  ensureBattleVitalSnapshot()
   const members = g().$gameParty?.battleMembers?.() ?? []
   return members.map((actor) => ({
     actorId: actor.actorId(),
@@ -106,6 +209,7 @@ function refreshStatus() {
 
 /** Current values clamp to the cap; HP 0 knocks the actor out through the engine's `refresh` */
 export function writeActorVital({ actorId, key, value }: { actorId: number; key: ActorVitalKey; value: number }): void {
+  markBattleVitalOverridden()
   const actor = battleActor(actorId)
   if (!Number.isFinite(value)) throw new Error('数值无效')
   if (!actor.isAlive()) throw new Error('该角色已倒下')
@@ -132,6 +236,7 @@ function liftDeath(actor: Actor) {
 }
 
 export function reviveActor({ actorId }: { actorId: number }): void {
+  markBattleVitalOverridden()
   const actor = battleActor(actorId)
   if (actor.isAlive()) throw new Error('该角色未倒下')
   liftDeath(actor)
@@ -141,6 +246,7 @@ export function reviveActor({ actorId }: { actorId: number }): void {
 
 /** Full HP / MP; a fallen actor is revived first */
 export function recoverActor({ actorId }: { actorId: number }): void {
+  markBattleVitalOverridden()
   const actor = battleActor(actorId)
   if (!actor.isAlive()) liftDeath(actor)
   actor.setHp(Math.max(1, actor.mhp))

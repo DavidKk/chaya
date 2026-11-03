@@ -96,7 +96,7 @@ test('MCP catalog and WebMCP tools are localized across all 9 non-en languages',
     const catPack = MCP_CATALOG_MESSAGES[loc]!
     expect(catPack).toBeDefined()
     expect(Object.keys(catPack.groups)).toHaveLength(9)
-    expect(Object.keys(catPack.tools)).toHaveLength(52)
+    expect(Object.keys(catPack.tools)).toHaveLength(53)
 
     const groups = localizedMcpToolsByGroup(loc)
     expect(groups).toHaveLength(9)

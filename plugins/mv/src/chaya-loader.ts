@@ -195,9 +195,28 @@ function runCode(code: string, name: string) {
   ;(0, eval)(code)
 }
 
+const unreachableBases = new Set<string>()
+
 function apiUrls(name: string): string[] {
   const urls: string[] = []
-  for (const base of resolveApiBaseFallbacks()) {
+  const bases = [...resolveApiBaseFallbacks()]
+  try {
+    if (typeof window !== 'undefined' && window.location && /^https?:/i.test(window.location.protocol)) {
+      const pageOrigin = window.location.origin.replace(/\/$/, '')
+      if (pageOrigin && !bases.includes(pageOrigin)) {
+        bases.unshift(pageOrigin)
+      }
+    }
+  } catch {
+    /* */
+  }
+  for (const base of bases) {
+    try {
+      const u = new URL(base)
+      if (unreachableBases.has(u.origin) || unreachableBases.has(base)) continue
+    } catch {
+      if (unreachableBases.has(base)) continue
+    }
     urls.push(`${base.replace(/\/$/, '')}/api/plugins/${encodeURIComponent(name)}.js`)
   }
   return urls
@@ -257,6 +276,12 @@ function loadOne(name: (typeof LOAD_ORDER)[number]): LoadFail | null {
   for (const url of apiUrls(name)) {
     const code = syncGet(url)
     if (!code) {
+      try {
+        const u = new URL(url)
+        unreachableBases.add(u.origin)
+      } catch {
+        /* */
+      }
       errors.push(`api(${url}): unreachable`)
       continue
     }

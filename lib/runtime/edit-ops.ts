@@ -124,7 +124,8 @@ export const EDIT_ACTION_IDS = [...RUN_ACTION_IDS, ...EDIT_EXTRA_ACTIONS] as con
 export type EditActionId = (typeof EDIT_ACTION_IDS)[number]
 
 export type EditAction =
-  | { id: RunActionId }
+  | { id: Exclude<RunActionId, 'battle:start'> }
+  | { id: 'battle:start'; troopId?: number; canEscape?: boolean; canLose?: boolean; count?: number }
   | { id: 'teleport'; mapId: number; x: number; y: number; direction?: number }
   | { id: 'common_event'; eventId: number }
   | { id: 'save' | 'load'; slot: number }
@@ -134,6 +135,19 @@ const DIRECTIONS = [2, 4, 6, 8]
 export function parseEditAction(args: Args): EditAction {
   const id = oneOf<EditActionId>(args, 'id', EDIT_ACTION_IDS)
   switch (id) {
+    case 'battle:start': {
+      const troopId = args.troopId === undefined ? undefined : int(args, 'troopId')
+      if (troopId !== undefined && troopId < 1) throw new Error('troopId must be >= 1')
+      const count = args.count === undefined ? undefined : int(args, 'count')
+      if (count !== undefined && count < 1) throw new Error('count must be >= 1')
+      return {
+        id,
+        ...(troopId === undefined ? {} : { troopId }),
+        ...(args.canEscape === undefined ? {} : { canEscape: bool(args, 'canEscape') }),
+        ...(args.canLose === undefined ? {} : { canLose: bool(args, 'canLose') }),
+        ...(count === undefined ? {} : { count }),
+      }
+    }
     case 'teleport': {
       const direction = args.direction === undefined ? undefined : int(args, 'direction')
       if (direction !== undefined && !DIRECTIONS.includes(direction)) throw new Error('direction must be 2 (down), 4 (left), 6 (right), or 8 (up)')

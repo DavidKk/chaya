@@ -6,10 +6,11 @@ import { killLiveAgentProcess, listLiveAgentProcesses } from '@/services/game-ag
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-/** Living Agent CLI / SDK children Chaya spawned, plus matching processes still on the machine. */
-export const GET = defineApiRoute('get:/api/game-agent/processes', async () => {
+/** Current service children, with optional host CLI discovery. */
+export const GET = defineApiRoute('get:/api/game-agent/processes', async ({ request }) => {
   if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'Agent process list requires Chaya App or local service')
-  const processes = await listLiveAgentProcesses()
+  const includeSystem = new URL(request.url).searchParams.get('includeSystem') === '1'
+  const processes = await listLiveAgentProcesses({ includeSystem })
   return apiOk({ processes, count: processes.length, at: Date.now() })
 })
 

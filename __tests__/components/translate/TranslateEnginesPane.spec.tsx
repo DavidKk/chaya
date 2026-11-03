@@ -380,4 +380,86 @@ describe('TranslateEnginesPane (3 Cards & Detail View)', () => {
     })
     expect(mockPush).toHaveBeenCalledWith('/translate/engines/eng_bing1?game=g1')
   })
+
+  it('renders silent translation section and toggles switch', async () => {
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <TranslateEnginesPane />
+        </LocaleProvider>
+      )
+    })
+    await act(async () => {})
+
+    const silentSection = host.querySelector<HTMLElement>('section[aria-label="静默翻译"]')
+    expect(silentSection).toBeTruthy()
+    expect(silentSection?.textContent).toContain('静默翻译')
+    expect(silentSection?.textContent).toContain('添加新游戏后，自动在后台抽取多语言文本并开始翻译')
+
+    const toggle = host.querySelector<HTMLButtonElement>('#silent-translate-toggle')
+    expect(toggle).toBeTruthy()
+    expect(toggle?.getAttribute('aria-checked')).toBe('false')
+
+    await act(async () => {
+      toggle?.click()
+    })
+
+    expect(mockTranslationFetch).toHaveBeenCalledWith(
+      '/api/translate',
+      expect.objectContaining({
+        body: JSON.stringify({ mode: 'silent-config', config: { enabled: true, engine: 'default' } }),
+      })
+    )
+    expect(mockNotify.success).toHaveBeenCalledWith('已开启静默翻译')
+  })
+
+  it('renders engine options and persists when changing silent translation engine', async () => {
+    mockTranslationFetch.mockImplementation(async (_path: string, init?: { body: string }) => {
+      const mode = init?.body ? JSON.parse(init.body).mode : undefined
+      if (mode === 'agents') return json(agentsBody)
+      if (mode === 'apple-status') return json({ installed: true, status: 'installed' })
+      if (mode === 'bergamot-status') return json({ installed: false, status: 'unavailable' })
+      if (mode === 'switches') return json({ ...sampleState, silent: { enabled: true, engine: 'default' } })
+      return json({ ok: true })
+    })
+
+    await act(async () => {
+      root.render(
+        <LocaleProvider initialLocale="zh" initialPreference="zh">
+          <TranslateEnginesPane />
+        </LocaleProvider>
+      )
+    })
+    await act(async () => {})
+    await act(async () => {})
+
+    const selectBtn = host.querySelector<HTMLButtonElement>('#silent-translate-engine')
+    expect(selectBtn).toBeTruthy()
+    expect(selectBtn?.textContent).toContain('沿用默认翻译')
+    expect(selectBtn?.disabled).toBe(false)
+
+    selectBtn!.getBoundingClientRect = () => ({ left: 10, right: 210, top: 10, bottom: 42, width: 200, height: 32 }) as DOMRect
+
+    // Open the dropdown
+    await act(async () => {
+      selectBtn?.click()
+    })
+    await act(async () => {})
+
+    const options = Array.from(document.body.querySelectorAll<HTMLElement>('[role="option"]'))
+    const googleOpt = options.find((el) => el.textContent?.includes('Google'))
+    expect(googleOpt).toBeTruthy()
+
+    await act(async () => {
+      googleOpt?.click()
+    })
+
+    expect(mockTranslationFetch).toHaveBeenCalledWith(
+      '/api/translate',
+      expect.objectContaining({
+        body: JSON.stringify({ mode: 'silent-config', config: { enabled: true, engine: 'google' } }),
+      })
+    )
+    expect(mockNotify.success).toHaveBeenCalledWith('静默翻译设置已保存')
+  })
 })

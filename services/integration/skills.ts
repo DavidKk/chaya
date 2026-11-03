@@ -14,14 +14,7 @@ export function readSkill(id: SkillId) {
   return { source, ...splitFrontmatter(source) }
 }
 
-/** Display body for the page: `en` is the agent `SKILL.md` body, others read `i18n/<locale>.md` (falls back to English). */
-export function readSkillBody(id: SkillId, locale: Locale): string {
-  if (locale !== 'en') {
-    try {
-      return fs.readFileSync(path.join(process.cwd(), 'skills', id, 'i18n', `${locale}.md`), 'utf8')
-    } catch {
-      // fall through to English
-    }
-  }
+/** Display body for the page: skills are maintained in English only without multilingual overhead. */
+export function readSkillBody(id: SkillId, _locale?: Locale): string {
   return readSkill(id).body
 }

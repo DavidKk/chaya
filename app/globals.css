@@ -35,6 +35,8 @@
   body {
     height: 100%;
     margin: 0;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
@@ -115,4 +117,16 @@
   background: transparent !important;
   text-decoration: underline wavy var(--color-warn, #eab308) !important;
   text-underline-offset: 3px !important;
+}
+
+/* Suppress Next.js dev indicators and overlays on game / mobile viewport */
+nextjs-portal,
+[data-nextjs-dev-indicator],
+[data-next-dev-indicator],
+[data-nextjs-toast],
+[data-nextjs-route-announcer],
+#next-route-announcer {
+  display: none !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
 }

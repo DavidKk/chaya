@@ -51,9 +51,10 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
     { key: 'status', label: t('events.troop.colStatus'), width: PARTY_COLS.status },
     { key: 'actions', label: t('events.troop.colActions'), width: PARTY_COLS.actions, align: 'right' },
   ]
-  const locked = (kind: 'hp' | 'mp', actorId: number) => lockKeyForActorVital(kind, actorId) in session.locks
+  const locked = (kind: 'hp' | 'mhp' | 'mp' | 'mmp', actorId: number) => lockKeyForActorVital(kind, actorId) in session.locks
+  const vitalLocked = (kind: 'hp' | 'mp', actorId: number) => (kind === 'hp' ? locked('hp', actorId) || locked('mhp', actorId) : locked('mp', actorId) || locked('mmp', actorId))
   /** Invincibility refills HP / MP every tick, so edits would snap back */
-  const vitalHold = (kind: 'hp' | 'mp', actorId: number) => (session.god ? t('events.battle.godOn') : locked(kind, actorId) ? t('events.battle.locked') : '')
+  const vitalHold = (kind: 'hp' | 'mp', actorId: number) => (session.god ? t('events.battle.godOn') : vitalLocked(kind, actorId) ? t('events.battle.locked') : '')
 
   return (
     <section ref={rootRef} className={cardClass} aria-label={t('events.battle.party')}>
@@ -84,6 +85,15 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
             disabled: !!blocked,
             onChange: (on: boolean) => onLock({ side: 'actor', id: actorId, kind, on, value }),
           })
+          const dualLockOf = (currentKind: 'hp' | 'mp', maxKind: 'mhp' | 'mmp', currentLabel: string, maxLabel: string, currentValue: number, maxValue: number) => ({
+            locked: vitalLocked(currentKind, actorId),
+            name: `${currentLabel} / ${maxLabel} ${name}`,
+            disabled: !!blocked,
+            onChange: (on: boolean) => {
+              onLock({ side: 'actor', id: actorId, kind: currentKind, on, value: currentValue })
+              onLock({ side: 'actor', id: actorId, kind: maxKind, on, value: maxValue })
+            },
+          })
           const set = (key: ActorVitalKey, label: string) => (value: number) =>
             void run(`${key}:${actorId}`, { op: 'actorVital', actorId, key, value }, t('events.battle.setOk', { name, label, value }))
           return (
@@ -112,8 +122,7 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
                   disabled={!!reason || !!hpHold}
                   maxDisabled={!!reason || session.god || lockKeyForActorVital('mhp', actorId) in session.locks}
                   disabledReason={hpHold || undefined}
-                  lock={lockOf('hp', t('events.troop.hpEdit'), actor.hp)}
-                  maxLock={lockOf('mhp', t('events.troop.mhpEdit'), actor.mhp)}
+                  combinedLock={dualLockOf('hp', 'mhp', t('events.troop.hpEdit'), t('events.troop.mhpEdit'), actor.hp, actor.mhp)}
                   onValue={set('hp', 'HP')}
                   onMax={set('mhp', t('events.troop.mhpEdit'))}
                 />
@@ -129,8 +138,7 @@ export function BattleParty({ battle, actors, session, blocked, busy, run, onRun
                   disabled={!!reason || !!mpHold}
                   maxDisabled={!!reason || session.god || lockKeyForActorVital('mmp', actorId) in session.locks}
                   disabledReason={mpHold || undefined}
-                  lock={lockOf('mp', t('events.battle.mpEdit'), actor.mp)}
-                  maxLock={lockOf('mmp', t('events.battle.mmpEdit'), actor.mmp)}
+                  combinedLock={dualLockOf('mp', 'mmp', t('events.battle.mpEdit'), t('events.battle.mmpEdit'), actor.mp, actor.mmp)}
                   onValue={set('mp', 'MP')}
                   onMax={set('mmp', t('events.battle.mmpEdit'))}
                 />

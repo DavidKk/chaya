@@ -33,21 +33,26 @@ import {
   upsertLibraryEntry,
 } from '@/services/game'
 import { acceptGameBindEpoch, peekGameBindEpoch } from '@/services/game/bind-epoch'
+import { isAnyGameProcessRunning } from '@/services/game/game-process'
 import { detectRgssPlugins, detectRgssPluginsOutdated } from '@/services/game/rgss-plugins'
 import { rgssRuntimeStatus } from '@/services/game/rgss-runtime'
 import { anyWebConnected, detectLanApiBases, getGamePresence, preferredPluginApiBase, toolkitListenPort } from '@/services/runtime'
-import { getSharedTranslateCacheStats } from '@/services/translate'
+import { terminateCloudGameInstance } from '@/services/runtime/game-instance-manager'
+import { playableGamesSnapshot } from '@/services/runtime/playable-games'
+import { getSharedTranslateCacheStats, triggerSilentTranslateIfEnabled } from '@/services/translate'
 import { gameCacheFileStats } from '@/services/translate/cache-file-stats'
 
 export const runtime = 'nodejs'
 
-function runtimePayload() {
+function runtimePayload(contentRoot?: string) {
   const port = toolkitListenPort()
   const presence = getGamePresence()
-  // 权威在线：WebRTC DataChannel；HTTP presence 仅作兼容/远程入库痕迹
-  const gameOnline = anyWebConnected() || presence.online
+  const processAlive = isAnyGameProcessRunning(contentRoot)
+  // 权威在线：WebRTC DataChannel；HTTP presence 或本地进程存活
+  const gameOnline = anyWebConnected() || presence.online || processAlive
   return {
     gameOnline,
+    processAlive,
     presence,
     apiBase: preferredPluginApiBase(port),
     lanBases: detectLanApiBases(port),
@@ -96,6 +101,9 @@ export const GET = defineApiRoute('get:/api/status', async ({ request }) => {
   const service = serviceModePayload()
   if (!canUseDisk(service.serviceMode)) {
     return remoteOnlyStatus()
+  }
+  if (new URL(request.url).searchParams.get('scope') === 'play') {
+    return playableGamesSnapshot()
   }
 
   try {
@@ -214,7 +222,13 @@ export const GET = defineApiRoute('get:/api/status', async ({ request }) => {
     pluginsOutdated: pluginsReady >= plugins.length && (rgss ? detectRgssPluginsOutdated(resolved.contentRoot) : detectPluginsOutdated(resolved.contentRoot)),
     translateSwitches: switches,
     nwPackage,
-    runtime: rgss ? { ...runtimePayload(), gameOnline: rgssRuntimeStatus(resolved.contentRoot).running, native: rgssRuntimeStatus(resolved.contentRoot) } : runtimePayload(),
+    runtime: rgss
+      ? {
+          ...runtimePayload(resolved.contentRoot),
+          gameOnline: rgssRuntimeStatus(resolved.contentRoot).running || isAnyGameProcessRunning(resolved.contentRoot),
+          native: rgssRuntimeStatus(resolved.contentRoot),
+        }
+      : runtimePayload(resolved.contentRoot),
     host: platformPayload(),
   }
 })
@@ -316,8 +330,17 @@ export const PUT = defineApiRoute('put:/api/status', async ({ request }) => {
         unchanged: true,
       })
     }
+    // 切换游戏：只回收旧游戏的后台云实例，严禁关闭本地开发/测试中的前台游戏
+    if (prev.gameRoot && !pathEquals(prev.gameRoot, check.selected)) {
+      const prevResolved = resolveGame(prev.gameRoot)
+      if (prevResolved.ok && prevResolved.contentRoot) {
+        await terminateCloudGameInstance({ contentRoot: prevResolved.contentRoot })
+      }
+    }
     const fingerprint = getGameFingerprint(check)
     const name = resolveDisplayName(check.contentRoot, input, fingerprint?.system?.gameTitle)
+    const alreadyInLibrary = !!findLibraryEntry(prev.library, check.selected)
+    const isNewGame = !existing && !alreadyInLibrary && !replaceLibraryId
     let library
     try {
       library = replaceLibraryId
@@ -331,6 +354,9 @@ export const PUT = defineApiRoute('put:/api/status', async ({ request }) => {
       library,
       ...(body.shellSource !== undefined ? { shellSource: String(body.shellSource || '').trim() } : {}),
     })
+    if (isNewGame && check.ok && !check.remote) {
+      triggerSilentTranslateIfEnabled(check.contentRoot, { gameId: check.selected })
+    }
     return apiOk({ config, resolved: check, library: config.library.map(toLibraryItemView), bindEpoch: epochGate.epoch })
   }
 

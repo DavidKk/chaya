@@ -7,10 +7,12 @@ import { debugEn } from '@/lib/i18n/messages/parts/debug'
 import { downloadsEn } from '@/lib/i18n/messages/parts/downloads'
 import { editEn } from '@/lib/i18n/messages/parts/edit.en'
 import { eventsEn } from '@/lib/i18n/messages/parts/events.en'
+import { floatingBallEn } from '@/lib/i18n/messages/parts/floating-ball'
 import { integrationEn } from '@/lib/i18n/messages/parts/integration'
 import { legalEn } from '@/lib/i18n/messages/parts/legal'
 import { mcpGatewayEn } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { panelsEn } from '@/lib/i18n/messages/parts/panels'
+import { playEn } from '@/lib/i18n/messages/parts/play'
 import { savesEn } from '@/lib/i18n/messages/parts/saves.en'
 import { translateEn } from '@/lib/i18n/messages/parts/translate.en'
 import type { MessageTree } from '@/lib/i18n/messages/types'
@@ -35,6 +37,9 @@ const commonEn = {
     logs: 'Logs',
     integration: 'Integrations',
     settings: 'Settings',
+    remotePlay: 'Cloud Play',
+    remoteInstances: 'Instances',
+    remoteSettings: 'Settings',
     about: 'About',
   },
   common: {
@@ -245,8 +250,12 @@ const dashboardEn = {
     windowSize: 'Size',
     windowSizeDesc: 'Launch size',
     changePath: 'Change path',
+    openGamePath: 'Open path',
+
     copyGamePath: 'Copy path',
     pickShell: 'Pick shell',
+    openShellPath: 'Open shell',
+
     copyShellPath: 'Copy shell',
     remoteNoPath: 'Remote: no path edit',
     remoteNoShell: 'Remote: no shell edit',
@@ -324,7 +333,9 @@ const dashboardEn = {
 } as const
 
 export const en: MessageTree = {
+  floatingBall: floatingBallEn,
   debug: debugEn,
+  play: playEn,
   ...commonEn,
   ...marketingEn,
   ...dashboardEn,

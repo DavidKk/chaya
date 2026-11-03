@@ -490,7 +490,7 @@ export function refreshSeedJobProgress(opts?: { gameId?: string; contentRoot?: s
   }
 }
 
-function beginSeedLoop(contentRoot: string, inventory: import('./scheduler/seed-prepare').SeedInventoryBundle) {
+function beginSeedLoop(contentRoot: string, inventory: import('./scheduler/seed-prepare').SeedInventoryBundle, overrideEngines?: string[]) {
   const progress = inventory.progress
   const rt = getRuntime(contentRoot)
   if (rt.running) return
@@ -512,10 +512,14 @@ function beginSeedLoop(contentRoot: string, inventory: import('./scheduler/seed-
     return
   }
   let engines: string[] = []
-  try {
-    engines = getTranslateEngineSwitches(contentRoot).enabled
-  } catch {
-    engines = []
+  if (Array.isArray(overrideEngines) && overrideEngines.length > 0) {
+    engines = overrideEngines
+  } else {
+    try {
+      engines = getTranslateEngineSwitches(contentRoot).enabled
+    } catch {
+      engines = []
+    }
   }
   if (!engines.length) {
     rt.state.status = 'error'
@@ -541,29 +545,33 @@ function beginSeedLoop(contentRoot: string, inventory: import('./scheduler/seed-
   }
   pushLog(rt, 'info', `${resume ? 'Resume' : 'Start'} translation · engines ${engines.map(shortEngine).join('+')}`)
   persist(rt)
-  rt.session = createSeedFillSession(contentRoot, undefined, { nonBlocking: true, inventory })
+  rt.session = createSeedFillSession(contentRoot, undefined, { nonBlocking: true, inventory, engines: engines as any })
   rt.progress = rt.session.progress
   ensureLoop(contentRoot)
 }
 
 /** Start or resume the server-side fill loop. Inventory runs single-flight off the HTTP return path. */
-export function startSeedJob(opts?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
+export function startSeedJob(opts?: { gameId?: string; contentRoot?: string; engines?: string[] }): SeedJobSnapshot {
   const contentRoot = resolveBoundRoot(opts)
   const current = getRuntime(contentRoot)
-  if (current.running) return getSeedJobSnapshot()
+  if (current.running) return getSeedJobSnapshot(opts)
 
   let engines: string[] = []
-  try {
-    engines = getTranslateEngineSwitches(contentRoot).enabled
-  } catch {
-    engines = []
+  if (Array.isArray(opts?.engines) && opts.engines.length > 0) {
+    engines = opts.engines
+  } else {
+    try {
+      engines = getTranslateEngineSwitches(contentRoot).enabled
+    } catch {
+      engines = []
+    }
   }
   if (!engines.length) throw new Error('No translation engines are enabled')
 
   const peeked = peekSeedInventory(contentRoot)
   const seedStampNow = seedFileStamp(contentRoot)
   if (peeked && peeked.stamp === seedStampNow && peeked.progressStamp === seedProgressStamp(contentRoot)) {
-    beginSeedLoop(contentRoot, peeked)
+    beginSeedLoop(contentRoot, peeked, engines)
     const rt = getRuntime(contentRoot)
     return { ...(rt.progress ?? peeked.progress), job: visibleSeedJobState(rt.state) }
   }
@@ -588,7 +596,7 @@ export function startSeedJob(opts?: { gameId?: string; contentRoot?: string }): 
         persist(live)
         return
       }
-      beginSeedLoop(contentRoot, bundle)
+      beginSeedLoop(contentRoot, bundle, engines)
     })
     .catch((error) => {
       const live = getRuntime(contentRoot)

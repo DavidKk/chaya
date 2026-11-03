@@ -28,6 +28,10 @@ export type ModalProps = {
   hideCloseButton?: boolean
   className?: string
   panelClassName?: string
+  /** Override body spacing when children provide their own scroll layout. */
+  bodyClassName?: string
+  /** Disable the outer viewport when children own their scrolling. */
+  scrollBody?: boolean
   /** Only the user may settle it: WebMCP page tools refuse to click inside or press Enter */
   userConfirmOnly?: boolean
 }
@@ -59,6 +63,8 @@ export function Modal({
   hideCloseButton = false,
   className,
   panelClassName,
+  bodyClassName,
+  scrollBody = true,
   userConfirmOnly = false,
 }: ModalProps) {
   const titleId = useId()
@@ -124,6 +130,16 @@ export function Modal({
 
   const mount = portalContainer ?? document.body
   const hasDesc = description != null && description !== false && description !== ''
+  const body = (
+    <div className={cn('flex min-h-0 flex-col gap-3 px-4 py-3', bodyClassName)}>
+      {hasDesc ? (
+        <div id={descId} className="text-[0.8125rem] leading-snug text-ink">
+          {description}
+        </div>
+      ) : null}
+      {children}
+    </div>
+  )
 
   return createPortal(
     <div className={cn('pointer-events-auto fixed inset-0 z-[80] flex items-center justify-center p-4', className)} role="presentation">
@@ -171,16 +187,13 @@ export function Modal({
           ) : null}
         </div>
         {hasDesc || children ? (
-          <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': title }}>
-            <div className="flex flex-col gap-3 px-4 py-3">
-              {hasDesc ? (
-                <div id={descId} className="text-[0.8125rem] leading-snug text-ink">
-                  {description}
-                </div>
-              ) : null}
-              {children}
-            </div>
-          </ScrollArea>
+          scrollBody ? (
+            <ScrollArea className="min-h-0 flex-1" indicator="vertical" scrollProps={{ 'aria-label': title }}>
+              {body}
+            </ScrollArea>
+          ) : (
+            body
+          )
         ) : null}
         {footer ? <div className="flex shrink-0 items-center justify-end gap-2 border-t border-line px-4 py-2">{footer}</div> : null}
       </div>

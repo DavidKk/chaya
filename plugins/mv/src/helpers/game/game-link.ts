@@ -16,16 +16,30 @@ import { ChayaLog, type LocalPluginLog, logsViaLink } from '../net/logger'
 import { runLinkAgentRequest } from './agent-link'
 import { dispatchGameLinkEditMessage, stopGameLinkEditBridge } from './edit-link-bridge'
 import { detectGameIdentity } from './game-identity'
+import { attachGameMediaStream, closeGameMediaPeer, handleHostAudioToggle, handleRemoteInput, handleRemoteTap, handleRequestKeyframe } from './remote-stream'
 
 const STUN = 'stun:stun.cloudflare.com:3478'
-/** Disconnected: wait for Web offer; match console-side poll backoff */
-const POLL_IDLE_MS = 8_000
+/** Disconnected: wait for Web offer; fast poll so mobile stream handshakes in < 1.5s */
+const POLL_IDLE_MS = 1_500
 /** Connected: only probe whether Web swapped in a new offer */
-const POLL_LINKED_MS = 20_000
-const RECONNECT_POLL_MS = 1_000
+const POLL_LINKED_MS = 2_000
+const RECONNECT_POLL_MS = 500
 
 type Sdp = { type: RTCSdpType; sdp?: string }
-type WebrtcRoom = { offer?: Sdp | null; answer?: Sdp | null }
+type WebrtcRoom = {
+  offer?: Sdp | null
+  answer?: Sdp | null
+  spectators?: Array<{ peerId: string; offer: Sdp | null; answer: Sdp | null }>
+}
+
+type SpectatorEntry = {
+  peerId: string
+  pc: RTCPeerConnection
+  dc: RTCDataChannel | null
+  lastOfferSdp: string | null
+}
+const spectatorPeers = new Map<string, SpectatorEntry>()
+let spectatorsAnswering = false
 
 export function gameRoomId(): string {
   try {
@@ -122,6 +136,10 @@ function stopLogForward() {
 function normalizeLocalSdp(description: RTCSessionDescriptionInit): RTCSessionDescriptionInit {
   const sdp = String(description.sdp || '')
   if (!sdp.includes('candidate:')) return description
+  // If remote offer is for Remote Play or gathered over LAN / mobile / mDNS, preserve actual IPs
+  if (lastOfferSdp && /m=video|\.local|typ srflx|typ relay|(\s)(192\.168\.|10\.|172\.(?:1[6-9]|2[0-9]|3[01])\.)/.test(lastOfferSdp)) {
+    return description
+  }
   return {
     ...description,
     sdp: sdp.replace(/(\s)((?:[0-9]{1,3}\.){3}[0-9]{1,3})(\s)/g, (full, a, ip, b) => {
@@ -240,6 +258,22 @@ function bindDc(dc: RTCDataChannel) {
         sendOnDc(dc, { type: 'pong', t: msg.t })
         return
       }
+      if (msg.type === 'remote.input') {
+        handleRemoteInput(msg.key, msg.action)
+        return
+      }
+      if (msg.type === 'remote.tap') {
+        handleRemoteTap(msg.x, msg.y, msg.phase)
+        return
+      }
+      if (msg.type === 'stream.request_keyframe') {
+        handleRequestKeyframe()
+        return
+      }
+      if (msg.type === 'stream.host_audio') {
+        handleHostAudioToggle(Boolean((msg as any).unmute))
+        return
+      }
       dispatchGameLinkEditMessage(msg, (out) => sendOnDc(dc, out))
     } catch {
       /* */
@@ -250,10 +284,246 @@ function bindDc(dc: RTCDataChannel) {
 let started = false
 let timer: ReturnType<typeof setTimeout> | null = null
 let pc: RTCPeerConnection | null = null
+let observerPc: RTCPeerConnection | null = null
+let lastObserverOfferSdp: string | null = null
+let observerAnswering = false
 let activeDc: RTCDataChannel | null = null
 let lastOfferSdp: string | null = null
 let linkOpen = false
 let answering = false
+
+function bindSpectatorDc(dc: RTCDataChannel, peerId: string) {
+  dc.onopen = () => {
+    const entry = spectatorPeers.get(peerId)
+    if (entry) entry.dc = dc
+    const id = detectGameIdentity()
+    sendOnDc(dc, {
+      type: 'hello',
+      role: 'game',
+      gameId: gameRoomId(),
+      isController: false,
+      spectator: true,
+      name: id?.name,
+      contentRoot: id?.contentRoot,
+      gameRoot: id?.gameRoot,
+    })
+    ChayaLog.ok('ChayaLink', `Spectator WebRTC DataChannel connected (peer: ${peerId})`)
+  }
+  dc.onclose = () => {
+    const entry = spectatorPeers.get(peerId)
+    if (entry && entry.dc === dc) entry.dc = null
+  }
+  dc.onmessage = (ev) => {
+    try {
+      const msg = parseGameLinkMessage(String(ev.data || ''))
+      if (!msg) return
+      if (msg.type === 'ping') {
+        sendOnDc(dc, { type: 'pong', t: msg.t })
+        return
+      }
+      if (msg.type === 'stream.request_keyframe') {
+        handleRequestKeyframe()
+        return
+      }
+      // Spectator is read-only: remote.input, remote.tap, quit, and edit commands are ignored.
+    } catch {
+      /* ignore */
+    }
+  }
+}
+
+async function tryAnswerSpectators(spectatorList?: Array<{ peerId: string; offer: Sdp | null; answer: Sdp | null }>) {
+  if (spectatorsAnswering || !started) return
+  if (!spectatorList || spectatorList.length === 0) {
+    if (spectatorPeers.size > 0) {
+      for (const entry of spectatorPeers.values()) {
+        try {
+          closeGameMediaPeer(entry.pc)
+        } catch {}
+      }
+      spectatorPeers.clear()
+    }
+    return
+  }
+
+  const id = gameRoomId()
+  if (id === 'default') return
+  const bases = resolveApiBaseFallbacks()
+  spectatorsAnswering = true
+
+  try {
+    const activePeerIds = new Set(spectatorList.map((s) => s.peerId))
+    for (const [peerId, entry] of spectatorPeers) {
+      if (!activePeerIds.has(peerId)) {
+        try {
+          closeGameMediaPeer(entry.pc)
+        } catch {}
+        spectatorPeers.delete(peerId)
+      }
+    }
+
+    for (const spec of spectatorList) {
+      const offer = spec.offer
+      if (!offer?.type || !offer.sdp) continue
+      const existing = spectatorPeers.get(spec.peerId)
+      if (existing && existing.lastOfferSdp === offer.sdp) continue
+
+      if (existing) {
+        try {
+          closeGameMediaPeer(existing.pc)
+        } catch {}
+        spectatorPeers.delete(spec.peerId)
+      }
+
+      const peer = new RTCPeerConnection({ iceServers: [{ urls: STUN }] })
+      const entry: SpectatorEntry = {
+        peerId: spec.peerId,
+        pc: peer,
+        dc: null,
+        lastOfferSdp: offer.sdp,
+      }
+      spectatorPeers.set(spec.peerId, entry)
+
+      peer.ondatachannel = (ev) => {
+        if (ev.channel) bindSpectatorDc(ev.channel, spec.peerId)
+      }
+      peer.onconnectionstatechange = () => {
+        if (peer.connectionState === 'failed' || peer.connectionState === 'closed') {
+          try {
+            closeGameMediaPeer(peer)
+          } catch {}
+          if (spectatorPeers.get(spec.peerId)?.pc === peer) {
+            spectatorPeers.delete(spec.peerId)
+          }
+        }
+      }
+
+      await peer.setRemoteDescription(offer)
+      if (!started || spectatorPeers.get(spec.peerId)?.pc !== peer) continue
+      try {
+        await attachGameMediaStream(peer)
+      } catch (err) {
+        ChayaLog.warn('ChayaLink', `Failed to attach media stream for spectator ${spec.peerId}`, err)
+      }
+
+      await peer.setLocalDescription(await peer.createAnswer())
+      await waitIce(peer)
+      if (!started || spectatorPeers.get(spec.peerId)?.pc !== peer) continue
+
+      const answer = normalizeLocalSdp(peer.localDescription!.toJSON() as Sdp)
+      for (const base of bases) {
+        try {
+          const res = await chayaFetch(`${base}/api/runtime/webrtc`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...signalHeaders() },
+            body: JSON.stringify({ action: 'answer', roomId: id, peerId: spec.peerId, sdp: answer }),
+          })
+          if (res.ok) {
+            ChayaLog.ok('ChayaLink', `Answered spectator offer (peer: ${spec.peerId}) -> ${base}`)
+            break
+          }
+        } catch {
+          /* */
+        }
+      }
+    }
+  } finally {
+    spectatorsAnswering = false
+  }
+}
+
+async function tryAnswerObserver() {
+  if (observerAnswering) return false
+  const id = gameRoomId()
+  if (id === 'default') return false
+  const obsRoomId = `${id}:observer`
+  const bases = resolveApiBaseFallbacks()
+  let room: WebrtcRoom | null = null
+  for (const base of bases) {
+    try {
+      const res = await chayaFetch(`${base}/api/runtime/webrtc?roomId=${encodeURIComponent(obsRoomId)}`, { headers: signalHeaders() })
+      if (!res.ok) continue
+      const data = (await res.json()) as { room?: WebrtcRoom | null }
+      room = data.room || null
+      break
+    } catch {
+      /* */
+    }
+  }
+  if (!started) return false
+  const offer = room?.offer
+  if (!offer?.type || !offer.sdp) {
+    if (observerPc && !offer) {
+      try {
+        closeGameMediaPeer(observerPc)
+      } catch {
+        /* */
+      }
+      observerPc = null
+      lastObserverOfferSdp = null
+    }
+    return false
+  }
+  if (offer.sdp === lastObserverOfferSdp && observerPc) return false
+
+  observerAnswering = true
+  try {
+    try {
+      closeGameMediaPeer(observerPc)
+    } catch {
+      /* */
+    }
+    observerPc = null
+
+    const peer = new RTCPeerConnection({ iceServers: [{ urls: STUN }] })
+    observerPc = peer
+    lastObserverOfferSdp = offer.sdp || null
+    peer.onconnectionstatechange = () => {
+      if (peer.connectionState === 'failed' || peer.connectionState === 'closed') {
+        try {
+          closeGameMediaPeer(peer)
+        } catch {
+          /* */
+        }
+        if (observerPc === peer) {
+          observerPc = null
+          lastObserverOfferSdp = null
+        }
+      }
+    }
+
+    await peer.setRemoteDescription(offer)
+    if (!started || (peer !== pc && peer !== observerPc)) return false
+    try {
+      await attachGameMediaStream(peer)
+    } catch (err) {
+      ChayaLog.warn('ChayaLink', 'Failed to attach game media stream for observer', err)
+    }
+    await peer.setLocalDescription(await peer.createAnswer())
+    await waitIce(peer)
+    if (!started || observerPc !== peer) return false
+    const answer = normalizeLocalSdp(peer.localDescription!.toJSON() as Sdp)
+
+    for (const base of bases) {
+      try {
+        const res = await chayaFetch(`${base}/api/runtime/webrtc`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...signalHeaders() },
+          body: JSON.stringify({ action: 'answer', roomId: obsRoomId, sdp: answer }),
+        })
+        if (res.ok) {
+          ChayaLog.ok('ChayaLink', `Answered observer offer -> ${base}`)
+          return true
+        }
+      } catch {
+        /* */
+      }
+    }
+    return false
+  } finally {
+    observerAnswering = false
+  }
+}
 
 async function tryAnswer() {
   if (answering) return false
@@ -275,6 +545,9 @@ async function tryAnswer() {
     }
   }
   if (!started) return false
+  if (room?.spectators) {
+    void tryAnswerSpectators(room.spectators)
+  }
   const offer = room?.offer
   if (!offer?.type || !offer.sdp) return false
   // Same offer already answered and peer still alive: skip
@@ -283,7 +556,7 @@ async function tryAnswer() {
   answering = true
   try {
     try {
-      pc?.close()
+      closeGameMediaPeer(pc)
     } catch {
       /* */
     }
@@ -301,7 +574,7 @@ async function tryAnswer() {
     peer.onconnectionstatechange = () => {
       if (peer.connectionState === 'failed' || peer.connectionState === 'closed') {
         try {
-          peer.close()
+          closeGameMediaPeer(peer)
         } catch {
           /* */
         }
@@ -315,6 +588,12 @@ async function tryAnswer() {
     }
 
     await peer.setRemoteDescription(offer)
+    if (!started || (peer !== pc && peer !== observerPc)) return false
+    try {
+      await attachGameMediaStream(peer)
+    } catch (err) {
+      ChayaLog.warn('ChayaLink', 'Failed to attach game media stream', err)
+    }
     await peer.setLocalDescription(await peer.createAnswer())
     await waitIce(peer)
     if (!started || pc !== peer) return false
@@ -361,10 +640,11 @@ async function loop() {
     }
     // When connected, only low-frequency probe whether Web has a new offer
     await tryAnswer()
+    await tryAnswerObserver()
   } catch (err) {
     ChayaLog.warn('ChayaLink', `Negotiation failed: ${err instanceof Error ? err.message : String(err)}`)
     try {
-      pc?.close()
+      closeGameMediaPeer(pc)
     } catch {
       /* */
     }
@@ -410,11 +690,22 @@ export function stopGameLink() {
     timer = null
   }
   try {
-    pc?.close()
+    closeGameMediaPeer(pc)
   } catch {
     /* */
   }
   pc = null
+  try {
+    closeGameMediaPeer(observerPc)
+  } catch {}
+  observerPc = null
+  lastObserverOfferSdp = null
+  for (const entry of spectatorPeers.values()) {
+    try {
+      closeGameMediaPeer(entry.pc)
+    } catch {}
+  }
+  spectatorPeers.clear()
   activeDc = null
   linkOpen = false
   lastOfferSdp = null

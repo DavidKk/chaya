@@ -80,7 +80,7 @@ function onHotkeyUp(ev: KeyboardEvent) {
     return
   }
   blockHotkeyEvent(ev)
-  if (!state.hotkeyArmed && ev.repeat) return
+  if (!state.hotkeyArmed) return
   state.hotkeyArmed = false
   const now = Date.now()
   if (now - state.lastToggleAt < 350) return

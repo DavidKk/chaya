@@ -23,6 +23,7 @@ export type GameEditDiskRun = {
   gameSpeed?: number
   expRate?: number
   fullscreen?: boolean
+  screenStretch?: boolean
   alwaysDash?: boolean
   god?: boolean
   autoWin?: boolean
@@ -92,6 +93,7 @@ function normalizeDisk(raw: unknown): GameEditDiskState | null {
       gameSpeed: asFiniteNumber(runIn.gameSpeed),
       expRate: asFiniteNumber(runIn.expRate),
       fullscreen: asBool(runIn.fullscreen),
+      screenStretch: asBool(runIn.screenStretch),
       alwaysDash: asBool(runIn.alwaysDash),
       god: asBool(runIn.god),
       autoWin: asBool(runIn.autoWin),
@@ -155,6 +157,7 @@ export function diskStateFromSession(session: SessionState): GameEditDiskState {
       gameSpeed: session.gameSpeed,
       expRate: session.expRate,
       fullscreen: session.fullscreen,
+      screenStretch: session.screenStretch,
       alwaysDash: session.alwaysDash,
       god: session.god,
       autoWin: session.autoWin,
@@ -200,6 +203,7 @@ export function applyGameEditDisk(disk: GameEditDiskState) {
 
   const flags: RunFlagKey[] = [
     'fullscreen',
+    'screenStretch',
     'alwaysDash',
     'god',
     'autoWin',
@@ -216,7 +220,7 @@ export function applyGameEditDisk(disk: GameEditDiskState) {
     'resourceSkip',
   ]
   for (const key of flags) {
-    const v = run[key]
+    const v = run[key] ?? (key === 'alwaysDash' || key === 'skipBattleResult' ? true : undefined)
     if (typeof v === 'boolean') applyRunFlag(key, v)
   }
 
@@ -236,6 +240,7 @@ export function mergeDiskIntoSession(prev: SessionState, disk: GameEditDiskState
     gameSpeed: run.gameSpeed ?? prev.gameSpeed,
     expRate: run.expRate ?? prev.expRate,
     fullscreen: run.fullscreen ?? prev.fullscreen,
+    screenStretch: run.screenStretch ?? prev.screenStretch,
     alwaysDash: run.alwaysDash ?? prev.alwaysDash,
     god: run.god ?? prev.god,
     autoWin: run.autoWin ?? prev.autoWin,
@@ -251,7 +256,7 @@ export function mergeDiskIntoSession(prev: SessionState, disk: GameEditDiskState
     clickTeleport: run.clickTeleport ?? prev.clickTeleport,
     resourceSkip: run.resourceSkip ?? prev.resourceSkip,
     locks: { ...disk.locks, ...prev.locks },
-    // 盘上有 hotkeys 字段则整表替换（含 {} = 已清空本游戏覆盖）
+    // Replace all per-game bindings when present; an empty object clears overrides.
     hotkeys: { ...(disk.hotkeys.game.bindings || {}) },
     hotkeysGlobal: { ...disk.hotkeys.global.bindings },
   }
@@ -272,7 +277,13 @@ export function scheduleSaveGameEditDisk(state: GameEditDiskState) {
   }, 400)
 }
 
-/** Load: 本游戏覆盖来自盘；全局来自 localStorage；本游戏未设则运行时用全局 */
+/** Shortcuts can run before the workbench bootstraps; preserve locks and hotkeys. */
+export function scheduleSaveRunFlag(key: RunFlagKey, value: boolean) {
+  const current = pending ?? loadGameEditDisk() ?? { version: 1 as const, run: {}, locks: {}, hotkeys: hotkeySnapshot }
+  scheduleSaveGameEditDisk({ ...current, run: { ...current.run, [key]: value } })
+}
+
+/** Load per-game overrides from disk and global defaults from localStorage. */
 export function bootstrapGameEditSession(): SessionState {
   const disk = loadGameEditDisk()
   hotkeySnapshot = disk?.hotkeys ?? emptyHotkeySnapshot(gameId())
@@ -301,7 +312,7 @@ let hadParty = false
 let appliedForCurrentParty = false
 let loadHooked = false
 
-/** 读档后重新套用修改锁定；不经过 `DataManager.loadGame` 的读档（游戏存档）需显式调用 */
+/** Reapply edit locks after loading; custom loaders must call this explicitly. */
 export function markGameEditNeedReapply() {
   appliedForCurrentParty = false
 }
@@ -339,6 +350,8 @@ export function ensureGameEditDiskApplied() {
     hotkeySnapshot = disk.hotkeys
     setGameHotkeysCache(disk.hotkeys.game.bindings)
     applyGameEditDisk(disk)
+  } else {
+    applyGameEditDisk({ version: 1, run: {}, locks: {}, hotkeys: hotkeySnapshot })
   }
   appliedForCurrentParty = true
 }

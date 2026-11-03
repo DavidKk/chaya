@@ -191,6 +191,55 @@ const villageDetail: MapDetailData = {
       pages: [page('a'), { ...page('b'), conditions: { switch1: 3, variable: { id: 4, value: 9 }, selfSwitch: 'C' } }],
     },
     { id: 6, name: '村长', rawName: '村长', x: 3, y: 4, type: 'npc', pages: [{ ...page('c'), conditions: { switch1: 7 } }] },
+    {
+      id: 7,
+      name: 'EV007',
+      rawName: 'EV007',
+      x: 5,
+      y: 6,
+      type: 'npc',
+      pages: [
+        {
+          ...page('d'),
+          list: [
+            { code: 101, indent: 0, parameters: ['1Diana', 0, 0, 2, '戴安娜'] },
+            { code: 401, indent: 0, parameters: ['你好，我是戴安娜！'] },
+          ],
+        },
+      ],
+    },
+    {
+      id: 8,
+      name: '生命药水宝箱',
+      rawName: '生命药水宝箱',
+      x: 2,
+      y: 3,
+      type: 'chest',
+      pages: [
+        {
+          ...page('e'),
+          characterName: '!Chest',
+          list: [
+            { code: 126, indent: 0, parameters: [1, 0, 0, 1] },
+            { code: 123, indent: 0, parameters: ['A', 0] },
+          ],
+        },
+      ],
+    },
+    {
+      id: 9,
+      name: '村口',
+      rawName: '村口',
+      x: 9,
+      y: 9,
+      type: 'transfer',
+      pages: [
+        {
+          ...page('f'),
+          list: [{ code: 201, indent: 0, parameters: [0, 3, 4, 5, 2, 0] }],
+        },
+      ],
+    },
   ],
   texts: {},
   encounters: [],
@@ -294,4 +343,70 @@ test('batch satisfies the writable conditions of selected events', async () => {
     ],
     '满足所选事件的出现条件'
   )
+})
+
+test('does not show noMatch when not searching; falls back so maps remain listed', async () => {
+  // mapId: 3 is "城", which has no children
+  await render(slot({ mapId: 3 }))
+  expect(listed().length).toBeGreaterThan(0)
+  expect(document.body.textContent).not.toContain('无匹配结果')
+})
+
+test('npc tab lists resolved NPC names and dialogue preview', async () => {
+  await render(slot({ mapId: 2, mapDetail: villageDetail }))
+  const npcTabBtn = [...document.querySelectorAll('[role="tab"]')].find((btn) => btn.textContent?.includes('NPC')) as HTMLButtonElement
+  expect(npcTabBtn).toBeDefined()
+  await act(async () => npcTabBtn.click())
+
+  const eventListText = document.querySelector('[role="list"][aria-label="事件"]')?.textContent ?? ''
+  expect(eventListText).toContain('戴安娜')
+  expect(eventListText).toContain('你好，我是戴安娜！')
+  expect(eventListText).toContain('#7')
+  expect(eventListText).toContain('村长')
+  expect(eventListText).toContain('门卫')
+})
+
+test('chest tab lists treasure chests and rewards', async () => {
+  await render(slot({ mapId: 2, mapDetail: villageDetail }))
+  const chestTabBtn = [...document.querySelectorAll('[role="tab"]')].find((btn) => btn.textContent?.includes('宝箱')) as HTMLButtonElement
+  expect(chestTabBtn).toBeDefined()
+  await act(async () => chestTabBtn.click())
+
+  const eventListText = document.querySelector('[role="list"][aria-label="事件"]')?.textContent ?? ''
+  expect(eventListText).toContain('生命药水宝箱')
+  expect(eventListText).toContain('#8')
+  expect(eventListText).toContain('未开启')
+})
+
+test('transfer tab lists exits and destination map information', async () => {
+  await render(slot({ mapId: 2, mapDetail: villageDetail }))
+  const transferTabBtn = [...document.querySelectorAll('[role="tab"]')].find((btn) => btn.textContent?.includes('传送')) as HTMLButtonElement
+  expect(transferTabBtn).toBeDefined()
+  await act(async () => transferTabBtn.click())
+
+  const eventListText = document.querySelector('[role="list"][aria-label="事件"]')?.textContent ?? ''
+  expect(eventListText).toContain('村口')
+  expect(eventListText).toContain('#9')
+  expect(eventListText).toContain('城')
+})
+
+test('entrance tab lists inbound entrances leading to this map', async () => {
+  data.mapIndex.entrances[2] = [
+    {
+      x: 5,
+      y: 5,
+      direction: 2,
+      from: { kind: 'map', id: 1, name: '世界', eventId: 10, eventName: '进入村庄' },
+    },
+  ]
+  await render(slot({ mapId: 2, mapDetail: villageDetail }))
+  const entranceTabBtn = [...document.querySelectorAll('[role="tab"]')].find((btn) => btn.textContent?.includes('入口')) as HTMLButtonElement
+  expect(entranceTabBtn).toBeDefined()
+  await act(async () => entranceTabBtn.click())
+
+  const eventListText = document.querySelector('[role="list"][aria-label="事件"]')?.textContent ?? ''
+  expect(eventListText).toContain('世界')
+  expect(eventListText).toContain('进入村庄')
+  expect(eventListText).toContain('#10')
+  expect(eventListText).toContain('(5, 5)')
 })

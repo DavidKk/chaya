@@ -80,6 +80,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         | 'seed'
         | 'progress'
         | 'switches'
+        | 'silent-config'
         | 'job'
         | 'translate-agents'
         | 'extract-items'
@@ -91,6 +92,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         | 'sources'
         | 'optimize'
       settings?: unknown
+      config?: unknown
+      silent?: unknown
       contentRoot?: string
       action?:
         | 'catalog'
@@ -348,7 +351,20 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       return apiError(400, 'SOURCES_ACTION', 'action must be import | status | resume | search | export')
     }
 
+    if (body.mode === 'silent-config') {
+      const { getSilentTranslateConfig, setSilentTranslateConfig } = await import('@/services/translate/silent-translate')
+      if (body.config && typeof body.config === 'object') {
+        const updated = setSilentTranslateConfig(body.config as any)
+        return apiOk({ config: updated })
+      }
+      return apiOk({ config: getSilentTranslateConfig() })
+    }
+
     if (body.mode === 'switches') {
+      const { getSilentTranslateConfig, setSilentTranslateConfig } = await import('@/services/translate/silent-translate')
+      if (body.silent && typeof body.silent === 'object') {
+        setSilentTranslateConfig(body.silent as any)
+      }
       if (body.switches?.apple === true || body.switches?.bergamot === true) {
         const current = getTranslateEngineSwitches()
         const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
@@ -370,9 +386,10 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       }
       const agents = Array.isArray(body.agents) ? body.agents : undefined
       if ((body.switches && typeof body.switches === 'object') || Array.isArray(body.order) || agents || (body.configs && typeof body.configs === 'object')) {
-        return apiOk(setTranslateEngineSwitches({ switches: body.switches, order: body.order, agents, configs: body.configs }))
+        const nextState = setTranslateEngineSwitches({ switches: body.switches, order: body.order, agents, configs: body.configs }, targetContentRoot)
+        return apiOk({ ...nextState, silent: getSilentTranslateConfig() })
       }
-      return apiOk(getTranslateEngineSwitches())
+      return apiOk({ ...getTranslateEngineSwitches(targetContentRoot), silent: getSilentTranslateConfig() })
     }
 
     if (body.mode === 'translate-agents') {

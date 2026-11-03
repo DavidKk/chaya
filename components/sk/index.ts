@@ -8,6 +8,7 @@ export { DurationInput, type DurationInputProps } from '@/components/sk/Duration
 export { EmptyState } from '@/components/sk/EmptyState'
 export { FilterToggle, type FilterToggleProps, type FilterToggleTone } from '@/components/sk/FilterToggle'
 export { GateButton, type GateButtonProps } from '@/components/sk/GateButton'
+export { GradientButton, type GradientButtonProps } from '@/components/sk/GradientButton'
 export { LanguagePairSelect, type LanguagePairSelectProps } from '@/components/sk/LanguagePairSelect'
 export { Modal, type ModalProps } from '@/components/sk/Modal'
 export { formatCompactNumber, formatExactNumber, NumberInput, type NumberInputProps } from '@/components/sk/NumberInput'

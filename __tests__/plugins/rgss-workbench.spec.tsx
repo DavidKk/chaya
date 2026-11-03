@@ -174,3 +174,39 @@ it('dispatches supported run actions and closes the workbench for battle victory
   expect(commands().at(-1)).toMatchObject({ op: 'runAction', id: 'battle:victory' })
   expect(host.querySelector('[data-rgss-interactive]')).toBeNull()
 })
+
+it('blurs focused input on first Escape, then closes workbench on second Escape, and toggles with Backquote', async () => {
+  const speedInput = host.querySelector<HTMLInputElement>('input[aria-label="运行倍速"]')
+  expect(speedInput).not.toBeNull()
+
+  // 1. Focus input
+  await act(async () => {
+    speedInput!.focus()
+  })
+  expect(document.activeElement).toBe(speedInput)
+
+  // 2. Press Escape while input is focused -> should blur input, but NOT close workbench
+  await act(async () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }))
+  })
+  expect(document.activeElement).not.toBe(speedInput)
+  expect(host.querySelector('[data-rgss-interactive]')).not.toBeNull()
+
+  // 3. Press Escape again while no input is focused -> should close workbench
+  await act(async () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', code: 'Escape', bubbles: true, cancelable: true }))
+  })
+  expect(host.querySelector('[data-rgss-interactive]')).toBeNull()
+
+  // 4. Press Backquote while closed -> should summon/open workbench
+  await act(async () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '`', code: 'Backquote', bubbles: true, cancelable: true }))
+  })
+  expect(host.querySelector('[data-rgss-interactive]')).not.toBeNull()
+
+  // 5. Press Backquote while open -> should close workbench
+  await act(async () => {
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: '`', code: 'Backquote', bubbles: true, cancelable: true }))
+  })
+  expect(host.querySelector('[data-rgss-interactive]')).toBeNull()
+})

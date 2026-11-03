@@ -228,6 +228,7 @@ export function createLookupEnrichment() {
   const templateZh = new Map<string, string>()
   let entries: GlossaryEntry[] = []
   let allowedValues = dynamicValues()
+  let cachedZhMap: Record<string, string> | null = null
   let runtimeRefs: RuntimeControlRefs = { actors: new Set(), party: new Set(), variables: new Set(), currency: false }
   let runtimeAliases = new Map<string, string>()
   let runtimeAliasesReady = false
@@ -235,6 +236,7 @@ export function createLookupEnrichment() {
 
   function rebuildGlossary() {
     allowedValues = dynamicValues()
+    cachedZhMap = null
     const seen = new Set<string>()
     const next: GlossaryEntry[] = []
     for (const bucket of FIELD_BUCKETS) {
@@ -261,6 +263,7 @@ export function createLookupEnrichment() {
   }
 
   function zhMapFrom(lookup: Lookup): Record<string, string> {
+    if (cachedZhMap) return cachedZhMap
     const map: Record<string, string> = Object.create(null)
     for (const e of entries) {
       if (Object.prototype.hasOwnProperty.call(lookup, e.jp)) map[e.jp] = lookup[e.jp]!
@@ -270,11 +273,13 @@ export function createLookupEnrichment() {
         else map[e.jp] = e.jp
       }
     }
+    cachedZhMap = map
     return map
   }
 
   function notePair(src: string, zh: string, lookup: Lookup) {
     invalidateWhitespaceLookup(lookup)
+    cachedZhMap = null
     dynamic.notePair(src, zh)
     indexTrailingStem(stemBase, src, zh)
     if (entries.length) indexGlossaryTemplate(templateZh, src, zh, entries, zhMapFrom(lookup))
@@ -287,6 +292,7 @@ export function createLookupEnrichment() {
   function reindexAll(lookup: Lookup) {
     invalidateWhitespaceLookup(lookup)
     rebuildGlossary()
+    cachedZhMap = null
     stemBase.clear()
     templateZh.clear()
     dynamic.clear()
@@ -335,7 +341,10 @@ export function createLookupEnrichment() {
     return runtimeAliases.get(normalizeTranslateKey(text)) ?? null
   }
 
+  const NON_TRANSLATABLE_RE = /^[\d\s+\-.,/\\:;%#!?()[\]<>=~'"*`^_]+$/
+
   function resolve(lookup: Lookup, text: string): string | null {
+    if (!text || NON_TRANSLATABLE_RE.test(text)) return null
     const exact = translatePlain(lookup, text)
     if (exact !== text) return exact
     const runtime = resolveRuntimeAlias(lookup, text)
@@ -354,7 +363,7 @@ export function createLookupEnrichment() {
     }
     const viaLookup = translateWithLookup(lookup, text, { stemBase })
     if (viaLookup !== text) return viaLookup
-    if (!entries.length) return null
+    if (!entries.length || !templateZh.size) return null
     const templated = translateByGlossaryTemplate(text, entries, zhMapFrom(lookup), templateZh)
     return templated
   }

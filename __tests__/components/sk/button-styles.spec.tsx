@@ -5,6 +5,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { DashboardGameActions } from '@/components/dashboard/DashboardGameActions'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
 import { Button } from '@/components/sk/Button'
+import { GradientButton } from '@/components/sk/GradientButton'
 
 jest.mock('@/components/notification/useNotification', () => ({
   useNotification: () => ({ success: jest.fn(), error: jest.fn(), info: jest.fn(), warning: jest.fn() }),
@@ -133,11 +134,73 @@ describe('Button styles and sizes', () => {
     expect(startBtn?.getAttribute('data-size')).toBe('lg')
     expect(startBtn?.getAttribute('data-sheen')).toBe('true')
     expect(startBtn?.className).toContain('linear-gradient')
-    expect(startBtn?.className).toContain('text-white')
+    expect(startBtn?.className).toContain('text-[#ecfdf5]')
 
     expect(clearBtn?.getAttribute('data-size')).toBe('lg')
     expect(clearBtn?.getAttribute('data-sheen')).toBe('true')
     expect(clearBtn?.className).toContain('linear-gradient')
-    expect(clearBtn?.className).toContain('text-white')
+    expect(clearBtn?.className).toContain('text-[#fef2f2]')
+  })
+
+  it('renders GradientButton as large bright gradient button by default', async () => {
+    await act(async () =>
+      root.render(
+        <>
+          <GradientButton variant="accent">强调渐变</GradientButton>
+          <GradientButton variant="ok">确认渐变</GradientButton>
+          <GradientButton variant="warn">警告渐变</GradientButton>
+          <GradientButton variant="fail">危险渐变</GradientButton>
+        </>
+      )
+    )
+
+    const buttons = host.querySelectorAll('button')
+    const [btnAccent, btnOk, btnWarn, btnFail] = [...buttons]
+
+    expect(btnAccent?.getAttribute('data-size')).toBe('lg')
+    expect(btnAccent?.getAttribute('data-sheen')).toBe('true')
+    expect(btnAccent?.className).toContain('linear-gradient')
+    expect(btnAccent?.className).toContain('text-accent-ink')
+
+    expect(btnOk?.getAttribute('data-size')).toBe('lg')
+    expect(btnOk?.getAttribute('data-sheen')).toBe('true')
+    expect(btnOk?.className).toContain('linear-gradient')
+    expect(btnOk?.className).toContain('text-[#ecfdf5]')
+
+    expect(btnWarn?.getAttribute('data-size')).toBe('lg')
+    expect(btnWarn?.getAttribute('data-sheen')).toBe('true')
+    expect(btnWarn?.className).toContain('linear-gradient')
+    expect(btnWarn?.className).toContain('text-white')
+
+    expect(btnFail?.getAttribute('data-size')).toBe('lg')
+    expect(btnFail?.getAttribute('data-sheen')).toBe('true')
+    expect(btnFail?.className).toContain('linear-gradient')
+    expect(btnFail?.className).toContain('text-[#fef2f2]')
+  })
+
+  it('renders GradientButton with default accent variant and lg size when omitted', async () => {
+    await act(async () => root.render(<GradientButton>默认启动</GradientButton>))
+
+    const btn = host.querySelector('button')
+    expect(btn?.getAttribute('data-size')).toBe('lg')
+    expect(btn?.getAttribute('data-sheen')).toBe('true')
+    expect(btn?.className).toContain('linear-gradient')
+    expect(btn?.className).toContain('text-accent-ink')
+  })
+
+  it('retains gradient and sheen on GradientButton even when non-lg size is specified', async () => {
+    await act(async () =>
+      root.render(
+        <GradientButton size="md" variant="ok">
+          中号确认
+        </GradientButton>
+      )
+    )
+
+    const btn = host.querySelector('button')
+    expect(btn?.getAttribute('data-size')).toBeNull() // default md omits data-size
+    expect(btn?.getAttribute('data-sheen')).toBe('true')
+    expect(btn?.className).toContain('linear-gradient')
+    expect(btn?.className).toContain('text-[#ecfdf5]')
   })
 })

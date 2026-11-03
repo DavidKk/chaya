@@ -14,12 +14,17 @@ module ChayaRGSS
         @poll = Fiddle::Function.new(handle['chaya_overlay_poll'], [Fiddle::TYPE_VOIDP, Fiddle::TYPE_INT], Fiddle::TYPE_INT)
         @eval = Fiddle::Function.new(handle['chaya_overlay_eval'], [Fiddle::TYPE_VOIDP], Fiddle::TYPE_VOID)
         @dispose = Fiddle::Function.new(handle['chaya_overlay_dispose'], [], Fiddle::TYPE_VOID)
+        gw = (defined?(Graphics) && Graphics.respond_to?(:width) ? Graphics.width : 0)
+        gh = (defined?(Graphics) && Graphics.respond_to?(:height) ? Graphics.height : 0)
         config = JSON.generate({
           'roomId' => ENV.fetch('CHAYA_RGSS_ROOM'),
           'apiBase' => ENV.fetch('CHAYA_RGSS_API'),
           'launchToken' => ENV.fetch('CHAYA_RGSS_TOKEN'),
           'linkToken' => ENV.fetch('CHAYA_LINK_TOKEN', ''),
-          'contentRoot' => ENV.fetch('CHAYA_RGSS_CONTENT_ROOT', '')
+          'contentRoot' => ENV.fetch('CHAYA_RGSS_CONTENT_ROOT', ''),
+          'sessionDir' => (ENV['CHAYA_RGSS_SESSION'] || ''),
+          'gameWidth' => gw,
+          'gameHeight' => gh
         })
         html = File.join(root, 'dist', 'rgss-overlay.html')
         raise 'Chaya RGSS overlay HTML is missing' unless @create.call(html, config) == 1

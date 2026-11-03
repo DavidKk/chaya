@@ -37,7 +37,6 @@
 | 关联技术方案 | 实现约束；可同名、非同名、一对多或共享，不保证关联即完整覆盖 |
 | 独立开发文档 | 部署、架构、规范、排障；无需为配对而补需求 |
 | `skills/chaya-*/SKILL.md` | 安装给外部 Agent 的英文源；描述用于发现，正文按任务加载 |
-| `skills/chaya-*/i18n/*.md` | 页面译文；不按语言安装给 Agent |
 | 历史 / 排期 | 仅追溯或查编号时读；先核实有效内容再归档 |
 
 安装与展示依据：[skill-install.ts](../services/integration/skill-install.ts)、[skills.ts](../services/integration/skills.ts)。文档关系统一在[任务索引](README.md)查找，不在本文重复整份文件表。

@@ -259,6 +259,14 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     }),
   },
   {
+    name: 'chaya_live_events',
+    readOnly: true,
+    group: 'live',
+    title: 'Running event diagnostics',
+    description: 'Read active map, common and nested event interpreters, command positions, waits and movement routes. Does not advance or restart events.',
+    inputSchema: obj({ gameId }),
+  },
+  {
     name: 'chaya_live_ui',
     readOnly: true,
     group: 'live',
@@ -527,11 +535,15 @@ export const MCP_TOOLS: readonly McpToolMeta[] = [
     name: 'chaya_edit_action',
     group: 'edit',
     title: 'Run action',
-    description: `Run an edit page action: open a scene (scene:*), fix a stuck state (fix:*), control battle (battle:*), or teleport (mapId, x, y, direction?), common_event (eventId), save / load (slot, default 1). save, load, fix:title, battle:defeat and battle:partyHp0 are destructive: ${ASK_FIRST}`,
+    description: `Run an edit page action: open a scene (scene:*), fix a stuck state (fix:*), start an encounter (battle:start), control an active battle (battle:*), or teleport (mapId, x, y, direction?), common_event (eventId), save / load (slot, default 1). battle:start uses the current map's first random encounter, then any usable troop, unless troopId is given. save, load, fix:title, battle:defeat and battle:partyHp0 are destructive: ${ASK_FIRST}`,
     inputSchema: obj(
       {
         gameId,
         id: str('Action id', { enum: EDIT_ACTION_IDS }),
+        troopId: num('battle:start: troop id; omit to use the current map encounter or another usable troop'),
+        canEscape: bool('battle:start: allow escape (default true)'),
+        canLose: bool('battle:start: allow defeat without game over (default false)'),
+        count: num('battle:start: visible enemy count'),
         mapId: num('teleport: map id'),
         x: num('teleport: tile x'),
         y: num('teleport: tile y'),

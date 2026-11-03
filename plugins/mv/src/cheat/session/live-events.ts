@@ -102,13 +102,17 @@ export function isOnMapScene(): boolean {
 }
 
 /** Common events only start from the map scene (`$gameTemp.reserveCommonEvent`) */
-export function runCommonEventOnMap(id: number, from?: number): void {
+export function runCommonEventOnMap(id: number, from?: number, _force = false): void {
   if (!isOnMapScene()) throw new Error('请回到地图场景再执行公共事件')
   const event = ($dataCommonEvents as unknown[] | null)?.[id] as { list?: unknown } | null | undefined
-  const safety = analyzeExecutionSafety(normalizeCommands(event?.list), (target) => {
-    const called = ($dataCommonEvents as unknown[] | null)?.[target] as { list?: unknown } | null | undefined
-    return called ? normalizeCommands(called.list) : null
-  })
+  const safety = analyzeExecutionSafety(
+    normalizeCommands(event?.list),
+    (target) => {
+      const called = ($dataCommonEvents as unknown[] | null)?.[target] as { list?: unknown } | null | undefined
+      return called ? normalizeCommands(called.list) : null
+    },
+    { allowOpaqueCommands: true }
+  )
   if (!safety.safe) throw new Error(safety.message)
   if (from) return startCommonEventAt(id, from)
   assertIdle()

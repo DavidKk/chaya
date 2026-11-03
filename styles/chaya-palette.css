@@ -21,16 +21,12 @@
   --line: rgb(240 247 255 / 0.12);
   --line-soft: rgb(240 247 255 / 0.06);
 
-  /* 强调：用于状态、描边与 Switch 开态 */
+  /* 强调：霓虹电光青蓝
+   * 实心钮 / Switch 开态同用 --accent + 近白字（--accent-ink）；亮青上白字对比可接受，勿再改回深色 ink。
+   */
   --accent: #2ad4ff;
   --accent-ink: #f0f7ff;
   --accent-glow: rgb(42 212 255 / 0.62);
-
-  /* 大按钮：深色操作底，搭配白字 */
-  --button-accent: #036484;
-  --button-ok: #047857;
-  --button-warn: #854d0e;
-  --button-fail: #b91c1c;
 
   /* 状态 */
   --ok: #3ee9a8;

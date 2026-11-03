@@ -234,6 +234,8 @@ bridge.apply({ 'op' => 'runFlag', 'key' => 'clickMove', 'value' => true })
 
 bridge.apply({ 'op' => 'count', 'kind' => 'item', 'id' => 1, 'value' => 12 })
 check(bridge.full_session_state['session']['counts']['item:1'] == 12, 'VX inventory requires no all_items method')
+bridge.apply({ 'op' => 'count', 'kind' => 'item', 'id' => 1, 'value' => 9999 })
+check(bridge.full_session_state['session']['counts']['item:1'] == 9999, 'inventory count should support values above 99')
 bridge.apply({ 'op' => 'actor', 'id' => 1, 'patch' => { 'mhp' => 250, 'mmp' => 90, 'mat' => 35, 'exp' => 1234, 'classId' => 2, 'hp' => 200 } })
 hero = bridge.full_session_state['session']['actors'][1]
 check(hero['mhp'] == 250 && hero['mmp'] == 90 && hero['mat'] == 35 && hero['mdf'] == 35, 'VX parameter aliases failed')
@@ -444,6 +446,143 @@ check(vx_player.real_x == 4 * 256 + 24, "RGSS2 update_move did not scale by walk
 module BattleManager
   def self.actor; nil; end
 end
+
+
+# Test smart auto battle contextual tactics
+class MockRgssAction
+  attr_accessor :kind, :skill_id, :target_index
+  def initialize(actor = nil); @kind = nil; @skill_id = nil; @target_index = nil; end
+  def set_attack; @kind = :attack; self; end
+  def set_guard; @kind = :guard; self; end
+  def set_skill(id); @kind = :skill; @skill_id = id; self; end
+  # Match stock RGSS/VX/VX Ace: this method accepts exactly one argument.
+  def make_damage_value(target); @kind == :skill ? 150 : 80; end
+end
+Object.send(:remove_const, :Game_Action) if defined?(Game_Action)
+Object.const_set(:Game_Action, MockRgssAction)
+
+class MockRgssSkill
+  attr_accessor :id, :scope, :damage, :mp_cost, :tp_cost
+  def initialize(id, scope = 1, type = 1, mp = 0)
+    @id = id
+    @scope = scope
+    @damage = Struct.new(:type).new(type)
+    @mp_cost = mp
+    @tp_cost = 0
+  end
+end
+
+class SmartTestActor
+  attr_accessor :can_attack, :can_guard, :skills, :actions, :mp, :mmp
+  def initialize
+    @can_attack = true
+    @can_guard = true
+    @skills = []
+    @actions = [MockRgssAction.new]
+    @mp = 100
+    @mmp = 100
+  end
+  def attack_usable?; @can_attack; end
+  def guard_usable?; @can_guard; end
+  def usable_skills; @skills; end
+  def tp; 100; end
+  def set_action(i, act); @actions[i] = act; end
+end
+
+smart_actor = SmartTestActor.new
+smart_actor.can_attack = false
+act = runtime.select_smart_action_rgss(smart_actor, 100, 100)
+check(act.kind == :guard, 'Disarmed actor without skills should choose guard')
+
+damage_skill = MockRgssSkill.new(12, 1, 1, 10)
+smart_actor.skills = [damage_skill]
+act = runtime.select_smart_action_rgss(smart_actor, 100, 100)
+check(act.kind == :skill && act.skill_id == 12, 'Disarmed actor with skill should choose skill')
+
+heal_skill = MockRgssSkill.new(20, 7, 3, 10)
+smart_actor.can_attack = true
+smart_actor.skills = [damage_skill, heal_skill]
+dummy_ally = Struct.new(:hp, :mhp, :index).new(20, 100, 0)
+$game_party = Struct.new(:alive_members, :dead_members).new([dummy_ally], [])
+act = runtime.select_smart_action_rgss(smart_actor, 100, 100)
+check(act.kind == :skill && act.skill_id == 20, 'Critical HP ally should trigger heal skill')
+
+aoe_skill = MockRgssSkill.new(30, 2, 1, 20)
+smart_actor.skills = [damage_skill, aoe_skill]
+$game_party = Struct.new(:alive_members, :dead_members).new([], [])
+$game_troop = Struct.new(:alive_members).new([Struct.new(:hp, :index).new(100, 0), Struct.new(:hp, :index).new(100, 1)])
+act = runtime.select_smart_action_rgss(smart_actor, 100, 100)
+check(act.kind == :skill && act.skill_id == 30, '2+ enemies should trigger AoE skill')
+
+
+# Test item matching and obsolescence filtering in RGSS
+class MockRgssItem
+  attr_accessor :id, :scope, :damage, :effects
+  def initialize(id, scope = 7, hp_flat = 0, dmg_type = 0)
+    @id = id
+    @scope = scope
+    @damage = Struct.new(:type).new(dmg_type)
+    @effects = [Struct.new(:code, :value1, :value2).new(11, 0, hp_flat)]
+  end
+end
+
+def (MockRgssAction).new_for_item
+  act = MockRgssAction.new
+  def act.set_item(id); @kind = :item; @item_id = id; self; end
+  attr_accessor :item_id unless act.respond_to?(:item_id)
+  act
+end
+
+herb = MockRgssItem.new(1, 7, 50)
+potion = MockRgssItem.new(2, 7, 200)
+elixir = MockRgssItem.new(3, 7, 2000)
+
+target_ally = Struct.new(:hp, :mhp).new(300, 500) # 200 deficit
+best_item = runtime.match_best_healing_item_rgss([herb, potion, elixir], smart_actor, target_ally)
+check(best_item == potion, 'RGSS healing item should best match 200 HP deficit')
+
+late_ally = Struct.new(:hp, :mhp).new(1700, 4500) # 2800 deficit in late game
+obsolete_check = runtime.match_best_healing_item_rgss([herb], smart_actor, late_ally)
+check(obsolete_check.nil?, 'RGSS healing item filter should discard obsolete early 50HP herb in late game')
+
+# Throwable item test
+bomb = MockRgssItem.new(9, 1, 0, 1) # scope 1, damage type 1
+$game_party = Struct.new(:alive_members, :dead_members, :items).new([], [], [bomb])
+def ($game_party).item_number(i); 1; end
+smart_actor.can_attack = false
+smart_actor.skills = []
+$game_troop = Struct.new(:alive_members).new([Struct.new(:hp, :index).new(100, 0)])
+
+# Enhance MockRgssAction with set_item
+class MockRgssAction
+  attr_accessor :item_id
+  def set_item(id); @kind = :item; @item_id = id; self; end
+end
+
+act = runtime.select_smart_action_rgss(smart_actor, 100, 100)
+check(act.kind == :item && act.item_id == 9, 'RGSS disarmed actor should throw damage item when available')
+
+# MP recovery item test when actor is at 0 MP
+ether = MockRgssItem.new(12, 7, 0, 0)
+ether.effects = [Struct.new(:code, :value1, :value2).new(12, 0, 50)]
+$game_party = Struct.new(:alive_members, :dead_members, :items).new([Struct.new(:hp, :mhp, :index).new(100, 100, 0)], [], [ether])
+def ($game_party).item_number(i); 1; end
+smart_actor.can_attack = true
+smart_actor.mp = 0
+smart_actor.mmp = 100
+smart_actor.skills = [MockRgssSkill.new(10, 1, 1, 15)] # Learned skill costs 15 MP
+def (smart_actor).usable_skills; []; end # Can't afford skill, usable_skills is empty!
+$game_troop = Struct.new(:alive_members).new([Struct.new(:hp, :index).new(100, 0)])
+act = runtime.select_smart_action_rgss(smart_actor, 0, 100)
+check(act.kind == :item && act.item_id == 12, 'RGSS 0-MP actor with MP skills should use MP recovery item')
+
+# Scope 11 self-only item should not be used on another ally
+self_herb = MockRgssItem.new(15, 11, 50)
+other_dying = Struct.new(:hp, :mhp, :index).new(10, 100, 1)
+$game_party = Struct.new(:alive_members, :dead_members, :items).new([other_dying], [], [self_herb])
+def ($game_party).item_number(i); 1; end
+act = runtime.select_smart_action_rgss(smart_actor, 100, 100)
+check(act.kind == :attack, 'RGSS scope 11 item should not be used to heal other allies')
 
 puts 'RGSS edit runtime assertions passed'
 

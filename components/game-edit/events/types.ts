@@ -1,5 +1,6 @@
 import type { BattleState } from '@/lib/game/battle'
 import type { CommonEventsData, MapDetailData } from '@/lib/game/events'
+import type { EventActivity } from '@/lib/game/events/runtime'
 import type { GameEditCmdOp } from '@/lib/runtime/game-link-protocol'
 import type { MapOperationItem } from '@/lib/runtime/game-link-protocol'
 
@@ -21,9 +22,11 @@ export type EventsOp = Extract<
   {
     op:
       | 'commonEvent'
+      | 'eventControl'
       | 'selfSwitch'
       | 'teleport'
       | 'mapEvent'
+      | 'runAction'
       | 'troop'
       | 'enemyTransform'
       | 'enemyAdd'
@@ -61,6 +64,7 @@ export type EventsSlot = {
   onMap: boolean
   /** Common events currently running in parallel / autorun on the map */
   runningCommon?: readonly number[]
+  eventActivity?: EventActivity
   commonId: number | null
   onSelectCommon: (id: number | null) => void
   /** Resolves when the game acknowledges, rejects with the game's error */
@@ -75,7 +79,7 @@ export type EventsSlot = {
 
   mapId: number | null
   eventId: number | null
-  onSelectMap: (mapId: number | null, eventId?: number | null) => void
+  onSelectMap: (mapId: number | null, eventId?: number | null, page?: number) => void
   /** Event page tab picked in the event detail (0-based); null follows the live active page */
   eventPage: number | null
   onSelectEventPage: (page: number) => void

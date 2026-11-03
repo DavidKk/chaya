@@ -66,6 +66,14 @@ export {
 export { inspectSensitiveText, isNsfwCacheRow, isNsfwTaggedEngine, isSensitiveForCloud, partitionCloudSafeTexts, type SensitiveHit } from './sensitive-text'
 export { defaultSharedDbPath, openSharedCache } from './shared-cache'
 export {
+  DEFAULT_SILENT_TRANSLATE_CONFIG,
+  getSilentTranslateConfig,
+  runSilentExtractionAndTranslation,
+  setSilentTranslateConfig,
+  type SilentTranslateConfig,
+  triggerSilentTranslateIfEnabled,
+} from './silent-translate'
+export {
   exportSourcesJob,
   getSourcesJobStatus,
   importSourcesJob,

@@ -1,0 +1,24 @@
+{
+  "name": "Chaya Play - 远程串流游玩",
+  "short_name": "Chaya Play",
+  "description": "RPG Maker WebRTC 局域网超低延迟串流游玩与触屏虚拟手柄控制台",
+  "start_url": "/play",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "orientation": "landscape",
+  "icons": [
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/brand/chaya-app-icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

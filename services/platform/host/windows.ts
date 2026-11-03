@@ -3,7 +3,7 @@ import path from 'node:path'
 import { resolveShellLaunchTarget } from '@/lib/game/shell-layout'
 
 import { assertPathExists, spawnDetached } from './shared'
-import type { HostShellCapability } from './types'
+import type { HostShellCapability, LaunchShellOptions } from './types'
 
 export class WindowsHostShell implements HostShellCapability {
   readonly id = 'hostShell' as const
@@ -22,7 +22,7 @@ export class WindowsHostShell implements HostShellCapability {
     return spawnDetached('explorer.exe', [p])
   }
 
-  launchShell(shellApp: string, contentRoot: string): Promise<void> {
+  launchShell(shellApp: string, contentRoot: string, _options?: LaunchShellOptions): Promise<void> {
     assertPathExists(shellApp)
     assertPathExists(contentRoot)
     const exe = resolveShellLaunchTarget(shellApp)

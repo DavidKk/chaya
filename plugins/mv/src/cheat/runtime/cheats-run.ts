@@ -5,6 +5,7 @@
 import { readCachedToolSettings, TOOL_SETTINGS_EVENT, TOOL_SETTINGS_STORAGE_KEY, type ToolSettings } from '@/lib/game-agent/tool-settings'
 
 import { createLogger } from '../../helpers/net/logger'
+import { recentMaps } from '../session/map-history'
 import { gameMap, gameMessage, gamePlayer, gameScreen, gameTroop } from './game-globals'
 import { installSmartPath } from './smart-path'
 
@@ -193,6 +194,37 @@ function readFullscreen(): boolean {
   return graphicsFullscreen() ?? false
 }
 
+let screenStretchEnabled = false
+
+function applyScreenStretch(on: boolean): boolean {
+  screenStretchEnabled = !!on
+  if (typeof document === 'undefined') return screenStretchEnabled
+  let styleEl = document.getElementById('chaya-screen-stretch-style')
+  if (on) {
+    if (!styleEl && document.head) {
+      styleEl = document.createElement('style')
+      styleEl.id = 'chaya-screen-stretch-style'
+      styleEl.textContent = `
+        canvas#GameCanvas, canvas {
+          width: 100vw !important;
+          height: 100vh !important;
+          object-fit: cover !important;
+          position: fixed !important;
+          left: 0 !important;
+          top: 0 !important;
+          right: 0 !important;
+          bottom: 0 !important;
+          margin: 0 !important;
+        }
+      `
+      document.head.appendChild(styleEl)
+    }
+  } else {
+    styleEl?.remove()
+  }
+  return screenStretchEnabled
+}
+
 function writeFullscreen(on: boolean): boolean {
   const want = !!on
   const win = getNwWindow()
@@ -264,8 +296,24 @@ function clearErrorScreen(): boolean {
   return cleared
 }
 
+function ensureSceneManagerResume() {
+  if (typeof SceneManager !== 'undefined' && !(SceneManager as any).resume) {
+    ;(SceneManager as any).resume = function () {
+      this._stopped = false
+      if (typeof this.requestUpdate === 'function') {
+        try {
+          this.requestUpdate()
+        } catch {
+          /* */
+        }
+      }
+    }
+  }
+}
+
 export const RunCheats = {
   ensureHooks() {
+    ensureSceneManagerResume()
     ensureTouchHook()
     ensureSmartPathHook()
     ensureExpHook()
@@ -387,6 +435,12 @@ export const RunCheats = {
   setFullscreen(on: boolean) {
     return writeFullscreen(on)
   },
+  getScreenStretch() {
+    return screenStretchEnabled
+  },
+  setScreenStretch(on: boolean) {
+    return applyScreenStretch(on)
+  },
 
   pushScene(id: ScenePushId) {
     if (typeof SceneManager === 'undefined' || typeof SceneManager.push !== 'function') return false
@@ -421,17 +475,283 @@ export const RunCheats = {
   },
 
   fadeIn() {
-    if (typeof SceneManager === 'undefined') return false
-    const scene = SceneManager._scene
-    if (scene && typeof scene.startFadeIn === 'function') {
-      scene.startFadeIn(24, false)
-      return true
+    let ok = false
+    try {
+      const gs = gameScreen()
+      if (gs) {
+        if (typeof gs.startFadeIn === 'function') gs.startFadeIn(24)
+        gs._brightness = 255
+        ok = true
+      }
+    } catch {
+      /* */
     }
-    if (typeof gameScreen()?.startFadeIn === 'function') {
-      gameScreen().startFadeIn(24)
-      return true
+    try {
+      const scene = typeof SceneManager !== 'undefined' ? SceneManager._scene : null
+      if (scene && typeof scene.startFadeIn === 'function') {
+        scene.startFadeIn(24, false)
+        ok = true
+      }
+    } catch {
+      /* */
     }
-    return false
+    return ok
+  },
+
+  unstuck() {
+    let touched = false
+    try {
+      const gs = gameScreen() as any
+      if (gs) {
+        if (typeof gs.startFadeIn === 'function') gs.startFadeIn(24)
+        gs._brightness = 255
+        gs._fadeOutDuration = 0
+        gs._fadeInDuration = 0
+        if (typeof gs.clearFade === 'function') gs.clearFade()
+        if (typeof gs.clearTone === 'function') gs.clearTone()
+        if (typeof gs.clearFlash === 'function') gs.clearFlash()
+        if (typeof gs.clearShake === 'function') gs.clearShake()
+        touched = true
+      }
+    } catch {
+      /* */
+    }
+    try {
+      const scene = typeof SceneManager !== 'undefined' ? (SceneManager as any)._scene : null
+      if (scene) {
+        if (typeof scene.startFadeIn === 'function') {
+          scene.startFadeIn(24, false)
+          touched = true
+        }
+        if (scene._fadeSprite) {
+          scene._fadeSprite.opacity = 0
+          scene._fadeDuration = 0
+        }
+        if (scene._spriteset) {
+          if (scene._spriteset._fadeSprite) scene._spriteset._fadeSprite.opacity = 0
+          if (scene._spriteset._toneSprite) scene._spriteset._toneSprite.opacity = 0
+        }
+      }
+    } catch {
+      /* */
+    }
+    try {
+      const player = gamePlayer() as any
+      if (player) {
+        if (typeof player.setTransparent === 'function') player.setTransparent(false)
+        player._transparent = false
+        player._opacity = 255
+        player._moveRouteForcing = false
+        if (typeof player.restoreMoveRoute === 'function') player.restoreMoveRoute()
+        if (typeof player.unlock === 'function') player.unlock()
+        player._locked = false
+        const leader = (globalThis as any).$gameParty?.leader?.()
+        if (leader && !player._characterName && typeof leader.characterName === 'function') {
+          player.setImage?.(leader.characterName(), leader.characterIndex?.() ?? 0)
+        }
+        const followers = player._followers
+        if (followers && typeof followers.forEach === 'function') {
+          followers.forEach((f: any) => {
+            if (f) {
+              f._transparent = false
+              f._opacity = 255
+            }
+          })
+        }
+        touched = true
+      }
+    } catch {
+      /* */
+    }
+    try {
+      const temp = (globalThis as unknown as { $gameTemp?: { _stopMapPlayer?: boolean; _stopMapEvents?: boolean; _commonEventId?: number } }).$gameTemp
+      if (temp) {
+        temp._stopMapPlayer = false
+        temp._stopMapEvents = false
+        temp._commonEventId = 0
+        touched = true
+      }
+    } catch {
+      /* */
+    }
+    try {
+      const sys = (globalThis as any).$gameSystem
+      if (sys) {
+        if (typeof sys.enableMenu === 'function') sys.enableMenu()
+        sys._menuEnabled = true
+      }
+    } catch {
+      /* */
+    }
+    try {
+      if (gameMessage() && typeof gameMessage().clear === 'function') gameMessage().clear()
+    } catch {
+      /* */
+    }
+    try {
+      const interp = (globalThis as any).$gameMap?._interpreter
+      if (interp) {
+        interp._waitMode = ''
+        interp._waitCount = 0
+      }
+    } catch {
+      /* */
+    }
+    try {
+      this.clearMoveRoute()
+    } catch {
+      /* */
+    }
+    try {
+      const g = globalThis as any
+      if (typeof g.Game_Interpreter !== 'undefined' && g.Game_Interpreter?.prototype?.pluginCommand) {
+        const dummy = new g.Game_Interpreter()
+        for (const cmd of ['show_clock', 'show_actor_hud', 'show_gold_hud', 'show_party_hud', 'AllowPlayerMovement', 'BUST RIGHT FALSE']) {
+          try {
+            dummy.pluginCommand(cmd, [])
+          } catch {}
+        }
+      }
+    } catch {
+      /* */
+    }
+    try {
+      const map = gameMap() as { requestRefresh?: () => void; refresh?: () => void } | null
+      if (map && typeof map.requestRefresh === 'function') map.requestRefresh()
+      else if (map && typeof map.refresh === 'function') map.refresh()
+    } catch {
+      /* */
+    }
+    try {
+      if (typeof SceneManager !== 'undefined' && (SceneManager as any)._stopped && typeof (SceneManager as any).resume === 'function') {
+        ;(SceneManager as any).resume()
+      }
+    } catch {
+      /* */
+    }
+    return touched
+  },
+
+  advanceCutscene() {
+    let touched = false
+    const root = globalThis as any
+    const map = root.$gameMap
+
+    const applyCommands = (list: any[], startIdx = 0) => {
+      for (let i = startIdx; i < list.length; i++) {
+        const cmd = list[i]
+        if (!cmd || !Array.isArray(cmd.parameters)) continue
+        try {
+          if (cmd.code === 121 && cmd.parameters.length >= 3) {
+            const [start, end, val] = cmd.parameters as [number, number, number]
+            const sw = root.$gameSwitches
+            if (sw && typeof sw.setValue === 'function') {
+              for (let id = start; id <= end; id++) sw.setValue(id, val === 0)
+            }
+          } else if (cmd.code === 122 && cmd.parameters.length >= 5) {
+            const [start, end, op, operandType, operandVal] = cmd.parameters as [number, number, number, number, any]
+            const vars = root.$gameVariables
+            if (vars && typeof vars.setValue === 'function' && op === 0 && operandType === 0) {
+              for (let id = start; id <= end; id++) vars.setValue(id, operandVal)
+            }
+          } else if (cmd.code === 201 && cmd.parameters.length >= 4) {
+            const [, targetMapId, targetX, targetY, direction, fadeType] = cmd.parameters as [number, number, number, number, number, number]
+            const player = root.$gamePlayer
+            if (player && typeof player.reserveTransfer === 'function') {
+              player.reserveTransfer(targetMapId, targetX, targetY, direction ?? 0, fadeType ?? 0)
+            }
+          } else if (cmd.code === 356 && typeof cmd.parameters[0] === 'string') {
+            const str = (cmd.parameters[0] as string).trim()
+            const [name, ...args] = str.split(/\s+/)
+            if (typeof root.Game_Interpreter?.prototype?.pluginCommand === 'function') {
+              try {
+                new root.Game_Interpreter().pluginCommand(name, args)
+              } catch {}
+            }
+          }
+        } catch {}
+      }
+    }
+
+    // 1. Advance running interpreter if any
+    const active = map?._interpreter?._list ? map._interpreter : null
+    if (active && Array.isArray(active._list)) {
+      applyCommands(active._list, active._index ?? 0)
+      if (typeof active.terminate === 'function') active.terminate()
+      active._waitMode = ''
+      active._waitCount = 0
+      touched = true
+    }
+
+    // 2. Discover un-triggered candidate cutscene events on current map (e.g. Map 225 EV004)
+    const events = root.$dataMap?.events
+    if (Array.isArray(events)) {
+      for (const ev of events) {
+        if (!ev || !Array.isArray(ev.pages)) continue
+        for (let pIdx = ev.pages.length - 1; pIdx >= 0; pIdx--) {
+          const page = ev.pages[pIdx]
+          if (!page || !Array.isArray(page.list) || page.list.length <= 1) continue
+          const cond = page.conditions || {}
+          let isCandidate = page.trigger === 3 || page.trigger === 4
+          if (cond.switch1Valid) {
+            const swId = Number(cond.switch1Id)
+            if (!root.$gameSwitches?._data?.[swId]) {
+              isCandidate = true
+              root.$gameSwitches?.setValue?.(swId, true)
+            }
+          }
+          if (cond.switch2Valid) {
+            const swId = Number(cond.switch2Id)
+            if (!root.$gameSwitches?._data?.[swId]) {
+              isCandidate = true
+              root.$gameSwitches?.setValue?.(swId, true)
+            }
+          }
+          if (isCandidate) {
+            applyCommands(page.list, 0)
+            touched = true
+            break
+          }
+        }
+        if (touched) break
+      }
+    }
+
+    // 3. Fallback: if on Map 225 without transfer, force transfer to Map 200 (9, 18)
+    const curMapId = map?.mapId?.() ?? 0
+    if (curMapId === 225) {
+      root.$gameVariables?.setValue?.(295, 1)
+      root.$gamePlayer?.reserveTransfer?.(200, 9, 18, 8, 0)
+      touched = true
+    }
+
+    this.unstuck()
+    return touched
+  },
+
+  returnPrevMap() {
+    let touched = false
+    try {
+      const root = globalThis as any
+      const curMap = root.$gameMap?.mapId?.() ?? 0
+      const recent = (typeof recentMaps === 'function' ? recentMaps() : []).filter((id: number) => id > 0 && id !== curMap)
+      const targetMapId = recent[0] || (curMap > 1 ? curMap - 1 : 1)
+      let targetX = 0
+      let targetY = 0
+      let direction = 2
+      if (curMap === 225 && targetMapId === 200) {
+        targetX = 9
+        targetY = 18
+        direction = 8
+        root.$gameVariables?.setValue?.(295, 1)
+      }
+      if (root.$gamePlayer?.reserveTransfer) {
+        root.$gamePlayer.reserveTransfer(targetMapId, targetX, targetY, direction, 0)
+        touched = true
+      }
+    } catch {}
+    this.unstuck()
+    return touched
   },
 
   clearPictures() {
@@ -518,7 +838,11 @@ export const RunCheats = {
     try {
       if (typeof SceneManager !== 'undefined') {
         if (typeof SceneManager.resume === 'function') SceneManager.resume()
-        SceneManager._stopped = false
+        const sm = SceneManager as any
+        sm._stopped = false
+        if (typeof sm.requestUpdate === 'function') {
+          sm.requestUpdate()
+        }
       }
     } catch {
       /* */

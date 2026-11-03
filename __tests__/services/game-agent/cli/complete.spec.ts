@@ -1,5 +1,6 @@
 import { completeWithCli } from '@/services/game-agent/cli/complete.server'
 import { AgentCliError } from '@/services/game-agent/cli/errors'
+import { disposeWarmCli } from '@/services/game-agent/cli/warm-pool.server'
 
 const runAntigravityPrompt = jest.fn<Promise<string>, [string, unknown]>()
 const requireCli = jest.fn<Promise<string>, [string]>(async () => '/bin/agy')
@@ -7,6 +8,19 @@ const agentProxyEnv = jest.fn<Promise<Record<string, string>>, [string | undefin
 const release = jest.fn(async () => undefined)
 const remove = jest.fn()
 const markCredentialsExpired = jest.fn<void, [string, number]>()
+const startAcpClient = jest.fn()
+
+jest.mock('@/services/game-agent/cli/acp-session.server', () => ({
+  get startAcpClient() {
+    return startAcpClient
+  },
+}))
+jest.mock('@/services/game-agent/cli/auth/cursor-local.server', () => ({
+  getCursorAuthStatus: async () => ({ state: 'signed_in' }),
+}))
+jest.mock('@/services/game-agent/cli/cli-home.server', () => ({
+  cursorIsolatedHome: () => ({}),
+}))
 
 jest.mock('@/services/game-agent/cli/antigravity.server', () => ({
   ANTIGRAVITY_SETTINGS: '{}',
@@ -48,6 +62,11 @@ beforeEach(() => {
   jest.clearAllMocks()
 })
 
+afterEach(async () => {
+  disposeWarmCli()
+  await Promise.resolve()
+})
+
 test('Gemini retries once after a one-off CLI crash', async () => {
   runAntigravityPrompt.mockRejectedValueOnce(new Error('Malformed function call')).mockResolvedValueOnce('{"reply":"ok"}')
   await expect(completeWithCli(profile, input)).resolves.toMatchObject({ role: 'assistant', content: 'ok' })
@@ -70,4 +89,25 @@ test('Gemini does not retry when the request was aborted', async () => {
     message: expect.stringContaining('Malformed function call'),
   })
   expect(runAntigravityPrompt).toHaveBeenCalledTimes(1)
+})
+
+test('Cursor reuses equivalent proxy headers but replaces a process after protocol overrides change', async () => {
+  const close = jest.fn()
+  startAcpClient.mockImplementation(async () => ({
+    closed: false,
+    close,
+    stderr: () => '',
+    newSession: async () => ({
+      modeIds: [],
+      setModel: async () => undefined,
+      prompt: async () => ({ text: '{"reply":"ok"}' }),
+    }),
+  }))
+  const cursor = { ...profile, provider: 'cursor' as const, proxyHeaders: { A: '1', B: '2' } }
+  await completeWithCli(cursor, input)
+  await completeWithCli({ ...cursor, proxyHeaders: { B: '2', A: '1' } }, input)
+  expect(startAcpClient).toHaveBeenCalledTimes(1)
+  await completeWithCli({ ...cursor, proxyProtocols: { https: 'http://127.0.0.1:7891' } }, input)
+  expect(startAcpClient).toHaveBeenCalledTimes(2)
+  expect(close).toHaveBeenCalledTimes(1)
 })

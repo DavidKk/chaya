@@ -10,6 +10,7 @@ export type SeedJobWorkerRequest = {
   id: number
   command: SeedJobWorkerCommand
   contentRoot?: string
+  engines?: string[]
   requestId?: string
   sentAt?: number
 }

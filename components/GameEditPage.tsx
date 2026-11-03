@@ -102,7 +102,11 @@ export function GameEditPage() {
     setError('')
     setLoading(false)
   }, [])
-  const { linked, connected, scene, sendCmd, runCmd, requestCatalog, mapUndo, runMapChanges, undoMapChange } = useGameEditLinkSync(setSession, setLiveError, receiveCatalog)
+  const { linked, connected, scene, sendCmd, runCmd, runAction, requestCatalog, mapUndo, runMapChanges, undoMapChange } = useGameEditLinkSync(
+    setSession,
+    setLiveError,
+    receiveCatalog
+  )
 
   const handlers = useMemo(() => buildOptimisticHandlers(setSession, sendCmd, (id) => catalog?.actors.find((a) => a.id === id)?.name), [sendCmd, catalog])
 
@@ -129,6 +133,7 @@ export function GameEditPage() {
     canAct: linked,
     onMap: scene.onMap,
     runningCommon: scene.runningCommon,
+    eventActivity: scene.eventActivity,
     commonId,
     onSelectCommon: (id) => {
       const href = hrefWithQuery(editCommonHref(id), eventsQuery)
@@ -137,11 +142,13 @@ export function GameEditPage() {
     },
     onAct: async (op) => {
       if (op.op === 'commonEvent') {
-        assertMapOperationCompleted(await runMapChanges([{ label: `公共事件 #${op.id}`, action: { kind: 'commonEvent', id: op.id, from: op.from } }], `执行公共事件 #${op.id}`))
+        assertMapOperationCompleted(
+          await runMapChanges([{ label: `公共事件 #${op.id}`, action: { kind: 'commonEvent', id: op.id, from: op.from, force: op.force } }], `执行公共事件 #${op.id}`)
+        )
       } else if (op.op === 'mapEvent') {
         assertMapOperationCompleted(
           await runMapChanges(
-            [{ label: `地图事件 #${op.eventId}`, action: { kind: 'mapEvent', mapId: op.mapId, eventId: op.eventId, page: op.page, from: op.from } }],
+            [{ label: `地图事件 #${op.eventId}`, action: { kind: 'mapEvent', mapId: op.mapId, eventId: op.eventId, page: op.page, from: op.from, force: op.force } }],
             `执行地图事件 #${op.eventId}`
           )
         )
@@ -179,8 +186,8 @@ export function GameEditPage() {
     },
     mapId,
     eventId: mapEventId,
-    onSelectMap: (nextMap, nextEvent) => {
-      const href = hrefWithQuery(editMapHref(nextMap, nextEvent), eventsQuery)
+    onSelectMap: (nextMap, nextEvent, page) => {
+      const href = hrefWithQuery(editMapHref(nextMap, nextEvent, page != null ? page + 1 : undefined), eventsQuery)
       if ((nextMap == null && mapId != null) || (nextMap === mapId && nextEvent == null && mapEventId != null)) returnToNavigationSource(router, href)
       else router.push(href)
     },
@@ -305,7 +312,7 @@ export function GameEditPage() {
         onGameSpeedChange={handlers.setGameSpeed}
         onExpRateChange={handlers.setExpRate}
         onRunFlagChange={handlers.setRunFlag}
-        onRunAction={handlers.runAction}
+        onRunAction={runAction}
         onHotkeysChange={(scope, hotkeys) => {
           if (scope === 'game') {
             saveGameStoredHotkeys(hotkeys)

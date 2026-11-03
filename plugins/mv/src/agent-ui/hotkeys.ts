@@ -13,8 +13,34 @@ export function startGameAgentHotkeys() {
       return
     }
     if (event.key === 'Escape' && isGameAgentUiOpen()) {
-      const path = event.composedPath()
-      if (path.some((node) => node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement)) return
+      const isField = (node: unknown): node is HTMLElement =>
+        node instanceof HTMLElement && (node.tagName === 'INPUT' || node.tagName === 'TEXTAREA' || node.tagName === 'SELECT' || node.isContentEditable)
+
+      const path = typeof event.composedPath === 'function' ? event.composedPath() : []
+      let focusedInput: HTMLElement | null = null
+      for (const node of path) {
+        if (isField(node)) {
+          focusedInput = node
+          break
+        }
+      }
+      if (!focusedInput) {
+        const ae = document.activeElement
+        if (isField(ae)) focusedInput = ae
+        else if (ae instanceof HTMLElement && ae.shadowRoot?.activeElement && isField(ae.shadowRoot.activeElement)) {
+          focusedInput = ae.shadowRoot.activeElement
+        }
+      }
+
+      if (focusedInput) {
+        if (typeof focusedInput.blur === 'function') {
+          focusedInput.blur()
+        }
+        event.preventDefault()
+        event.stopPropagation()
+        return
+      }
+
       event.preventDefault()
       event.stopPropagation()
       toggleGameAgentUi()

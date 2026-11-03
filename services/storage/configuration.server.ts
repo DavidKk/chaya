@@ -5,6 +5,7 @@ export function createPublicConfigurationStore(dataDir: string) {
   const files: Record<string, string> = {
     inputAssistance: 'input-assistance/global.json',
     toolSettings: 'game-agent/tool-settings.json',
+    remotePlayHost: 'remote-play/settings.json',
   }
   function fileFor(kind: string) {
     if (!Object.hasOwn(files, kind)) throw new Error('Unsupported public configuration')

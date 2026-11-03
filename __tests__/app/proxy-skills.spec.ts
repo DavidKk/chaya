@@ -23,4 +23,12 @@ describe('proxy', () => {
     const res = visit('/sh/setup', { accept: 'text/html' })
     expect(res.headers.get('x-middleware-rewrite')).toContain('/sh/setup/view')
   })
+
+  it('forwards the request ID to page rendering and to the browser, including rewrites', () => {
+    for (const path of ['/game', '/sh/setup']) {
+      const res = visit(path, { accept: 'text/html', 'x-chaya-request-id': 'page:test-123' })
+      expect(res.headers.get('x-chaya-request-id')).toBe('page:test-123')
+      expect(res.headers.get('x-middleware-request-x-chaya-request-id')).toBe('page:test-123')
+    }
+  })
 })

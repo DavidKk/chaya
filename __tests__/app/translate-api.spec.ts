@@ -224,3 +224,18 @@ it.each(['plan', 'status', 'install', 'cancel'])('requires management access for
   expect(response.status).toBe(403)
   expect((await response.json()).error.code).toBe('MANAGEMENT_REQUIRED')
 })
+
+it('silent-config reads and writes background silent translation settings', async () => {
+  jest.mocked(hasManagementAccess).mockReturnValue(true)
+  const readRes = await post({ mode: 'silent-config' })
+  expect(readRes.status).toBe(200)
+  const readData = await readRes.json()
+  expect(readData.ok).toBe(true)
+  expect(readData.config).toMatchObject({ enabled: expect.any(Boolean), engine: expect.any(String) })
+
+  const writeRes = await post({ mode: 'silent-config', config: { enabled: true, engine: 'google' } })
+  expect(writeRes.status).toBe(200)
+  const writeData = await writeRes.json()
+  expect(writeData.ok).toBe(true)
+  expect(writeData.config).toEqual({ enabled: true, engine: 'google' })
+})

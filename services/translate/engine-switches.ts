@@ -161,8 +161,8 @@ export function getTranslateEngineSwitches(contentRoot = resolveContentRoot(fals
 
 export type SetEngineSwitchesInput = TranslateEnginePatch
 
-export function setTranslateEngineSwitches(input: SetEngineSwitchesInput): EngineSwitchesState {
-  const contentRoot = resolveContentRoot(false)
+export function setTranslateEngineSwitches(input: SetEngineSwitchesInput, targetContentRoot?: string): EngineSwitchesState {
+  const contentRoot = targetContentRoot || resolveContentRoot(false)
   if (!contentRoot) {
     const sharedAgents = readSharedTranslateAgents() || { agents: [], order: [] }
     const sharedSwitches = readSharedSwitches()
