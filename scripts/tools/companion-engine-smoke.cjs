@@ -172,7 +172,39 @@ async function runScenario(mode, bundle, origin, fixture) {
   console.log(`Passed ${mode}`)
 }
 
+function terminatePriorGameInstances() {
+  try {
+    const { execSync } = require('node:child_process')
+    if (process.platform === 'win32') {
+      execSync('wmic process where "name like '%nw.exe%' or name like '%Game.exe%' or name like '%mkxp%'" call terminate', { stdio: 'ignore', timeout: 2000 })
+      return
+    }
+    const stdout = execSync('ps -eo pid,command', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000 })
+    const myPid = process.pid
+    const parentPid = process.ppid
+    for (const rawLine of stdout.split('\n')) {
+      const line = rawLine.trim()
+      if (!line) continue
+      const match = line.match(/^(\d+)\s+(.+)$/)
+      if (!match) continue
+      const pid = parseInt(match[1], 10)
+      if (pid === myPid || pid === parentPid) continue
+      const cmd = match[2]
+      if (/node|grep|ps -eo/i.test(cmd)) continue
+      const isNwShell = /Chaya\.app.*nwjs/i.test(cmd) || (/nwjs/i.test(cmd) && /app\.nw|--nwapp-path/i.test(cmd))
+      const isRgss = /mkxp-z|mkxp/i.test(cmd)
+      const isOldSmoke = /companion-engine-smoke\.cjs/i.test(cmd)
+      if (isNwShell || isRgss || isOldSmoke) {
+        try {
+          process.kill(pid, 'SIGKILL')
+        } catch {}
+      }
+    }
+  } catch {}
+}
+
 async function main() {
+  terminatePriorGameInstances()
   if (!process.argv[2] || !Number.isInteger(troopId) || troopId < 1 || (healSkillId !== undefined && (!Number.isInteger(healSkillId) || healSkillId < 1))) {
     throw new Error('Usage: pnpm exec electron scripts/tools/companion-engine-smoke.cjs <game-root> <output-dir> [positive-troop-id] [positive-heal-skill-id]')
   }

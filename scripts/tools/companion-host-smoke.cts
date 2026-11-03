@@ -243,6 +243,7 @@ async function main() {
       clearTimeout(deadline)
       process.removeListener('SIGINT', stop)
       process.removeListener('SIGTERM', stop)
+      stop()
     }
   } finally {
     control.close()
