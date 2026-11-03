@@ -46,6 +46,7 @@ export function createBattleNavigationPort(arbiter: ControlArbiter, readFrame: (
         _partyCommandWindow: 'party',
         _actorCommandWindow: 'command',
         _skillWindow: 'skill',
+        _itemWindow: 'item',
         _enemyWindow: 'enemy',
         _actorWindow: 'ally',
       }
@@ -60,20 +61,25 @@ export function createBattleNavigationPort(arbiter: ControlArbiter, readFrame: (
           symbol: String(o.symbol),
           ext: Number(o.ext),
         }))
-      } else if (kind === 'skill') {
+      } else if (kind === 'skill' || kind === 'item') {
         options = ((win._data as Loose[] | undefined) || []).slice(0, 256).map((o, index) => ({
           index,
           abilityId: Number(o?.id),
           enabled: !!o && !!call<boolean>(actor, 'canUse', o) && (call<boolean>(win, 'isEnabled', o) ?? false),
         }))
       } else {
+        const action = call<Loose>(g().BattleManager, 'inputtingAction')
+        const isForDead = Boolean(action && typeof action.isForDeadFriend === 'function' ? action.isForDeadFriend() : false)
         const members = kind === 'enemy' ? (win._enemies as Loose[] | undefined) : call<Loose[]>(g().$gameParty, 'battleMembers')
-        options = (members || []).slice(0, 16).map((member, index) => ({
-          index,
-          enabled: !call<boolean>(member, 'isDead'),
-          entityId: call<number>(member, kind === 'enemy' ? 'enemyId' : 'actorId'),
-          instanceId: kind === 'enemy' ? `enemy:${call<number>(member, 'index') ?? index}` : undefined,
-        }))
+        options = (members || []).slice(0, 16).map((member, index) => {
+          const isDead = Boolean(call<boolean>(member, 'isDead'))
+          return {
+            index,
+            enabled: kind === 'enemy' ? !isDead : isForDead ? isDead : !isDead,
+            entityId: call<number>(member, kind === 'enemy' ? 'enemyId' : 'actorId'),
+            instanceId: kind === 'enemy' ? `enemy:${call<number>(member, 'index') ?? index}` : undefined,
+          }
+        })
       }
       const index = call<number>(win, 'index') ?? Number(win._index)
       const maxCols = call<number>(win, 'maxCols') ?? 1

@@ -161,7 +161,7 @@ async function runScenario(mode, bundle, origin, fixture) {
     }
     if (mode === 'insufficient-mp') {
       const forbidden = snapshot.trace.filter(
-        (event) => event.kind === 'record' && event.data.kind === 'command_committed' && event.data.actionKey === `actor:1:skill:${healSkillId}`
+        (event) => event.kind === 'record' && event.data.kind === 'command_committed' && event.data.actionKey.includes(`:skill:${healSkillId}`)
       )
       assert.equal(forbidden.length, 0, 'Unaffordable skill never committed')
     }
@@ -176,7 +176,8 @@ async function main() {
   if (!process.argv[2] || !Number.isInteger(troopId) || troopId < 1 || (healSkillId !== undefined && (!Number.isInteger(healSkillId) || healSkillId < 1))) {
     throw new Error('Usage: pnpm exec electron scripts/tools/companion-engine-smoke.cjs <game-root> <output-dir> [positive-troop-id] [positive-heal-skill-id]')
   }
-  await fs.access(path.join(gameRoot, 'index.html'))
+  const effectiveRoot = (await fs.stat(path.join(gameRoot, 'www', 'index.html')).catch(() => null)) ? path.join(gameRoot, 'www') : gameRoot
+  await fs.access(path.join(effectiveRoot, 'index.html'))
   const fixture = fixturePath ? JSON.parse(await fs.readFile(path.resolve(fixturePath), 'utf8')) : {}
   await fs.mkdir(output, { recursive: true })
   profile = await fs.mkdtemp(path.join(os.tmpdir(), 'chaya-engine-smoke-'))
@@ -193,14 +194,15 @@ async function main() {
   })
   server = http.createServer(async (req, res) => {
     try {
+      const effectiveRoot = (await fs.stat(path.join(gameRoot, 'www', 'index.html')).catch(() => null)) ? path.join(gameRoot, 'www') : gameRoot
       const pathname = decodeURIComponent(new URL(req.url, 'http://localhost').pathname)
       if (pathname === '/js/plugins.js') {
         res.setHeader('Content-Type', 'application/javascript')
         res.end('var $plugins = [];')
         return
       }
-      const file = path.resolve(gameRoot, '.' + (pathname === '/' ? '/index.html' : pathname))
-      if (!file.startsWith(gameRoot + path.sep)) {
+      const file = path.resolve(effectiveRoot, '.' + (pathname === '/' ? '/index.html' : pathname))
+      if (!file.startsWith(effectiveRoot + path.sep)) {
         res.writeHead(403).end()
         return
       }

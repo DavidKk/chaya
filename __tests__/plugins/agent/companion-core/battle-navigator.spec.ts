@@ -205,3 +205,47 @@ test('revalidates after async observation and stops before confirming a forbidde
   await expect(f.navigator.execute(f.intent, f.lease)).resolves.toMatchObject({ ok: false, reason: 'INTENT_CHANGED', unknown: false })
   expect(f.press).not.toHaveBeenCalled()
 })
+
+test('navigates item command to item selection and targets ally', async () => {
+  const f = fixture()
+  f.intent.actionOffer = { ...f.intent.actionOffer, kind: 'item', abilityId: 5 }
+  f.intent.target = { kind: 'actor', targetIndex: 0, entityId: 1 }
+  f.setInput({
+    controlToken: 't',
+    battleInstanceId: 'b',
+    kind: 'command',
+    index: 0,
+    maxCols: 1,
+    options: [{ index: 0, enabled: true, symbol: 'item' }],
+    action: f.action,
+  })
+  f.press.mockImplementation(async () => {
+    if (f.press.mock.calls.length === 1) {
+      f.setInput({
+        controlToken: 't',
+        battleInstanceId: 'b',
+        kind: 'item',
+        index: 0,
+        maxCols: 1,
+        options: [{ index: 0, enabled: true, abilityId: 5 }],
+        action: f.action,
+      })
+    } else if (f.press.mock.calls.length === 2) {
+      f.setInput({
+        controlToken: 't',
+        battleInstanceId: 'b',
+        kind: 'ally',
+        index: 0,
+        maxCols: 1,
+        options: [{ index: 0, enabled: true, entityId: 1 }],
+        action: f.action,
+      })
+    } else {
+      f.frame.opportunity = null
+      f.frame.phase = 'resolving'
+    }
+  })
+  await expect(f.navigator.execute(f.intent, f.lease)).resolves.toEqual({ ok: true, committed: true })
+  expect(f.press).toHaveBeenCalledTimes(3)
+  expect(f.port.bindAction).toHaveBeenCalledWith(f.action, f.intent, expect.anything())
+})

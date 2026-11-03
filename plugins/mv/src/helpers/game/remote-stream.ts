@@ -55,6 +55,7 @@ export function closeGameMediaPeer(peer: RTCPeerConnection | null): void {
 export function shouldMuteHostAudio(): boolean {
   try {
     const g = globalThis as any
+    if (g.__CHAYA_MUTE_HOST__ === true || g.__CHAYA_ENV__?.muteHostAudio === true) return true
     const isSilent = Boolean(g.CHAYA_SILENT_MODE || g.__CHAYA_SILENT_MODE__)
     if (!isSilent) return false
     if (g.__CHAYA_UNMUTE_HOST__ === true) return false

@@ -32,13 +32,18 @@ export const POST = defineApiRoute('post:/api/launch', async ({ request }) => {
   let mode: 'silent' | 'windowed' = 'windowed'
   let muteHostAudio: boolean | undefined
   const raw = await request.json().catch(() => null)
-  if (raw && typeof raw === 'object' && raw.remotePlay === true) {
-    const settings = readRemotePlayHostSettings()
-    mode = settings.launchMode
-    muteHostAudio = mode === 'silent' ? settings.muteHostAudio : false
-  } else if (raw && typeof raw === 'object' && raw.mode === 'silent') {
-    mode = 'silent'
-    muteHostAudio = true
+  if (raw && typeof raw === 'object') {
+    if (raw.remotePlay === true) {
+      const settings = readRemotePlayHostSettings()
+      mode = settings.launchMode
+      muteHostAudio = mode === 'silent' ? settings.muteHostAudio : false
+    } else if (raw.mode === 'silent') {
+      mode = 'silent'
+      muteHostAudio = true
+    }
+    if (raw.mute === true || raw.muteHostAudio === true) {
+      muteHostAudio = true
+    }
   }
   const isSilent = mode === 'silent'
 

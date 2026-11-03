@@ -14,6 +14,7 @@ import type {
   SupportedTargetRule,
 } from '@/lib/game-agent/companion/core/types'
 import type { ContextStamp } from '@/lib/game-agent/companion/types'
+import { getUsableItems } from '@/plugins/mv/src/helpers/game/battle-effects'
 
 import { call, g, getBattleScene, type Loose } from './battle-engine'
 
@@ -22,6 +23,8 @@ function parseSkillTargetRule(scopeNum: number): SupportedTargetRule {
   if (scopeNum === 2) return 'all_enemies'
   if (scopeNum === 7) return 'one_ally'
   if (scopeNum === 8) return 'all_allies'
+  if (scopeNum === 9) return 'one_dead_ally'
+  if (scopeNum === 10) return 'all_dead_allies'
   if (scopeNum === 11) return 'user'
   if (scopeNum === 0) return 'none'
   return 'unsupported'
@@ -33,6 +36,10 @@ function parseSkillEffect(skill: Loose): ObservedOrDeclaredEffect {
 
   // Type 3 in RPG Maker is HP Recover
   if (damageType === 3 || (Array.isArray(skill.effects) && skill.effects.some((e: Loose) => e.code === 11 && (Number(e.value1) > 0 || Number(e.value2) > 0)))) {
+    return { kind: 'heal' }
+  }
+  // Scope 9/10 or State 1 (Knockout/Death) removal is revive -> heal
+  if (Number(skill.scope) === 9 || Number(skill.scope) === 10 || (Array.isArray(skill.effects) && skill.effects.some((e: Loose) => e.code === 22 && Number(e.dataId) === 1))) {
     return { kind: 'heal' }
   }
   if (damageType === 1 || damageType === 5) {
@@ -221,6 +228,29 @@ export function readLiveBattleFrame(stamp: ContextStamp, capabilitiesRevision: n
         name,
         targetRule,
         costs: skillCosts(currentActor, skill),
+        effect,
+      })
+    }
+
+    const usableItems = getUsableItems(currentActor as any)
+    for (const item of usableItems) {
+      if (!item || typeof item !== 'object') continue
+      const itemId = Number(item.id)
+      if (!Number.isFinite(itemId) || itemId <= 0) continue
+
+      const name = String(item.name ?? `Item ${itemId}`)
+      const scopeNum = Number(item.scope ?? 1)
+      const targetRule = parseSkillTargetRule(scopeNum)
+      const effect = parseSkillEffect(item)
+
+      offers.push({
+        actionKey: `actor:${actorId}:item:${itemId}`,
+        actor: actorRef,
+        kind: 'item',
+        abilityId: itemId,
+        name,
+        targetRule,
+        costs: { mp: 0, tp: 0 },
         effect,
       })
     }

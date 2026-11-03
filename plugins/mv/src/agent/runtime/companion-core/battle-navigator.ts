@@ -5,7 +5,7 @@ export type BattleInputOption = { index: number; enabled: boolean; symbol?: stri
 export type BattleInputState = {
   controlToken: string
   battleInstanceId: string
-  kind: 'party' | 'command' | 'skill' | 'enemy' | 'ally'
+  kind: 'party' | 'command' | 'skill' | 'item' | 'enemy' | 'ally'
   index: number
   maxCols: number
   options: BattleInputOption[]
@@ -26,6 +26,7 @@ function desiredOption(input: BattleInputState, intent: ActionIntent): BattleInp
   if (input.kind === 'party' && intent.actionOffer.actionKey === 'party:fight') return input.options.find((o) => o.symbol === 'fight')
   if (input.kind === 'command') return input.options.find((o) => o.symbol === intent.actionOffer.kind && (o.symbol !== 'skill' || o.ext === intent.actionOffer.skillTypeId))
   if (input.kind === 'skill') return input.options.find((o) => o.abilityId === intent.actionOffer.abilityId)
+  if (input.kind === 'item') return input.options.find((o) => o.abilityId === intent.actionOffer.abilityId)
   if (input.kind === 'enemy' && intent.target.kind === 'enemy') return input.options.find((o) => o.entityId === intent.target.entityId && o.instanceId === intent.target.instanceId)
   if (input.kind === 'ally' && intent.target.kind === 'actor') return input.options.find((o) => o.entityId === intent.target.entityId)
   return undefined
@@ -77,7 +78,8 @@ export class BattleNavigator {
                 const finalSelection =
                   input.kind === 'enemy' ||
                   input.kind === 'ally' ||
-                  ((input.kind === 'skill' || (input.kind === 'command' && intent.actionOffer.kind !== 'skill')) && !['enemy', 'actor'].includes(intent.target.kind))
+                  ((input.kind === 'skill' || input.kind === 'item' || (input.kind === 'command' && intent.actionOffer.kind !== 'skill' && intent.actionOffer.kind !== 'item')) &&
+                    !['enemy', 'actor'].includes(intent.target.kind))
                 if (input.action && finalSelection) this.port.bindAction(input.action, intent, fresh)
                 this.port.onConfirming(intent.commandId)
                 lastConfirm = fingerprint

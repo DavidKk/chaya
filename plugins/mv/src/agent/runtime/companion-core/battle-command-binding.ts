@@ -18,7 +18,7 @@ export function bindBattleCommand(action: object, commandId: string, encounterId
   const expected = intent
     ? {
         abilityId: intent.actionOffer.abilityId,
-        item: false,
+        item: intent.actionOffer.kind === 'item',
         targetIndex: ['enemy', 'actor'].includes(intent.target.kind) ? intent.target.targetIndex : undefined,
       }
     : signature(action)

@@ -53,7 +53,16 @@ function selectAllyTarget(
   targetRule: ActionOffer['targetRule'],
   preference?: 'lowest_hp' | 'self'
 ): ActionTargetRef | null {
-  if (targetRule === 'all_allies') return { kind: 'all_allies' }
+  if (targetRule === 'all_allies' || targetRule === 'all_dead_allies') return { kind: 'all_allies' }
+  if (targetRule === 'one_dead_ally') {
+    const dead = situation.deadParty[0]
+    if (!dead) return null
+    return {
+      kind: 'actor',
+      targetIndex: dead.index,
+      entityId: dead.actorId,
+    }
+  }
   if (targetRule === 'user' || (targetRule === 'one_ally' && preference === 'self')) {
     return {
       kind: targetRule === 'user' ? 'user' : 'actor',
@@ -122,6 +131,27 @@ export function chooseAction(frame: BattleFrame, situation: SituationEvaluation,
     party: frame.party,
     enemies: frame.enemies,
     currentActor,
+  }
+
+  // 0. 救急：复活阵亡队友 (优先复活技能或道具)
+  if (situation.deadParty.length > 0) {
+    const reviveOffer = actorOffers.find((o) => o.targetRule === 'one_dead_ally' || o.targetRule === 'all_dead_allies')
+    if (reviveOffer) {
+      const dead = situation.deadParty[0]
+      const target: ActionTargetRef = reviveOffer.targetRule === 'all_dead_allies' ? { kind: 'all_allies' } : { kind: 'actor', targetIndex: dead.index, entityId: dead.actorId }
+      return {
+        kind: 'action',
+        intent: {
+          commandId: generateCommandId(),
+          opportunityId: frame.opportunity.opportunityId,
+          actorId: currentActor.actorId,
+          actionOffer: reviveOffer,
+          target,
+          tacticRevision: tactic.revision,
+          reason: `救急策略：复活阵亡队友 ${dead.name}`,
+        },
+      }
+    }
   }
 
   // Iterate through tactic rules by priority
@@ -224,6 +254,44 @@ export function chooseAction(frame: BattleFrame, situation: SituationEvaluation,
               appliedRuleId: rule.id,
               appliedRuleSignature: JSON.stringify(rule),
               reason: rule.reason || `施放技能 ${skillOffer.name}`,
+            },
+          }
+        }
+      }
+    } else if (rule.prefer.kind === 'item') {
+      const itemOffer = actorOffers.find((o) => {
+        if (o.kind !== 'item') return false
+        if (rule.prefer.abilityId !== undefined) return o.abilityId === rule.prefer.abilityId
+        return true
+      })
+      if (itemOffer) {
+        let target: ActionTargetRef | null = null
+        if (itemOffer.targetRule === 'one_enemy' || itemOffer.targetRule === 'all_enemies') {
+          target =
+            itemOffer.targetRule === 'all_enemies'
+              ? { kind: 'all_enemies' }
+              : selectEnemyTarget(situation, rule.prefer.targetPreference === 'first_enemy' ? 'first_enemy' : 'lowest_hp')
+        } else if (itemOffer.targetRule === 'none') {
+          target = { kind: 'none' }
+        } else if (itemOffer.targetRule === 'one_dead_ally' || itemOffer.targetRule === 'all_dead_allies') {
+          const dead = situation.deadParty[0]
+          target = itemOffer.targetRule === 'all_dead_allies' ? { kind: 'all_allies' } : dead ? { kind: 'actor', targetIndex: dead.index, entityId: dead.actorId } : null
+        } else {
+          target = selectAllyTarget(situation, currentActor, itemOffer.targetRule, rule.prefer.targetPreference === 'self' ? 'self' : 'lowest_hp')
+        }
+        if (target) {
+          return {
+            kind: 'action',
+            intent: {
+              commandId: generateCommandId(),
+              opportunityId: frame.opportunity.opportunityId,
+              actorId: currentActor.actorId,
+              actionOffer: itemOffer,
+              target,
+              tacticRevision: tactic.revision,
+              appliedRuleId: rule.id,
+              appliedRuleSignature: JSON.stringify(rule),
+              reason: rule.reason || `使用道具 ${itemOffer.name}`,
             },
           }
         }

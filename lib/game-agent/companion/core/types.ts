@@ -53,7 +53,7 @@ export type CommandOpportunity = {
   kind: CommandOpportunityKind
 }
 
-export type SupportedTargetRule = 'one_enemy' | 'all_enemies' | 'one_ally' | 'all_allies' | 'user' | 'none' | 'unsupported'
+export type SupportedTargetRule = 'one_enemy' | 'all_enemies' | 'one_ally' | 'all_allies' | 'one_dead_ally' | 'all_dead_allies' | 'user' | 'none' | 'unsupported'
 
 export type KnownActionCosts = {
   mp: number

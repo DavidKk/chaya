@@ -39,6 +39,21 @@ game.__companionSmoke = {
   ) {
     taskMode = mode === 'single-battle'
     game.DataManager.setupNewGame()
+    if (mode !== 'host') {
+      game.$gamePlayer?.clearTransferInfo?.()
+    }
+    if (game.Sprite_Actor && !game.Sprite_Actor.prototype.__companionSmokePatched) {
+      game.Sprite_Actor.prototype.__companionSmokePatched = true
+      const origUpdateMove = game.Sprite_Actor.prototype.updateMove
+      game.Sprite_Actor.prototype.updateMove = function () {
+        const bitmap = this._mainSprite?.bitmap
+        if (!bitmap || bitmap.isReady() || bitmap.isError()) {
+          game.Sprite_Battler.prototype.updateMove.call(this)
+          return
+        }
+        origUpdateMove.call(this)
+      }
+    }
     game.AudioManager.masterVolume = 0
     const modifications: string[] = ['Third-party plugins disabled by the HTTP fixture', 'Document focus emulated in the hidden automation window']
     for (const [id, value] of Object.entries(fixture.variables ?? {})) {
@@ -53,9 +68,26 @@ game.__companionSmoke = {
     }
     if (mode === 'healing' || mode === 'insufficient-mp' || (mode === 'host' && fixture.recoverySkill)) {
       healSkillId ??= fixture.recoverySkill
-      if (!game.$gameParty.members().some((actor: any) => actor.actorId() === 2)) {
-        game.$gameParty.addActor(2)
-        modifications.push('Add actor 2 to the party')
+      const initialMembers = game.$gameParty.members()
+      if (initialMembers.length < 2) {
+        const allActors = (game.$dataActors || []).filter(Boolean)
+        const firstId = initialMembers[0]?.actorId() ?? 0
+        const nextActor =
+          allActors.find((a: any) => !initialMembers.some((m: any) => m.actorId() === a.id) && a.id > firstId) ||
+          allActors.find((a: any) => !initialMembers.some((m: any) => m.actorId() === a.id))
+        if (nextActor) {
+          game.$gameParty.addActor(nextActor.id)
+          modifications.push(`Add actor ${nextActor.id} to the party`)
+        }
+      }
+      const members = game.$gameParty.members()
+      const firstActor = members[0]
+      const secondActor = members[1]
+      if (firstActor && secondActor && game.$dataSystem?.optSideView) {
+        const firstBattler = firstActor.battlerName?.()
+        if (firstBattler && (!secondActor.battlerName?.() || secondActor.battlerName() === 'Actor1_1')) {
+          secondActor._battlerName = firstBattler
+        }
       }
       if (fixture.recoveryLevel !== undefined) {
         if (!Number.isInteger(fixture.recoveryLevel) || fixture.recoveryLevel < 1) throw new Error('Invalid fixture level')
@@ -65,18 +97,25 @@ game.__companionSmoke = {
         }
         modifications.push(`Set party level to ${fixture.recoveryLevel} and recover before applying the injury fixture`)
       }
-      if (healSkillId) {
+      if (healSkillId && firstActor) {
         const skill = game.$dataSkills[healSkillId]
         if (!skill || skill.damage.type !== 3 || skill.scope !== 7) throw new Error('Expected a single-ally HP recovery skill')
-        game.$gameActors.actor(1).learnSkill(healSkillId)
-        game.$dataActors[1].traits.push({ code: 41, dataId: skill.stypeId, value: 1 })
+        if (secondActor) {
+          secondActor.forgetSkill(healSkillId)
+        }
+        firstActor.learnSkill(healSkillId)
+        game.$dataActors[firstActor.actorId()].traits.push({ code: 41, dataId: skill.stypeId, value: 1 })
         // Published samples sometimes omit assets for unused database animations.
         skill.animationId = 0
-        game.$gameActors.actor(2).setHp(Math.max(1, Math.floor(game.$gameActors.actor(2).mhp * 0.09)))
-        modifications.push(`Actor 1 learns skill ${healSkillId} with its menu type; animation disabled; actor 2 starts at 9% HP`)
+        if (secondActor) {
+          secondActor.setHp(Math.max(1, Math.floor(secondActor.mhp * 0.09)))
+        }
+        modifications.push(`Actor ${firstActor.actorId()} learns skill ${healSkillId} with its menu type; animation disabled; second actor starts at 9% HP`)
         if (mode === 'insufficient-mp') {
-          game.$gameActors.actor(1).setMp(0)
-          modifications.push('Actor 1 starts with 0 MP')
+          for (const actor of members) {
+            if (actor.hasSkill(healSkillId)) actor.setMp(0)
+          }
+          modifications.push(`Actor ${firstActor.actorId()} starts with 0 MP`)
         }
       }
     }
@@ -100,6 +139,8 @@ game.__companionSmoke = {
   start() {
     const issue = battleSupportIssue(true)
     if (issue) throw new Error(issue)
+    runtime?.dispose()
+    runtime = undefined
     const deps = {
       runtimeInstanceId: identity.runtimeInstanceId,
       arbiter,
@@ -155,13 +196,15 @@ game.__companionSmoke = {
     runtime.tick()
   },
   stop() {
-    runtime?.stop()
+    runtime?.dispose()
+    runtime = undefined
     log('stop', {})
   },
   stopWhileHeld() {
     if (!Object.values(game.Input?._currentState ?? {}).some(Boolean)) return false
     log('stopHeld', { ...game.Input._currentState })
-    runtime?.stop()
+    runtime?.dispose()
+    runtime = undefined
     return true
   },
   constrain(constraint: PlayerConstraint) {

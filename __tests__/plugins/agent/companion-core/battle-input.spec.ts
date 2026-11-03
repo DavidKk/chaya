@@ -106,3 +106,31 @@ test('preserves disabled command options and checks skill usability', async () =
   scene._skillWindow = { active: true, _index: 0, _data: [{ id: 10 }], isEnabled: () => false }
   expect((await port.readInput())?.options[0]).toMatchObject({ abilityId: 10, enabled: false })
 })
+
+test('reads item window and checks item usability', async () => {
+  delete scene._actorCommandWindow
+  scene._itemWindow = { active: true, _index: 0, _data: [{ id: 25 }], isEnabled: () => true }
+  const port = createBattleNavigationPort(createControlArbiter(), battleFrame, jest.fn())
+  const input = await port.readInput()
+  expect(input?.kind).toBe('item')
+  expect(input?.options[0]).toMatchObject({ abilityId: 25, enabled: true })
+})
+
+test('enables dead members when action is for dead friend', async () => {
+  delete scene._actorCommandWindow
+  scene._actorWindow = { active: true, _index: 0 }
+  const living = { actorId: () => 1, isDead: () => false }
+  const dead = { actorId: () => 2, isDead: () => true }
+  world.$gameParty = { battleMembers: () => [living, dead] }
+  world.BattleManager = {
+    actor: () => ({ canUse: () => true }),
+    inputtingAction: () => ({ isForDeadFriend: () => true }),
+  }
+  const port = createBattleNavigationPort(createControlArbiter(), battleFrame, jest.fn())
+  const input = await port.readInput()
+  expect(input?.kind).toBe('ally')
+  expect(input?.options).toMatchObject([
+    { entityId: 1, enabled: false },
+    { entityId: 2, enabled: true },
+  ])
+})

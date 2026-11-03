@@ -128,7 +128,7 @@ test('does not target hidden reinforcements and preserves visible enemies origin
   })
 })
 
-test('declares HP recovery from mechanics, excludes revival scopes and does not infer effects from names', () => {
+test('declares HP recovery from mechanics, maps revival scopes and does not infer effects from names', () => {
   skills = [
     { id: 10, stypeId: 1, name: 'Cure shield', scope: 7, damage: { type: 0 } },
     { id: 11, stypeId: 1, name: 'Restore', scope: 7, damage: { type: 3 } },
@@ -139,7 +139,28 @@ test('declares HP recovery from mechanics, excludes revival scopes and does not 
   const offers = read().offers
   expect(offers.find((o) => o.abilityId === 10)?.effect.kind).toBe('other')
   expect(offers.find((o) => o.abilityId === 11)).toMatchObject({ effect: { kind: 'heal' }, targetRule: 'one_ally', skillTypeId: 1 })
-  expect(offers.find((o) => o.abilityId === 12)?.targetRule).toBe('unsupported')
+  expect(offers.find((o) => o.abilityId === 12)).toMatchObject({ effect: { kind: 'heal' }, targetRule: 'one_dead_ally', skillTypeId: 1 })
   expect(offers.find((o) => o.abilityId === 13)?.effect.kind).toBe('heal')
   expect(offers.find((o) => o.abilityId === 14)?.effect.kind).not.toBe('heal')
+})
+
+test('extracts usable items from $gameParty into action offers', () => {
+  const potion = { id: 1, name: 'Potion', scope: 7, damage: { type: 3 } }
+  world.$gameParty = {
+    battleMembers: () => [actor],
+    items: () => [potion],
+    numItems: (item: { id: number }) => (item.id === 1 ? 5 : 0),
+  }
+  const offers = read().offers
+  const itemOffer = offers.find((o) => o.kind === 'item' && o.abilityId === 1)
+  expect(itemOffer).toBeDefined()
+  expect(itemOffer).toMatchObject({
+    actionKey: 'actor:1:item:1',
+    kind: 'item',
+    abilityId: 1,
+    name: 'Potion',
+    targetRule: 'one_ally',
+    costs: { mp: 0, tp: 0 },
+    effect: { kind: 'heal' },
+  })
 })
