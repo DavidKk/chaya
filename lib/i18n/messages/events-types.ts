@@ -252,6 +252,16 @@ export type EventsMapMessages = {
   tabNpc: string
   emptyNpc: string
   emptyNpcMsg: string
+  tabChest: string
+  emptyChest: string
+  emptyChestMsg: string
+  tabTransfer: string
+  emptyTransfer: string
+  emptyTransferMsg: string
+  chestOpened: string
+  chestUnopened: string
+  chestReward: string
+  transferTo: string
   typeTransfer: string
   typeChest: string
   typeTrigger: string

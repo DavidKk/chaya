@@ -9,7 +9,7 @@ import { ScrollArea } from '@/components/sk'
 import type { MapDetailData, MapEventType } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
-import { type EventState, isNpcEvent, resolveNpcInfo, TYPE_KEY } from './event-meta'
+import { type EventState, isChestEvent, isNpcEvent, isTransferEvent, resolveNpcInfo, TYPE_KEY } from './event-meta'
 import type { PlayerSpot } from './types'
 
 const TYPE_FILL: Record<MapEventType, string> = {
@@ -58,7 +58,7 @@ type MiniMapProps = {
   onSelectEvent: (id: number) => void
   opacity?: MiniPanelOpacitySettings
   activeFilter?: string
-  subTab?: 'all' | 'npc'
+  subTab?: 'all' | 'npc' | 'chest' | 'transfer'
 }
 
 /**
@@ -197,10 +197,13 @@ function MiniMapBody({
                 (ev.rawName && ev.rawName.toLowerCase().includes(query)) ||
                 String(ev.id) === query)
             const isNpc = isNpcEvent(ev, detail.texts)
-            const dimmed = subTab === 'npc' && !isNpc
+            const isChest = isChestEvent(ev)
+            const isTransfer = isTransferEvent(ev)
+            const isTabMatch = subTab === 'npc' ? isNpc : subTab === 'chest' ? isChest : subTab === 'transfer' ? isTransfer : true
+            const dimmed = subTab !== 'all' && subTab != null && !isTabMatch
             return (
               <g key={ev.id} className={dimmed ? 'opacity-25' : undefined}>
-                {(isMatch || (subTab === 'npc' && isNpc)) && (
+                {(isMatch || (subTab !== 'all' && subTab != null && isTabMatch)) && (
                   <circle
                     cx={ev.x + 0.5}
                     cy={ev.y + 0.5}

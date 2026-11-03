@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useMemo, useState } from 'react'
-import { IoArrowBack, IoArrowUndoOutline, IoChatbubbleEllipsesOutline, IoNavigateOutline, IoPersonOutline } from 'react-icons/io5'
+import { IoArrowBack, IoArrowUndoOutline, IoChatbubbleEllipsesOutline, IoExitOutline, IoGiftOutline, IoNavigateOutline, IoPersonOutline } from 'react-icons/io5'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { countKey, type SessionState } from '@/components/game-edit/types'
@@ -14,7 +14,7 @@ import { type CommonEventsData, estimateActivePage, type MapDetailData, type Map
 import type { MapOperationItem, MapOperationValue } from '@/lib/runtime/game-link-protocol'
 import { cn } from '@/lib/utils'
 
-import { type EventState, isNpcEvent, resolveNpcInfo, TYPE_KEY } from './event-meta'
+import { type EventState, isChestEvent, isNpcEvent, isTransferEvent, resolveChestInfo, resolveNpcInfo, resolveTransferInfo, TYPE_KEY } from './event-meta'
 import { MapEventsTableSkeleton } from './EventsSkeleton'
 import { MapEncounters } from './MapEncounters'
 import { MapEventDetail } from './MapEventDetail'
@@ -22,7 +22,7 @@ import { MapTeleportField } from './MapTeleportField'
 import { MiniMap } from './MiniMap'
 import type { EventsOp, EventsSlot } from './types'
 
-export { type EventState, isGenericEventName, isNpcEvent, resolveNpcInfo, TYPE_KEY } from './event-meta'
+export { type EventState, isChestEvent, isGenericEventName, isNpcEvent, isTransferEvent, resolveChestInfo, resolveNpcInfo, resolveTransferInfo, TYPE_KEY } from './event-meta'
 
 /** Exact on the player's map, estimated from page conditions elsewhere, unknown offline */
 export function eventStateOf(ev: MapEventInfo, detail: MapDetailData, session: SessionState): EventState {
@@ -132,6 +132,8 @@ function targetConditionPage(event: MapEventInfo, detail: MapDetailData, session
 }
 
 /** One map: header with the coordinate teleport, mini map, event table; selecting an event opens its detail in place */
+export type MapEventTab = 'all' | 'npc' | 'chest' | 'transfer'
+
 export type MapNpcItem = {
   key: string
   name: string
@@ -143,6 +145,24 @@ export type MapNpcItem = {
   state: EventState
   teleportX: number
   teleportY: number
+}
+
+export type MapChestItem = {
+  event: MapEventInfo
+  name: string
+  rewardText: string
+  rewards: string[]
+  isOpened: boolean
+  state: EventState
+}
+
+export type MapTransferItem = {
+  event: MapEventInfo
+  name: string
+  targetMapId: number
+  targetMapName: string
+  targetCoords?: { x: number; y: number }
+  state: EventState
 }
 
 export function MapDetail({
@@ -177,6 +197,8 @@ export function MapDetail({
     (ev: MapEventInfo) => {
       if (!query) return false
       const npcInfo = resolveNpcInfo(ev, detail?.texts, data.names.actors)
+      const chestInfo = resolveChestInfo(ev, data.names, detail ?? undefined)
+      const transferInfo = resolveTransferInfo(ev, data.names.maps)
       return (
         (npcInfo.name && npcInfo.name.toLowerCase().includes(query)) ||
         (ev.name && ev.name.toLowerCase().includes(query)) ||
@@ -184,10 +206,14 @@ export function MapDetail({
         (npcInfo.faceName && npcInfo.faceName.toLowerCase().includes(query)) ||
         (npcInfo.characterName && npcInfo.characterName.toLowerCase().includes(query)) ||
         (npcInfo.dialogueSnippet && npcInfo.dialogueSnippet.toLowerCase().includes(query)) ||
+        (chestInfo.name && chestInfo.name.toLowerCase().includes(query)) ||
+        (chestInfo.rewardText && chestInfo.rewardText.toLowerCase().includes(query)) ||
+        (transferInfo.name && transferInfo.name.toLowerCase().includes(query)) ||
+        (transferInfo.targetMapName && transferInfo.targetMapName.toLowerCase().includes(query)) ||
         String(ev.id) === query
       )
     },
-    [data.names.actors, detail?.texts, query]
+    [data.names, detail, query]
   )
 
   const sortedEvents: MapEventInfo[] = useMemo(() => {
@@ -202,7 +228,7 @@ export function MapDetail({
     })
   }, [detail?.events, isMatch, query])
 
-  const [eventTab, setEventTab] = useState<'all' | 'npc'>('all')
+  const [eventTab, setEventTab] = useState<MapEventTab>('all')
 
   const npcList: MapNpcItem[] = useMemo(() => {
     if (!detail?.events) return []
@@ -244,14 +270,46 @@ export function MapDetail({
     return Array.from(map.values())
   }, [data.names.actors, detail, session, sortedEvents])
 
+  const chestList: MapChestItem[] = useMemo(() => {
+    if (!detail?.events) return []
+    return sortedEvents.filter(isChestEvent).map((ev) => {
+      const info = resolveChestInfo(ev, data.names, detail)
+      return {
+        event: ev,
+        name: info.name,
+        rewardText: info.rewardText,
+        rewards: info.rewards,
+        isOpened: info.isOpened,
+        state: eventStateOf(ev, detail, session),
+      }
+    })
+  }, [data.names, detail, session, sortedEvents])
+
+  const transferList: MapTransferItem[] = useMemo(() => {
+    if (!detail?.events) return []
+    return sortedEvents.filter(isTransferEvent).map((ev) => {
+      const info = resolveTransferInfo(ev, data.names.maps)
+      return {
+        event: ev,
+        name: info.name,
+        targetMapId: info.targetMapId,
+        targetMapName: info.targetMapName,
+        targetCoords: info.targetCoords,
+        state: eventStateOf(ev, detail, session),
+      }
+    })
+  }, [data.names.maps, detail, session, sortedEvents])
+
   const displayedEvents = sortedEvents
 
-  const navItems: readonly SegmentedNavItem<'all' | 'npc'>[] = useMemo(
+  const navItems: readonly SegmentedNavItem<MapEventTab>[] = useMemo(
     () => [
       { id: 'all', label: `${t('events.map.tabAllEvents')} (${detail?.events.length ?? 0})` },
       { id: 'npc', label: `${t('events.map.tabNpc')} (${npcList.length})` },
+      { id: 'chest', label: `${t('events.map.tabChest')} (${chestList.length})` },
+      { id: 'transfer', label: `${t('events.map.tabTransfer')} (${transferList.length})` },
     ],
-    [t, detail?.events.length, npcList.length]
+    [t, detail?.events.length, npcList.length, chestList.length, transferList.length]
   )
 
   const toggleSelected = (eventId: number, checked: boolean) => {
@@ -507,6 +565,169 @@ export function MapDetail({
                               <IoNavigateOutline className="text-accent text-[0.85rem]" />
                               <span>
                                 {npc.teleportX},{npc.teleportY}
+                              </span>
+                            </Button>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            ) : eventTab === 'chest' ? (
+              chestList.length === 0 ? (
+                <EmptyState title={t('events.map.emptyChest')} message={t('events.map.emptyChestMsg')} className="min-h-full flex-1" />
+              ) : (
+                <div className="flex flex-col divide-y divide-line/60">
+                  <div className="flex items-center justify-between border-b border-line bg-paper-2 px-3 py-1.5 text-xs text-ink-soft">
+                    <span className="font-medium text-ink">
+                      {t('events.map.tabChest')} ({chestList.length})
+                    </span>
+                    <span className="text-[0.7rem] text-ink-soft/75">点击卡片可查看对应事件详情</span>
+                  </div>
+                  {chestList.map((chest) => {
+                    const hit = isMatch(chest.event)
+                    return (
+                      <div
+                        key={chest.event.id}
+                        data-navigation-id={`map-event:${node.id}:${chest.event.id}`}
+                        role="listitem"
+                        className={cn('group flex items-start gap-3 p-3 transition-colors hover:bg-paper-2/70', hit && 'bg-[color-mix(in_oklab,var(--accent)_12%,transparent)]')}
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-amber-500/20 bg-amber-500/10 text-amber-500 shadow-xs">
+                          <IoGiftOutline className="text-[1.2rem]" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              type="button"
+                              className="m-0 cursor-pointer border-none bg-transparent p-0 text-left font-semibold text-ink text-[0.875rem] underline-offset-2 hover:text-accent hover:underline"
+                              onClick={() => slot.onSelectMap(node.id, chest.event.id)}
+                              aria-label={t('events.map.openDetail', { name: chest.name })}
+                            >
+                              {chest.name}
+                            </button>
+                            <Badge dot={false} tone={chest.isOpened ? 'neutral' : 'ok'} className="text-[0.68rem]">
+                              {chest.isOpened ? t('events.map.chestOpened') : t('events.map.chestUnopened')}
+                            </Badge>
+                            <button
+                              type="button"
+                              onClick={() => slot.onSelectMap(node.id, chest.event.id)}
+                              className="shrink-0 rounded-[0.2rem] border border-line/60 bg-paper-1/80 px-1.5 py-0.5 font-mono text-[0.68rem] text-ink-soft hover:border-accent hover:text-accent"
+                              title={t('events.map.openDetail', { name: `${chest.name} #${chest.event.id}` })}
+                            >
+                              #{chest.event.id} ({chest.event.x},{chest.event.y})
+                            </button>
+                            {hit && <span className="shrink-0 rounded-[0.2rem] bg-accent/20 px-1.5 py-0.5 text-[0.65rem] font-semibold text-accent">宝箱匹配</span>}
+                          </div>
+                          {chest.rewardText ? (
+                            <div className="mt-1 flex items-center gap-1.5 text-[0.76rem] text-ink-soft">
+                              <span className="font-medium text-amber-500/90">{t('events.map.chestReward')}:</span>
+                              <span>{chest.rewardText}</span>
+                            </div>
+                          ) : null}
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1 pt-0.5">
+                          <Tooltip content={tp.blocked || t(tp.near ? 'events.map.teleportBeside' : 'events.map.teleportTo', { name: chest.name })}>
+                            <Button
+                              size="mini"
+                              variant="ghost"
+                              disabled={!!tp.blocked || tp.busy}
+                              onClick={() => void tp.teleport(chest.event.x, chest.event.y)}
+                              className="flex items-center gap-1 font-mono text-[0.72rem]"
+                            >
+                              <IoNavigateOutline className="text-accent text-[0.85rem]" />
+                              <span>
+                                {chest.event.x},{chest.event.y}
+                              </span>
+                            </Button>
+                          </Tooltip>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )
+            ) : eventTab === 'transfer' ? (
+              transferList.length === 0 ? (
+                <EmptyState title={t('events.map.emptyTransfer')} message={t('events.map.emptyTransferMsg')} className="min-h-full flex-1" />
+              ) : (
+                <div className="flex flex-col divide-y divide-line/60">
+                  <div className="flex items-center justify-between border-b border-line bg-paper-2 px-3 py-1.5 text-xs text-ink-soft">
+                    <span className="font-medium text-ink">
+                      {t('events.map.tabTransfer')} ({transferList.length})
+                    </span>
+                    <span className="text-[0.7rem] text-ink-soft/75">点击卡片可查看对应事件详情</span>
+                  </div>
+                  {transferList.map((transfer) => {
+                    const hit = isMatch(transfer.event)
+                    return (
+                      <div
+                        key={transfer.event.id}
+                        data-navigation-id={`map-event:${node.id}:${transfer.event.id}`}
+                        role="listitem"
+                        className={cn('group flex items-start gap-3 p-3 transition-colors hover:bg-paper-2/70', hit && 'bg-[color-mix(in_oklab,var(--accent)_12%,transparent)]')}
+                      >
+                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-emerald-500/20 bg-emerald-500/10 text-emerald-500 shadow-xs">
+                          <IoExitOutline className="text-[1.2rem]" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <button
+                              type="button"
+                              className="m-0 cursor-pointer border-none bg-transparent p-0 text-left font-semibold text-ink text-[0.875rem] underline-offset-2 hover:text-accent hover:underline"
+                              onClick={() => slot.onSelectMap(node.id, transfer.event.id)}
+                              aria-label={t('events.map.openDetail', { name: transfer.name })}
+                            >
+                              {transfer.name}
+                            </button>
+                            {transfer.targetMapName && (
+                              <span className="shrink-0 rounded-[0.2rem] bg-emerald-500/10 px-1.5 py-0.5 text-[0.68rem] font-medium text-emerald-600 dark:text-emerald-400">
+                                {t('events.map.transferTo')} {transfer.targetMapName}
+                              </span>
+                            )}
+                            {transfer.targetCoords && (
+                              <span className="shrink-0 rounded-[0.2rem] border border-line/60 bg-paper-1/80 px-1.5 py-0.5 font-mono text-[0.65rem] text-ink-soft">
+                                目标: {transfer.targetCoords.x},{transfer.targetCoords.y}
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => slot.onSelectMap(node.id, transfer.event.id)}
+                              className="shrink-0 rounded-[0.2rem] border border-line/60 bg-paper-1/80 px-1.5 py-0.5 font-mono text-[0.68rem] text-ink-soft hover:border-accent hover:text-accent"
+                              title={t('events.map.openDetail', { name: `${transfer.name} #${transfer.event.id}` })}
+                            >
+                              #{transfer.event.id} ({transfer.event.x},{transfer.event.y})
+                            </button>
+                            {hit && <span className="shrink-0 rounded-[0.2rem] bg-accent/20 px-1.5 py-0.5 text-[0.65rem] font-semibold text-accent">传送匹配</span>}
+                          </div>
+                          <div className="mt-1 flex items-center gap-2 text-[0.74rem] text-ink-soft">
+                            <span>
+                              当前位置: ({transfer.event.x}, {transfer.event.y})
+                            </span>
+                            {transfer.targetMapId > 0 && transfer.targetMapId !== node.id && (
+                              <button
+                                type="button"
+                                onClick={() => slot.onSelectMap(transfer.targetMapId)}
+                                className="m-0 cursor-pointer border-none bg-transparent p-0 text-accent underline-offset-2 hover:underline"
+                              >
+                                查看目标地图 →
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-1 pt-0.5">
+                          <Tooltip content={tp.blocked || t(tp.near ? 'events.map.teleportBeside' : 'events.map.teleportTo', { name: transfer.name })}>
+                            <Button
+                              size="mini"
+                              variant="ghost"
+                              disabled={!!tp.blocked || tp.busy}
+                              onClick={() => void tp.teleport(transfer.event.x, transfer.event.y)}
+                              className="flex items-center gap-1 font-mono text-[0.72rem]"
+                            >
+                              <IoNavigateOutline className="text-accent text-[0.85rem]" />
+                              <span>
+                                {transfer.event.x},{transfer.event.y}
                               </span>
                             </Button>
                           </Tooltip>

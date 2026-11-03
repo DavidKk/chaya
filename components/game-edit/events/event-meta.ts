@@ -1,4 +1,4 @@
-import type { MapEventInfo, MapEventType } from '@/lib/game/events'
+import type { MapDetailData, MapEventInfo, MapEventType } from '@/lib/game/events'
 import type { MessageKey } from '@/lib/i18n'
 
 export const TYPE_KEY: Record<MapEventType, MessageKey> = {
@@ -151,4 +151,115 @@ export function isNpcEvent(ev: MapEventInfo, texts?: Record<string, string>, act
   }
   if (ev.type === 'npc' && (hasCharacterSprite || isCustomName || info.dialogueSnippet)) return true
   return false
+}
+
+export type ChestResolvedInfo = {
+  name: string
+  rewardText: string
+  rewards: string[]
+  isOpened: boolean
+}
+
+export function isChestEvent(ev: MapEventInfo): boolean {
+  if (ev.type === 'chest') return true
+  if (ev.pages.some((p) => /chest|treasure|宝箱|box/i.test(p.characterName))) return true
+  const has = (codes: readonly number[]) => ev.pages.some((p) => p.list.some((cmd) => codes.includes(cmd.code)))
+  return has([125, 126, 127, 128]) && has([123]) && ev.pages.length <= 4
+}
+
+export function resolveChestInfo(
+  ev: MapEventInfo,
+  names?: { items?: readonly string[]; weapons?: readonly string[]; armors?: readonly string[] },
+  detail?: MapDetailData | null
+): ChestResolvedInfo {
+  const rewards: string[] = []
+
+  for (const page of ev.pages || []) {
+    for (const cmd of page.list || []) {
+      if (cmd.code === 125) {
+        const val = Number(cmd.parameters?.[2]) || 0
+        if (val > 0) rewards.push(`${val} 金币`)
+      } else if (cmd.code === 126) {
+        const id = Number(cmd.parameters?.[0]) || 0
+        const val = Number(cmd.parameters?.[3]) || 1
+        const itemName = names?.items?.[id] || `物品 #${id}`
+        rewards.push(`${itemName} x${val}`)
+      } else if (cmd.code === 127) {
+        const id = Number(cmd.parameters?.[0]) || 0
+        const val = Number(cmd.parameters?.[3]) || 1
+        const weaponName = names?.weapons?.[id] || `武器 #${id}`
+        rewards.push(`${weaponName} x${val}`)
+      } else if (cmd.code === 128) {
+        const id = Number(cmd.parameters?.[0]) || 0
+        const val = Number(cmd.parameters?.[3]) || 1
+        const armorName = names?.armors?.[id] || `防具 #${id}`
+        rewards.push(`${armorName} x${val}`)
+      }
+    }
+  }
+
+  let isOpened = false
+  if (detail?.live?.onThisMap) {
+    const selfSwitches = detail.live.selfSwitches?.[ev.id] || ''
+    isOpened = selfSwitches.includes('A')
+  } else if (ev.pages.length > 1) {
+    const activePage = (detail?.live?.activePage?.[ev.id] ?? 1) - 1
+    isOpened = activePage >= 1
+  }
+
+  const rawName = (ev.name || ev.rawName || '').trim()
+  const customName = !isGenericEventName(rawName) && !isSystemEventName(rawName) ? rawName : ''
+  const rewardText = rewards.join('、')
+  const name = customName || (rewards.length > 0 ? `${rewards[0]} 宝箱` : `宝箱 #${ev.id}`)
+
+  return {
+    name,
+    rewardText,
+    rewards,
+    isOpened,
+  }
+}
+
+export type TransferResolvedInfo = {
+  name: string
+  targetMapId: number
+  targetMapName: string
+  targetCoords?: { x: number; y: number }
+}
+
+export function isTransferEvent(ev: MapEventInfo): boolean {
+  if (ev.type === 'transfer') return true
+  return ev.pages.some((p) => p.list.some((cmd) => cmd.code === 201))
+}
+
+export function resolveTransferInfo(ev: MapEventInfo, mapNames?: readonly string[]): TransferResolvedInfo {
+  let targetMapId = 0
+  let targetCoords: { x: number; y: number } | undefined
+
+  for (const page of ev.pages || []) {
+    for (const cmd of page.list || []) {
+      if (cmd.code === 201 && Array.isArray(cmd.parameters) && cmd.parameters.length >= 4) {
+        const [designationType, tMapId, tX, tY] = cmd.parameters as [number, number, number, number]
+        if (designationType === 0 && typeof tMapId === 'number' && tMapId > 0) {
+          targetMapId = tMapId
+          targetCoords = { x: Number(tX) || 0, y: Number(tY) || 0 }
+          break
+        }
+      }
+    }
+    if (targetMapId > 0) break
+  }
+
+  const targetMapName = targetMapId > 0 ? mapNames?.[targetMapId] || `地图 #${targetMapId}` : ''
+  const rawName = (ev.name || ev.rawName || '').trim()
+  const customName = !isGenericEventName(rawName) && !isSystemEventName(rawName) ? rawName : ''
+
+  const name = customName ? (targetMapName ? `${customName} → ${targetMapName}` : customName) : targetMapName ? `通往「${targetMapName}」` : `传送点 #${ev.id}`
+
+  return {
+    name,
+    targetMapId,
+    targetMapName,
+    targetCoords,
+  }
 }
