@@ -43,8 +43,7 @@ Agent ──JSON-RPC（本机免授权）────────► POST /api/m
 | `app/integration/**`                                                                           | 集成页（layout + skills / mcp 子页）                                                                                                                                                                                |
 | `app/skills/[file]/route.ts`                                                                   | 公开 Skill 原文 `/skills/<id>.md`                                                                                                                                                                                   |
 | `components/integration/*`                                                                     | 页面组件                                                                                                                                                                                                            |
-| `skills/<id>/SKILL.md`                                                                         | Skill 正文（英文，安装给 Agent 的就是这份）                                                                                                                                                                         |
-| `skills/<id>/i18n/<locale>.md`                                                                 | 页面展示用译文（zh / ja / ko，只有正文、无 frontmatter）                                                                                                                                                            |
+| `skills/<id>/SKILL.md`                                                                         | Skill 正文（英文，安装给 Agent 与页面展示均使用此英文原版，无需维护多语言）                                                                                                                                         |
 
 元数据与实现分离：页面只引用 `lib/integration/mcp-catalog.ts`，不把服务端代码打进客户端。单测保证「目录里每个工具都有实现、每个实现都在目录里」。
 
@@ -99,7 +98,7 @@ const res = await invokeRoute(StatusRoute.PUT, { method: 'PUT', path: '/api/stat
 ## 5. 页面
 
 - `app/integration/layout.tsx`：二级导航（Skills / MCP），参照 `app/translate/layout.tsx`；不包 `TranslateGate`。
-- `/integration/skills/[id]`：`generateStaticParams` + `dynamicParams=false` 限定 id；根布局读 cookie，所以页面按需渲染（`/skills/[file]` 原文路由是构建期 SSG）。服务端用 `marked` 把每种语言的 Skill Markdown 都转成 HTML（仓库内可信内容），客户端按当前语言取用；`en` 用 `SKILL.md` 正文，其他语言用 `i18n/<locale>.md`，缺失时回退英文。左半列表 + 正文，右半「安装到 Agent」（`components/integration/SkillInstall.tsx`：通用 / Codex / Claude Code / Cursor 四个按钮；本机调 `/api/integration/skills/install` 由服务端写文件，Cloud 弹框给 `curl` 命令；窄屏放进正文顶部）。
+- `/integration/skills/[id]`：`generateStaticParams` + `dynamicParams=false` 限定 id；根布局读 cookie，所以页面按需渲染（`/skills/[file]` 原文路由是构建期 SSG）。服务端用 `marked` 将 Skill Markdown 转成 HTML（Skill 正文与标题均保持英文原版，避免多语言维护成本）。左半列表 + 正文，右半「安装到 Agent」（`components/integration/SkillInstall.tsx`：通用 / Codex / Claude Code / Cursor 四个按钮；本机调 `/api/integration/skills/install` 由服务端写文件，Cloud 弹框给 `curl` 命令；窄屏放进正文顶部）。
 - 三个子页共用 `components/integration/Hub.tsx` 的 `HubLayout`：左半「导航 + 说明」，右半面板底「操作」（Skills 安装、MCP 试调、WebMCP 浏览器支持与启用步骤）。
 - `/integration/mcp`：客户端组件读取 `/api/integration/mcp`：
   - 可用：服务地址（`CopyField`）+「本地直连，无需授权」+ 安装按钮 + 试调面板。

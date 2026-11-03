@@ -12,6 +12,7 @@ import { integrationKo } from '@/lib/i18n/messages/parts/integration'
 import { legalKo } from '@/lib/i18n/messages/parts/legal'
 import { mcpGatewayKo } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { panelsKo } from '@/lib/i18n/messages/parts/panels'
+import { playKo } from '@/lib/i18n/messages/parts/play'
 import { savesKo } from '@/lib/i18n/messages/parts/saves.ko'
 import { translateKo } from '@/lib/i18n/messages/parts/translate.ko'
 import type { MessageTree } from '@/lib/i18n/messages/types'
@@ -36,6 +37,9 @@ const base = {
     logs: '로그',
     integration: '연동',
     settings: '설정',
+    remotePlay: '클라우드',
+    remoteInstances: '인스턴스',
+    remoteSettings: '설정',
     about: '정보',
   },
   common: {
@@ -325,6 +329,7 @@ const base = {
 export const ko: MessageTree = {
   floatingBall: floatingBallKo,
   debug: debugKo,
+  play: playKo,
   ...base,
   ...translateKo,
   ...editKo,

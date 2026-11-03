@@ -1,11 +1,14 @@
 import { debugDe } from '@/lib/i18n/messages/parts/debug'
+import { eventCurrentDe } from '@/lib/i18n/messages/parts/event-current'
 import { floatingBallDe } from '@/lib/i18n/messages/parts/floating-ball'
 import { mcpGatewayDe } from '@/lib/i18n/messages/parts/mcp-gateway'
+import { playDe } from '@/lib/i18n/messages/parts/play'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const de: MessageTree = {
   floatingBall: floatingBallDe,
   debug: debugDe,
+  play: playDe,
   locale: {
     label: 'Sprache',
     switch: 'Sprache wechseln',
@@ -29,6 +32,9 @@ export const de: MessageTree = {
     logs: 'Protokolle',
     integration: 'Integration',
     settings: 'Einstellungen',
+    remotePlay: 'Cloud Play',
+    remoteInstances: 'Instanzen',
+    remoteSettings: 'Einstellungen',
     about: 'Über',
   },
   common: {
@@ -1023,6 +1029,8 @@ export const de: MessageTree = {
     groupBattle: 'Battle',
     flagFullscreen: 'Fullscreen',
     flagFullscreenDesc: 'Fullscreen game window',
+    flagScreenStretch: 'Fill Screen',
+    flagScreenStretchDesc: 'Stretch canvas to eliminate letterbox black bars',
     flagAlwaysDash: 'Always dash',
     flagAlwaysDashDesc: 'Always move at dash speed',
     flagGod: 'God mode',
@@ -1526,6 +1534,7 @@ export const de: MessageTree = {
       'Chaya is a free, open-source technical tool. It provides no games or translations and is not affiliated with RPG Maker or any rights holder. For usage risks, see the',
   },
   events: {
+    current: eventCurrentDe,
     tabCommon: 'Common events',
     tabMap: 'Maps',
     tabTroop: 'Troops',
@@ -1637,10 +1646,41 @@ export const de: MessageTree = {
       selectHint: 'Select a map from the list',
       loadFail: 'Failed to read map',
       colName: 'Name',
+      colNpc: 'NPC-Name',
       colPos: 'Position',
       colType: 'Type',
       colState: 'State',
       typeNpc: 'NPC',
+      tabAllEvents: 'Alle Ereignisse',
+      tabNpc: 'NPC',
+      emptyNpc: 'Keine NPCs auf dieser Karte',
+      emptyNpcMsg: 'Keine Charaktere oder NPC-Ereignisse auf dieser Karte erkannt',
+      tabChest: 'Truhen',
+      emptyChest: 'Keine Truhen auf dieser Karte',
+      emptyChestMsg: 'Keine Schatztruhen oder Beute-Ereignisse auf dieser Karte erkannt',
+      tabTransfer: 'Teleport',
+      emptyTransfer: 'Keine Transferpunkte auf dieser Karte',
+      emptyTransferMsg: 'Keine Kartenausgänge oder Transfer-Ereignisse auf dieser Karte erkannt',
+      tabEntrance: 'Eingänge',
+      emptyEntrance: 'Keine Eingänge für diese Karte gefunden',
+      emptyEntranceMsg: 'Keine externen Teleports oder Eingangsereignisse zu dieser Karte gefunden',
+      entranceFrom: 'Von',
+      entranceLanding: 'Landeort',
+      entranceFacing: 'Blickrichtung',
+      entranceSourceMap: 'Quellkarte',
+      entranceCommonEvent: 'Common Event',
+      entranceViewSourceMap: 'Quellkarte anzeigen →',
+      cardDetailHint: 'Eintrag anklicken, um Ereignisdetails anzuzeigen',
+      entranceHint: 'Koordinaten anklicken zum Teleportieren; Quelle anklicken zur Kartenansicht',
+      matchBadge: 'Treffer',
+      transferViewTargetMap: 'Zielkarte anzeigen →',
+      transferCurrentPos: 'Aktuelle Position',
+      transferTargetPos: 'Ziel',
+      chestGold: 'Gold',
+      chestOpened: 'Geöffnet',
+      chestUnopened: 'Ungeöffnet',
+      chestReward: 'Belohnung',
+      transferTo: 'Nach',
       typeTransfer: 'Transfer',
       typeChest: 'Chest',
       typeTrigger: 'Trigger',

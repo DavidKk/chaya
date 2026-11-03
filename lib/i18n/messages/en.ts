@@ -12,6 +12,7 @@ import { integrationEn } from '@/lib/i18n/messages/parts/integration'
 import { legalEn } from '@/lib/i18n/messages/parts/legal'
 import { mcpGatewayEn } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { panelsEn } from '@/lib/i18n/messages/parts/panels'
+import { playEn } from '@/lib/i18n/messages/parts/play'
 import { savesEn } from '@/lib/i18n/messages/parts/saves.en'
 import { translateEn } from '@/lib/i18n/messages/parts/translate.en'
 import type { MessageTree } from '@/lib/i18n/messages/types'
@@ -36,6 +37,9 @@ const commonEn = {
     logs: 'Logs',
     integration: 'Integrations',
     settings: 'Settings',
+    remotePlay: 'Cloud Play',
+    remoteInstances: 'Instances',
+    remoteSettings: 'Settings',
     about: 'About',
   },
   common: {
@@ -331,6 +335,7 @@ const dashboardEn = {
 export const en: MessageTree = {
   floatingBall: floatingBallEn,
   debug: debugEn,
+  play: playEn,
   ...commonEn,
   ...marketingEn,
   ...dashboardEn,

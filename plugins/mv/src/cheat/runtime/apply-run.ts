@@ -4,7 +4,9 @@
 import type { RunActionId, RunFlagKey } from '@/components/game-edit/types'
 
 import { canSettleBattleEnd, settleBattleEnd } from '../session/live-battle'
+import { markBattleVitalOverridden } from '../session/live-party'
 import { startTroopBattle } from '../session/live-troop'
+import { setAutoTalk } from './auto-talk'
 import { Cheats } from './cheats'
 import { RunCheats, type ScenePushId } from './cheats-run'
 
@@ -29,6 +31,7 @@ export function applyGameSpeed(rate: number) {
 export function applyRunFlag(key: RunFlagKey, on: boolean) {
   RunCheats.ensureHooks()
   if (key === 'fullscreen') RunCheats.setFullscreen(on)
+  else if (key === 'screenStretch') RunCheats.setScreenStretch(on)
   else if (key === 'alwaysDash') {
     const boost = boostApi()
     if (boost?.dash) boost.dash(on)
@@ -38,8 +41,10 @@ export function applyRunFlag(key: RunFlagKey, on: boolean) {
   else if (key === 'autoBattle') Cheats.setAutoBattle(on)
   else if (key === 'skipBattleResult') Cheats.setSkipBattleResult(on)
   else if (key === 'through') Cheats.setThrough(on)
-  else if (key === 'autotalk') window.ChayaEdit?.autoTalk?.(on)
-  else if (key === 'encounter') RunCheats.setEncounter(on)
+  else if (key === 'autotalk') {
+    setAutoTalk(on)
+    window.ChayaEdit?.autoTalk?.(on)
+  } else if (key === 'encounter') RunCheats.setEncounter(on)
   else if (key === 'menuEnabled') RunCheats.setMenuEnabled(on)
   else if (key === 'saveEnabled') RunCheats.setSaveEnabled(on)
   else if (key === 'clickMove') RunCheats.setClickMove(on)
@@ -64,6 +69,9 @@ export function applyRunAction(id: RunActionId) {
   else if (id === 'fix:map') RunCheats.gotoMap()
   else if (id === 'fix:fadeIn') RunCheats.fadeIn()
   else if (id === 'fix:resume') RunCheats.resumeAfterError()
+  else if (id === 'fix:unstuck') RunCheats.unstuck()
+  else if (id === 'fix:advanceCutscene') RunCheats.advanceCutscene()
+  else if (id === 'fix:returnPrevMap') RunCheats.returnPrevMap()
   else if (id === 'battle:start') startTroopBattle({ interruptEvent: true })
   else if (id === 'battle:victory') Cheats.battleVictory()
   else if (id === 'battle:escape') Cheats.battleEscape()
@@ -72,9 +80,14 @@ export function applyRunAction(id: RunActionId) {
   else if (id === 'battle:settle') settleBattleEnd({ force: true })
   else if (id === 'battle:enemyHp1') RunCheats.setEnemyHp('one')
   else if (id === 'battle:enemyHpMax') RunCheats.setEnemyHp('max')
-  else if (id === 'battle:partyHeal') Cheats.healParty()
-  else if (id === 'battle:partyHp1') RunCheats.setPartyHp('one')
-  else if (id === 'battle:partyHp0') {
+  else if (id === 'battle:partyHeal') {
+    markBattleVitalOverridden()
+    Cheats.healParty()
+  } else if (id === 'battle:partyHp1') {
+    markBattleVitalOverridden()
+    RunCheats.setPartyHp('one')
+  } else if (id === 'battle:partyHp0') {
+    markBattleVitalOverridden()
     RunCheats.setPartyHp('zero')
     settleBattleEnd()
   }
@@ -85,5 +98,5 @@ const BATTLE_END_ACTIONS: ReadonlySet<RunActionId> = new Set(['battle:start', 'b
 /** Scene changes / battle endings: the player wants to watch the game, caller closes UI first (before `applyRunAction`) */
 export function runActionNeedsClose(id: RunActionId): boolean {
   if (id === 'battle:settle') return canSettleBattleEnd({ force: true })
-  return id.startsWith('scene:') || id === 'fix:title' || id === 'fix:map' || BATTLE_END_ACTIONS.has(id)
+  return id.startsWith('scene:') || id === 'fix:title' || id === 'fix:map' || id === 'fix:advanceCutscene' || id === 'fix:returnPrevMap' || BATTLE_END_ACTIONS.has(id)
 }

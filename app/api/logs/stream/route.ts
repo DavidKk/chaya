@@ -20,6 +20,7 @@ export const GET = defineApiRoute('get:/api/logs/stream', async ({ request }) =>
   const u = new URL(request.url)
   const requested = Number(u.searchParams.get('backlog') ?? 100)
   const backlog = Number.isFinite(requested) ? Math.min(500, Math.max(0, requested)) : 100
+  const source = u.searchParams.get('source') || undefined
   const local = canUseDisk()
   if (local && logBusStats().listeners >= MAX_LOG_SUBSCRIBERS) {
     return Response.json(
@@ -58,8 +59,9 @@ export const GET = defineApiRoute('get:/api/logs/stream', async ({ request }) =>
         send('hello', { ok: true, ts: Date.now() })
         // Browser-mode logs use the game link; keep this stream alive without server records.
         if (local) {
-          if (backlog > 0) for (const entry of listLogs({ limit: backlog })) send('log', entry)
+          if (backlog > 0) for (const entry of listLogs({ limit: backlog, source })) send('log', entry)
           unsub = subscribeLogs((entry: LogEntry) => {
+            if (source && entry.source !== source) return
             try {
               send('log', entry)
             } catch {

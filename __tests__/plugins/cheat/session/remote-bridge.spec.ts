@@ -89,6 +89,11 @@ describe('remote-bridge', () => {
 
     applyEditCmd({ type: 'edit.cmd', op: 'expRate', value: 1.5, cmdId: '7' } as never)
     expect(setExpRate).toHaveBeenCalledWith(1.5)
+
+    const fakeActorApi = { inParty: jest.fn() }
+    ;(window as unknown as { ChayaEdit?: { actor?: jest.Mock } }).ChayaEdit = { actor: jest.fn(() => fakeActorApi) }
+    applyEditCmd({ type: 'edit.cmd', op: 'actor', id: 1, patch: { inParty: true }, cmdId: '8' } as never)
+    expect(fakeActorApi.inParty).toHaveBeenCalledWith(true)
   })
 
   it('moveRate sets walk and run together; gameSpeed goes to boost', () => {

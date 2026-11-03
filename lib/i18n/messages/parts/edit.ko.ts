@@ -159,6 +159,8 @@ export const editKo = {
     groupBattle: 'Battle',
     flagFullscreen: '전체화면',
     flagFullscreenDesc: 'Fullscreen game window',
+    flagScreenStretch: '화면 채우기',
+    flagScreenStretchDesc: '검은 여백 없이 화면에 맞춤',
     flagAlwaysDash: '항상 대시',
     flagAlwaysDashDesc: 'Always move at dash speed',
     flagGod: '무적',

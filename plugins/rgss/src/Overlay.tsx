@@ -193,8 +193,12 @@ export function RgssOverlayRoot() {
         onConnected: () => {
           setGatewayConnected(true)
           postToGame({ type: 'edit.subscribe' })
+          postToGame({ type: 'remote.stream.active', active: true })
         },
-        onDisconnected: () => setGatewayConnected(false),
+        onDisconnected: () => {
+          setGatewayConnected(false)
+          postToGame({ type: 'remote.stream.active', active: false })
+        },
         onMessage: (msg: GameLinkMessage) => {
           if (msg.type === 'translation.rpc') {
             translation.receive(msg)
@@ -203,7 +207,7 @@ export function RgssOverlayRoot() {
           postToGame(msg)
         },
       },
-      { linkToken: overlayConfig.linkToken, launchToken: overlayConfig.launchToken }
+      { linkToken: overlayConfig.linkToken, launchToken: overlayConfig.launchToken, enableObserver: true }
     )
     gatewayInstance = gateway
     gateway.start()

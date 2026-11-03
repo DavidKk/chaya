@@ -1,11 +1,14 @@
 import { debugRu } from '@/lib/i18n/messages/parts/debug'
+import { eventCurrentRu } from '@/lib/i18n/messages/parts/event-current'
 import { floatingBallRu } from '@/lib/i18n/messages/parts/floating-ball'
 import { mcpGatewayRu } from '@/lib/i18n/messages/parts/mcp-gateway'
+import { playRu } from '@/lib/i18n/messages/parts/play'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const ru: MessageTree = {
   floatingBall: floatingBallRu,
   debug: debugRu,
+  play: playRu,
   locale: {
     label: 'Язык',
     switch: 'Сменить язык',
@@ -29,6 +32,9 @@ export const ru: MessageTree = {
     logs: 'Журналы',
     integration: 'Интеграция',
     settings: 'Настройки',
+    remotePlay: 'Cloud Play',
+    remoteInstances: 'Экземпляры',
+    remoteSettings: 'Настройки',
     about: 'О программе',
   },
   common: {
@@ -1019,6 +1025,8 @@ export const ru: MessageTree = {
     groupBattle: 'Battle',
     flagFullscreen: 'Fullscreen',
     flagFullscreenDesc: 'Fullscreen game window',
+    flagScreenStretch: 'Fill Screen',
+    flagScreenStretchDesc: 'Stretch canvas to eliminate letterbox black bars',
     flagAlwaysDash: 'Always dash',
     flagAlwaysDashDesc: 'Always move at dash speed',
     flagGod: 'God mode',
@@ -1523,6 +1531,7 @@ export const ru: MessageTree = {
       'Chaya is a free, open-source technical tool. It provides no games or translations and is not affiliated with RPG Maker or any rights holder. For usage risks, see the',
   },
   events: {
+    current: eventCurrentRu,
     tabCommon: 'Common events',
     tabMap: 'Maps',
     tabTroop: 'Troops',
@@ -1634,10 +1643,41 @@ export const ru: MessageTree = {
       selectHint: 'Select a map from the list',
       loadFail: 'Failed to read map',
       colName: 'Name',
+      colNpc: 'Имя NPC',
       colPos: 'Position',
       colType: 'Type',
       colState: 'State',
       typeNpc: 'NPC',
+      tabAllEvents: 'Все события',
+      tabNpc: 'NPC',
+      emptyNpc: 'На этой карте нет NPC',
+      emptyNpcMsg: 'События персонажей или NPC на этой карте не обнаружены',
+      tabChest: 'Сундуки',
+      emptyChest: 'На этой карте нет сундуков',
+      emptyChestMsg: 'События сундуков или добычи на этой карте не обнаружены',
+      tabTransfer: 'Переход',
+      emptyTransfer: 'На этой карте нет точек перехода',
+      emptyTransferMsg: 'События выходов или перемещения на этой карте не обнаружены',
+      tabEntrance: 'Входы',
+      emptyEntrance: 'Нет входов на эту карту',
+      emptyEntranceMsg: 'Не обнаружено точек перехода или событий входа на эту карту',
+      entranceFrom: 'Откуда',
+      entranceLanding: 'Точка высадки',
+      entranceFacing: 'Направление',
+      entranceSourceMap: 'Исходная карта',
+      entranceCommonEvent: 'Общее событие',
+      entranceViewSourceMap: 'Перейти к исходной карте →',
+      cardDetailHint: 'Нажмите на карточку для просмотра сведений о событии',
+      entranceHint: 'Нажмите на координаты для перемещения, на источник — для просмотра карты',
+      matchBadge: 'Совпадение',
+      transferViewTargetMap: 'Перейти к целевой карте →',
+      transferCurrentPos: 'Текущая позиция',
+      transferTargetPos: 'Цель',
+      chestGold: 'Золото',
+      chestOpened: 'Открыт',
+      chestUnopened: 'Не открыт',
+      chestReward: 'Награда',
+      transferTo: 'Куда',
       typeTransfer: 'Transfer',
       typeChest: 'Chest',
       typeTrigger: 'Trigger',

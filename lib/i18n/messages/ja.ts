@@ -12,6 +12,7 @@ import { integrationJa } from '@/lib/i18n/messages/parts/integration'
 import { legalJa } from '@/lib/i18n/messages/parts/legal'
 import { mcpGatewayJa } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { panelsJa } from '@/lib/i18n/messages/parts/panels'
+import { playJa } from '@/lib/i18n/messages/parts/play'
 import { savesJa } from '@/lib/i18n/messages/parts/saves.ja'
 import { translateJa } from '@/lib/i18n/messages/parts/translate.ja'
 import type { MessageTree } from '@/lib/i18n/messages/types'
@@ -36,6 +37,9 @@ const base = {
     logs: 'ログ',
     integration: '連携',
     settings: '設定',
+    remotePlay: 'クラウド',
+    remoteInstances: 'インスタンス',
+    remoteSettings: '設定',
     about: '概要',
   },
   common: {
@@ -325,6 +329,7 @@ const base = {
 export const ja: MessageTree = {
   floatingBall: floatingBallJa,
   debug: debugJa,
+  play: playJa,
   ...base,
   ...translateJa,
   ...editJa,

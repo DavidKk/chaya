@@ -6,7 +6,7 @@ import type { IconType } from 'react-icons'
 import { LuDownload, LuGamepad2, LuPlug } from 'react-icons/lu'
 
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
-import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
+import { useT } from '@/components/i18n/LocaleProvider'
 import { hubBlock, HubLayout, HubNav, HubNavItem, HubNavSection, HubPaneHeader } from '@/components/integration/Hub'
 import { markdownBody } from '@/components/integration/markdown'
 import { Spinner } from '@/components/sk'
@@ -25,7 +25,6 @@ const isSkillId = (v: unknown): v is SkillId => SKILLS.some((skill) => skill.id 
 /** Skill docs inside the game overlay. Sources come from the connected Chaya service. */
 export function GameEditSkillsPane({ request = fetch }: { request?: GameAgentRequest }) {
   const t = useT()
-  const locale = useLocaleCode()
   const [activeId, setActiveId] = useViewState<SkillId>('integration.skill', SKILLS[0].id, isSkillId)
   const [html, setHtml] = useState('')
   const [error, setError] = useState('')
@@ -50,7 +49,7 @@ export function GameEditSkillsPane({ request = fetch }: { request?: GameAgentReq
 
   return (
     <HubLayout
-      header={<HubPaneHeader title={active.title[locale]} description={active.summary[locale]} />}
+      header={<HubPaneHeader title={active.title} description={active.summary} />}
       nav={
         <HubNav label={t('integration.skillsListAria')}>
           <HubNavSection>
@@ -61,9 +60,9 @@ export function GameEditSkillsPane({ request = fetch }: { request?: GameAgentReq
                   key={skill.id}
                   active={skill.id === activeId}
                   icon={<Icon size={15} />}
-                  label={skill.title[locale]}
+                  label={skill.title}
                   meta={skill.id}
-                  title={skill.summary[locale]}
+                  title={skill.summary}
                   onSelect={() => setActiveId(skill.id)}
                 />
               )

@@ -1,11 +1,14 @@
 import { debugCht } from '@/lib/i18n/messages/parts/debug'
+import { eventCurrentCht } from '@/lib/i18n/messages/parts/event-current'
 import { floatingBallCht } from '@/lib/i18n/messages/parts/floating-ball'
 import { mcpGatewayCht } from '@/lib/i18n/messages/parts/mcp-gateway'
+import { playCht } from '@/lib/i18n/messages/parts/play'
 import type { MessageTree } from '@/lib/i18n/messages/types'
 
 export const cht: MessageTree = {
   floatingBall: floatingBallCht,
   debug: debugCht,
+  play: playCht,
   locale: {
     label: '語言',
     switch: '切換語言',
@@ -29,6 +32,9 @@ export const cht: MessageTree = {
     logs: '日誌',
     integration: '集成',
     settings: '設定',
+    remotePlay: '雲遊戲',
+    remoteInstances: '雲遊戲實例',
+    remoteSettings: '雲遊戲設定',
     about: '關於',
   },
   common: {
@@ -1012,6 +1018,8 @@ export const cht: MessageTree = {
     groupBattle: '战斗',
     flagFullscreen: '全屏',
     flagFullscreenDesc: '遊戲視窗全屏',
+    flagScreenStretch: '填滿拉伸（去黑邊）',
+    flagScreenStretchDesc: '強制填滿視窗消除上下/左右黑邊',
     flagAlwaysDash: '一直疾跑',
     flagAlwaysDashDesc: '始终以跑步速度移动',
     flagGod: '无敌',
@@ -1505,6 +1513,7 @@ export const cht: MessageTree = {
     marketing: 'Chaya 为开源免费的技术工具，不提供遊戲或譯文，与 RPG Maker 及各作品权利人无關聯。使用风险详见',
   },
   events: {
+    current: eventCurrentCht,
     tabCommon: '公共事件',
     tabMap: '地图',
     tabTroop: '敌群',
@@ -1616,10 +1625,41 @@ export const cht: MessageTree = {
       selectHint: '从列表選擇一张地图',
       loadFail: '地图读取失敗',
       colName: '名称',
+      colNpc: 'NPC 名稱',
       colPos: '坐标',
       colType: '类型',
       colState: '狀態',
       typeNpc: 'NPC',
+      tabAllEvents: '全部事件',
+      tabNpc: 'NPC',
+      emptyNpc: '該地圖暫無 NPC',
+      emptyNpcMsg: '未檢測到可能出現的角色或 NPC 事件',
+      tabChest: '寶箱',
+      emptyChest: '該地圖暫無寶箱',
+      emptyChestMsg: '未檢測到寶箱或道具收集事件',
+      tabTransfer: '傳送',
+      emptyTransfer: '該地圖暫無傳送點',
+      emptyTransferMsg: '未檢測到地圖出入口或傳送事件',
+      tabEntrance: '入口',
+      emptyEntrance: '該地圖暫無入口記錄',
+      emptyEntranceMsg: '未檢測到通往本圖的傳送點或外部入口事件',
+      entranceFrom: '來自',
+      entranceLanding: '落點坐標',
+      entranceFacing: '朝向',
+      entranceSourceMap: '來源地圖',
+      entranceCommonEvent: '公共事件',
+      entranceViewSourceMap: '查看來源地圖 →',
+      cardDetailHint: '點擊卡片可查看對應事件詳情',
+      entranceHint: '點擊落點坐標可傳送，點擊來源可查看對應地圖',
+      matchBadge: '匹配',
+      transferViewTargetMap: '查看目標地圖 →',
+      transferCurrentPos: '目前位置',
+      transferTargetPos: '目標',
+      chestGold: '金幣',
+      chestOpened: '已開啟',
+      chestUnopened: '未開啟',
+      chestReward: '獎勵',
+      transferTo: '通往',
       typeTransfer: '传送',
       typeChest: '宝箱',
       typeTrigger: '触发',

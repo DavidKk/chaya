@@ -2,6 +2,7 @@ import type { ScriptKey } from '@/lib/game/events/interpret'
 
 /** `events.*` messages: 修改 › 公共事件 / 地图 */
 export type EventsMessages = {
+  current: CurrentEventsMessages
   tabCommon: string
   tabMap: string
   tabTroop: string
@@ -99,6 +100,48 @@ export type EventsMessages = {
   troop: EventsTroopMessages
   battle: EventsBattleMessages
   cmd: Record<ScriptKey | 'textBy', string>
+}
+
+export type CurrentEventsMessages = {
+  title: string
+  none: string
+  orphaned: string
+  locate: string
+  position: string
+  skip: string
+  restart: string
+  skipTitle: string
+  restartTitle: string
+  skipWarning: string
+  restartWarning: string
+  applied: string
+  changed: string
+  child: string
+  message: string
+  unsupported: string
+  unstuck: string
+  unstuckSuccess: string
+  candidatesTitle: string
+  runCandidate: string
+  runCandidateTitle: string
+  runCandidateWarning: string
+  missingCondition: string
+  advance: string
+  advanceTitle: string
+  advanceWarning: string
+  advanceCandidate: string
+  advanceCandidateTitle: string
+  advanceCandidateWarning: string
+  badgeFaded: string
+  badgeTransparent: string
+  badgeLocked: string
+  returnPrevMap: string
+  returnPrevMapTitle: string
+  returnPrevMapWarning: string
+  tabRunning: string
+  tabCandidates: string
+  collapse: string
+  expand: string
 }
 
 export type EventsTroopMessages = {
@@ -200,10 +243,41 @@ export type EventsMapMessages = {
   selectHint: string
   loadFail: string
   colName: string
+  colNpc: string
   colPos: string
   colType: string
   colState: string
   typeNpc: string
+  tabAllEvents: string
+  tabNpc: string
+  emptyNpc: string
+  emptyNpcMsg: string
+  tabChest: string
+  emptyChest: string
+  emptyChestMsg: string
+  tabTransfer: string
+  emptyTransfer: string
+  emptyTransferMsg: string
+  tabEntrance: string
+  emptyEntrance: string
+  emptyEntranceMsg: string
+  entranceFrom: string
+  entranceLanding: string
+  entranceFacing: string
+  entranceSourceMap: string
+  entranceCommonEvent: string
+  entranceViewSourceMap: string
+  cardDetailHint: string
+  entranceHint: string
+  matchBadge: string
+  transferViewTargetMap: string
+  transferCurrentPos: string
+  transferTargetPos: string
+  chestGold: string
+  chestOpened: string
+  chestUnopened: string
+  chestReward: string
+  transferTo: string
   typeTransfer: string
   typeChest: string
   typeTrigger: string

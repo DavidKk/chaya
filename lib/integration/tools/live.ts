@@ -48,6 +48,10 @@ export function makeLiveTools({ games, call, quit }: LiveDeps): ToolImpls {
       return call(optStr(args, 'gameId'), 'game.ui', {})
     },
 
+    async chaya_live_events(args) {
+      return call(optStr(args, 'gameId'), 'game.events', {})
+    },
+
     async chaya_live_open_scene(args) {
       const scene = reqStr(args, 'scene')
       if (!(SCENE_ACTIONS as readonly string[]).includes(scene)) throw new Error(`scene must be one of: ${SCENE_ACTIONS.join(', ')}`)

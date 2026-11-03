@@ -18,6 +18,7 @@ export type ActorDraft = {
   agi: number
   luk: number
   classId: number
+  inParty?: boolean
   skillIds: number[]
   stateIds: number[]
 }
@@ -25,6 +26,7 @@ export type ActorDraft = {
 /** Runtime toggles displayed alongside gold and speed controls. */
 export const RUN_FLAG_KEYS = [
   'fullscreen',
+  'screenStretch',
   'alwaysDash',
   'god',
   'autoWin',
@@ -62,6 +64,9 @@ export const RUN_ACTION_IDS = [
   'fix:map',
   'fix:fadeIn',
   'fix:resume',
+  'fix:unstuck',
+  'fix:advanceCutscene',
+  'fix:returnPrevMap',
   'battle:start',
   'battle:victory',
   'battle:escape',
@@ -89,6 +94,7 @@ export type SessionState = {
   /** Whole-game update speed; 1 = normal */
   gameSpeed: number
   fullscreen: boolean
+  screenStretch: boolean
   alwaysDash: boolean
   god: boolean
   /** Win on entering battle until disabled. */
@@ -144,6 +150,7 @@ export function defaultActorDraft(id: number, name = ''): ActorDraft {
     agi: 1,
     luk: 1,
     classId: 1,
+    inParty: false,
     skillIds: [],
     stateIds: [],
   }
@@ -215,6 +222,7 @@ export function emptySession(): SessionState {
     runRate: 1,
     gameSpeed: 1,
     fullscreen: false,
+    screenStretch: false,
     alwaysDash: true,
     god: false,
     autoWin: false,

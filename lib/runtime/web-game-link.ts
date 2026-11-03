@@ -1,6 +1,7 @@
 'use client'
 
 import { readCloudLinkToken } from '@/lib/browser/link-token'
+import type { LogLevel } from '@/lib/log/types'
 import { encodeGameLinkMessage, GAME_LINK_CHANNEL, GAME_LINK_TOKEN_HEADER, type GameLinkMessage, parseGameLinkMessage } from '@/lib/runtime/game-link-protocol'
 import { createChunkReceiver } from '@/lib/runtime/link-chunks'
 import { sendTranslationPacket } from '@/lib/runtime/translation-rpc'
@@ -10,25 +11,28 @@ type Handlers = {
   onConnected?: () => void
   onDisconnected?: () => void
   onMessage?: (msg: GameLinkMessage) => void
-  /** 不再主动协商且没连上：别的标签页占着链路，或等 answer 超时 */
+  onTrack?: (stream: MediaStream) => void
+  onVideoStats?: (stats: { framesPerSecond: number | null }) => void
+  /** Cease active negotiation if another tab claims the link or answer times out */
   onIdle?: () => void
+  onLog?: (level: LogLevel, message: string, meta?: Record<string, unknown>) => void
 }
+export type WebGameLinkHandlers = Handlers
 
 const SIGNAL_URL = '/api/runtime/webrtc'
-const ANSWER_POLL_MS = 8_000
-/** 信令房间 10 分钟无写入即过期，过后再轮询也等不到 answer */
+/** Signaling room expires after 10 minutes of inactivity */
 const ANSWER_WAIT_MS = 10 * 60_000
-/** 连上的标签页每 30s 刷新 webConnected，超过这个间隔就当它已不在 */
+/** Connected tabs refresh webConnected every 30s */
 const LIVE_LINK_MAX_AGE_MS = 45_000
 const HELD_RECHECK_MS = 10_000
 
-/** 浏览器模式才有令牌（服务端模式走管理会话），没有就不带 */
+/** Browser mode tokens; omitted in standalone server sessions */
 function signalHeaders(roomId: string, extra?: Record<string, string>): Record<string, string> {
   const token = readCloudLinkToken(roomId)
   return token ? { ...extra, [GAME_LINK_TOKEN_HEADER]: token } : { ...extra }
 }
 
-async function postSignal(body: { roomId: string } & Record<string, unknown>): Promise<boolean> {
+async function postSignal(body: { roomId: string; peerId?: string } & Record<string, unknown>): Promise<boolean> {
   try {
     const res = await fetch(SIGNAL_URL, {
       method: 'POST',
@@ -39,15 +43,16 @@ async function postSignal(body: { roomId: string } & Record<string, unknown>): P
     await res.json().catch(() => null)
     return true
   } catch {
-    // HMR / 页卸载 / 服务短暂不可达时常见；断线回调里绝不能抛成 unhandledRejection
+    // Common during HMR/unload/network blips; ensure disconnect handler does not throw unhandledRejections
     return false
   }
 }
 
-type Room = { answer?: RTCSessionDescriptionInit | null; webConnected?: boolean; updatedAt?: number }
+type Room = { offer?: RTCSessionDescriptionInit | null; answer?: RTCSessionDescriptionInit | null; webConnected?: boolean; updatedAt?: number }
 
-async function getRoom(roomId: string): Promise<Room | null | undefined> {
-  const res = await fetch(`${SIGNAL_URL}?roomId=${encodeURIComponent(roomId)}`, { headers: signalHeaders(roomId) })
+export async function getRoom(roomId: string, peerId?: string): Promise<Room | null | undefined> {
+  const qs = peerId ? `?roomId=${encodeURIComponent(roomId)}&peerId=${encodeURIComponent(peerId)}` : `?roomId=${encodeURIComponent(roomId)}`
+  const res = await fetch(`${SIGNAL_URL}${qs}`, { headers: signalHeaders(roomId) })
   if (!res.ok) throw new Error(`signaling get ${res.status}`)
   const data = (await res.json()) as { room?: Room | null }
   return data.room
@@ -57,15 +62,19 @@ async function getRoom(roomId: string): Promise<Room | null | undefined> {
 async function linkHeldElsewhere(roomId: string): Promise<boolean> {
   try {
     const room = await getRoom(roomId)
-    return !!room?.webConnected && Date.now() - Number(room.updatedAt || 0) < LIVE_LINK_MAX_AGE_MS
+    if (!room) return false
+    const age = Date.now() - Number(room.updatedAt || 0)
+    if (room.webConnected && age < LIVE_LINK_MAX_AGE_MS) return true
+    if (room.offer && age < LIVE_LINK_MAX_AGE_MS) return true
+    return false
   } catch {
     return false
   }
 }
 
 /**
- * Web 侧：创建 DataChannel + offer，等游戏 answer。
- * 连上 = 在线；断开 = 离线。
+ * Web client: Creates DataChannel + offer, awaits answer from game.
+ * Connected = online; Disconnected = offline.
  */
 export class WebGameLink {
   private pc: RTCPeerConnection | null = null
@@ -79,15 +88,26 @@ export class WebGameLink {
   private run = 0
   private chunks = createChunkReceiver((msg) => this.handlers.onMessage?.(msg as GameLinkMessage))
   connected = false
+  peerId?: string
+  isSpectator = false
+  private mediaStream: MediaStream | null = null
+
+  get stream(): MediaStream | null {
+    return this.mediaStream
+  }
 
   constructor(
     readonly roomId: string,
     private handlers: Handlers = {}
   ) {}
 
-  /** React 重挂时更新回调，不重建 PeerConnection */
+  /** Update callbacks across React remounts without recreating PeerConnection */
   setHandlers(handlers: Handlers) {
     this.handlers = handlers
+  }
+
+  private log(level: LogLevel, message: string, meta?: Record<string, unknown>) {
+    this.handlers.onLog?.(level, message, meta)
   }
 
   /**
@@ -95,31 +115,108 @@ export class WebGameLink {
    * `takeover: false` (background auto start) leaves a room alone while another tab holds a live link,
    * rechecking until it frees up or the wait runs out; an explicit restart takes over.
    */
-  async start({ takeover = true }: { takeover?: boolean } = {}) {
+  async start({
+    takeover = true,
+    enableMedia = false,
+    role = 'controller',
+    peerId,
+  }: {
+    takeover?: boolean
+    enableMedia?: boolean
+    role?: 'controller' | 'spectator'
+    peerId?: string
+  } = {}) {
     this.stop({ silent: true })
     this.closed = false
+    this.peerId = peerId || (role === 'spectator' ? `spec_${Date.now()}_${Math.random().toString(36).slice(2, 7)}` : undefined)
+    this.isSpectator = role === 'spectator' || Boolean(this.peerId)
     const run = this.run
     const deadline = Date.now() + ANSWER_WAIT_MS
-    if (!takeover && !(await this.waitUntilFree(run, deadline))) return
-    if (!this.live(run)) return
-    if (!(await postSignal({ action: 'reset', roomId: this.roomId }))) {
-      throw new Error('signaling reset failed')
+    this.log('info', `Starting WebGameLink stream connection (room: ${this.roomId}, role: ${this.isSpectator ? 'spectator' : 'controller'})`, {
+      takeover,
+      enableMedia,
+      peerId: this.peerId,
+    })
+
+    if (!this.isSpectator) {
+      if (!takeover && !(await this.waitUntilFree(run, deadline))) {
+        this.log('warn', 'Found active connection occupying room; yielded negotiation')
+        return
+      }
+      if (!this.live(run)) return
+      this.log('debug', 'Sending signaling reset request')
+      if (!(await postSignal({ action: 'reset', roomId: this.roomId }))) {
+        this.log('fail', 'Failed to reset signaling room')
+        throw new Error('signaling reset failed')
+      }
     }
 
     const pc = new RTCPeerConnection(defaultPeerConfig())
     this.pc = pc
+    this.log('debug', 'Initialized RTCPeerConnection and DataChannel')
     const dc = pc.createDataChannel(GAME_LINK_CHANNEL, { ordered: true })
     this.dc = dc
     this.bindChannel(dc)
 
+    if (enableMedia && typeof pc.addTransceiver === 'function') {
+      try {
+        const trVideo = pc.addTransceiver('video', { direction: 'recvonly' })
+        pc.addTransceiver('audio', { direction: 'recvonly' })
+        const RTCCapabilities = typeof RTCRtpReceiver !== 'undefined' ? RTCRtpReceiver : null
+        if (typeof RTCCapabilities?.getCapabilities === 'function' && typeof trVideo.setCodecPreferences === 'function') {
+          const caps = RTCCapabilities.getCapabilities('video')
+          if (caps?.codecs) {
+            const h264 = caps.codecs.filter((codec) => codec.mimeType.toLowerCase() === 'video/h264')
+            const others = caps.codecs.filter((codec) => codec.mimeType.toLowerCase() !== 'video/h264')
+            if (h264.length > 0) {
+              trVideo.setCodecPreferences([...h264, ...others])
+            }
+            this.log('info', 'Registered transceiver and configured H.264 preference')
+          }
+        }
+      } catch {
+        /* */
+      }
+    }
+
+    let remoteStream: MediaStream | null = null
+    pc.ontrack = (ev) => {
+      for (const hint of ['jitterBufferTarget', 'playoutDelayHint']) {
+        try {
+          if (ev.receiver && hint in ev.receiver) (ev.receiver as any)[hint] = 0
+        } catch {
+          /* Unsupported hints must not prevent the remaining receiver setup. */
+        }
+      }
+      if (ev.streams && ev.streams[0]) {
+        remoteStream = ev.streams[0]
+      } else {
+        if (!remoteStream) remoteStream = new MediaStream()
+        remoteStream.addTrack(ev.track)
+      }
+      this.log('ok', `Received remote media track: ${ev.track.kind} (${ev.track.label || 'default'})`, { trackId: ev.track.id, readyState: ev.track.readyState })
+      this.mediaStream = remoteStream
+      this.handlers.onTrack?.(remoteStream)
+    }
+
+    pc.oniceconnectionstatechange = () => {
+      const ice = pc.iceConnectionState
+      this.log(ice === 'failed' ? 'fail' : ice === 'connected' || ice === 'completed' ? 'ok' : 'info', `ICE connection state changed: ${ice}`)
+      if (ice === 'failed') {
+        this.clearDisconnectTimer()
+        this.markDisconnected()
+      }
+    }
+
     pc.onconnectionstatechange = () => {
       const state = pc.connectionState
+      this.log(state === 'failed' ? 'fail' : state === 'connected' ? 'ok' : 'info', `WebRTC PeerConnection state changed: ${state}`)
       if (state === 'failed' || state === 'closed') {
         this.clearDisconnectTimer()
         this.markDisconnected()
         return
       }
-      // disconnected 常可恢复，给短暂宽限，避免误切回「开始」
+      // 'disconnected' state can recover; give a short grace period
       if (state === 'disconnected') {
         this.armDisconnectTimer()
         return
@@ -130,21 +227,37 @@ export class WebGameLink {
     }
 
     await pc.setLocalDescription(await pc.createOffer())
+    this.log('debug', 'Created SDP Offer, gathering local ICE candidates...')
     await waitForIceGathering(pc)
     if (!this.live(run) || this.pc !== pc) return
     const offer = normalizeLocalWebRtcDescription(pc.localDescription!.toJSON())
-    if (!(await postSignal({ action: 'offer', roomId: this.roomId, sdp: offer }))) {
+    this.log('debug', 'Local ICE gathering complete, submitting SDP Offer')
+    const offerPayload: Record<string, unknown> = { action: 'offer', roomId: this.roomId, sdp: offer }
+    if (this.peerId) {
+      offerPayload.peerId = this.peerId
+      offerPayload.role = 'spectator'
+    }
+    if (!(await postSignal(offerPayload as any))) {
+      this.log('fail', 'Failed to submit SDP Offer to signaling service')
       throw new Error('signaling offer failed')
     }
+    this.log('info', 'SDP Offer submitted, waiting for answer from game')
     if (!this.live(run)) return
 
-    // 立刻问一次，之后慢轮询；避免亚秒级刷屏
     void this.pollAnswer()
+    setTimeout(() => {
+      if (this.live(run) && this.pc && !this.pc.remoteDescription) void this.pollAnswer()
+    }, 300)
+    setTimeout(() => {
+      if (this.live(run) && this.pc && !this.pc.remoteDescription) void this.pollAnswer()
+    }, 650)
     this.pollTimer = setInterval(() => {
-      if (Date.now() < deadline) return void this.pollAnswer()
+      if (Date.now() < deadline && !this.pc?.remoteDescription) {
+        return void this.pollAnswer()
+      }
       this.clearPoll()
       if (!this.connected) this.handlers.onIdle?.()
-    }, ANSWER_POLL_MS)
+    }, 1_000)
   }
 
   private live(run: number) {
@@ -172,36 +285,44 @@ export class WebGameLink {
 
   private clearPoll() {
     if (this.pollTimer) {
+      clearTimeout(this.pollTimer)
       clearInterval(this.pollTimer)
       this.pollTimer = null
     }
   }
 
-  private async pollAnswer() {
-    if (this.closed || !this.pc || this.pc.remoteDescription) return
+  private async pollAnswer(): Promise<boolean> {
+    if (this.closed || !this.pc || this.pc.remoteDescription) return false
     try {
-      const room = await getRoom(this.roomId)
+      const room = await getRoom(this.roomId, this.peerId)
       const answer = room?.answer
-      if (!answer?.type) return
+      if (!answer?.type || !answer.sdp) return false
       await this.pc.setRemoteDescription(answer)
+      this.log('ok', 'Received SDP Answer and set remote description')
       this.clearPoll()
+      return true
     } catch {
-      /* ignore */
+      return false
     }
   }
 
   private bindChannel(dc: RTCDataChannel) {
     dc.onopen = () => {
+      this.log('ok', `WebRTC DataChannel established (${this.isSpectator ? 'spectator' : 'controller'})`)
       this.clearDisconnectTimer()
       this.connected = true
-      void postSignal({ action: 'connected', roomId: this.roomId, connected: true })
+      void postSignal({ action: 'connected', roomId: this.roomId, peerId: this.peerId, connected: true })
       this.startConnectedKeepalive()
-      this.send({ type: 'hello', role: 'web', gameId: this.roomId })
+      this.send({ type: 'hello', role: 'web', gameId: this.roomId, isController: !this.isSpectator, spectator: this.isSpectator })
       this.handlers.onConnected?.()
     }
-    dc.onclose = () => this.markDisconnected()
+    dc.onclose = () => {
+      this.log('warn', 'WebRTC DataChannel closed')
+      this.markDisconnected()
+    }
     dc.onerror = () => {
-      /* onclose 会跟进；避免 error 与 close 双触发抖动 */
+      this.log('warn', 'WebRTC DataChannel error event')
+      /* onclose will follow; avoid duplicate jitter */
     }
     dc.onmessage = (ev) => {
       const msg = parseGameLinkMessage(String(ev.data || ''))
@@ -212,7 +333,7 @@ export class WebGameLink {
     }
   }
 
-  /** 刷新信令板 webConnected 时间戳，避免标签页崩溃后永久锁启动 */
+  /** Refresh webConnected timestamp on signaling board */
   private startConnectedKeepalive() {
     this.clearKeepalive()
     this.keepaliveTimer = setInterval(() => {
@@ -220,7 +341,7 @@ export class WebGameLink {
         this.clearKeepalive()
         return
       }
-      void postSignal({ action: 'connected', roomId: this.roomId, connected: true })
+      void postSignal({ action: 'connected', roomId: this.roomId, peerId: this.peerId, connected: true })
     }, 30_000)
     if (typeof window !== 'undefined') window.addEventListener('pagehide', this.releaseOnUnload)
   }
@@ -241,7 +362,7 @@ export class WebGameLink {
         method: 'POST',
         keepalive: true,
         headers: signalHeaders(this.roomId, { 'Content-Type': 'application/json' }),
-        body: JSON.stringify({ action: 'connected', roomId: this.roomId, connected: false }),
+        body: JSON.stringify({ action: 'connected', roomId: this.roomId, peerId: this.peerId, connected: false }),
       }).catch(() => {})
     } catch {
       /* */
@@ -269,12 +390,16 @@ export class WebGameLink {
     this.clearDisconnectTimer()
     this.clearKeepalive()
     const was = this.connected
+    this.log('warn', 'WebGameLink marked as disconnected')
     this.connected = false
-    void postSignal({ action: 'connected', roomId: this.roomId, connected: false })
+    void postSignal({ action: 'connected', roomId: this.roomId, peerId: this.peerId, connected: false })
     if (was) this.handlers.onDisconnected?.()
   }
 
   send(msg: GameLinkMessage) {
+    if (this.isSpectator && (msg.type === 'remote.input' || msg.type === 'remote.tap' || msg.type === 'quit')) {
+      return
+    }
     if (msg.type === 'translation.rpc') return sendTranslationPacket(this.dc, msg)
     if (this.dc?.readyState === 'open') this.dc.send(encodeGameLinkMessage(msg))
   }
@@ -306,9 +431,13 @@ export class WebGameLink {
     }
     this.dc = null
     this.pc = null
+    this.mediaStream = null
     if (this.connected) {
       this.connected = false
-      void postSignal({ action: 'connected', roomId: this.roomId, connected: false })
+      void postSignal({ action: 'connected', roomId: this.roomId, peerId: this.peerId, connected: false })
+      if (this.peerId) {
+        void postSignal({ action: 'reset', roomId: this.roomId, peerId: this.peerId })
+      }
       if (!opts?.silent) this.handlers.onDisconnected?.()
     }
   }

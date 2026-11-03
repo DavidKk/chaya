@@ -4,7 +4,7 @@ import { resetGameBindEpochForTests } from '@/services/game/bind-epoch'
 
 jest.mock('@/initializer/controller', () => ({ defineApiRoute: (_name: string, handler: unknown) => handler }))
 jest.mock('@/lib/service-mode', () => ({ requireDisk: () => null }))
-jest.mock('@/services/runtime', () => ({}))
+jest.mock('@/services/runtime', () => ({ clearGamePresenceKeepQuit: jest.fn(), requestGameQuit: jest.fn() }))
 jest.mock('@/services/translate', () => ({}))
 jest.mock('@/services/translate/cache-file-stats', () => ({}))
 jest.mock('@/services/game', () => ({

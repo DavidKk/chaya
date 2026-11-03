@@ -13,6 +13,7 @@ import { flattenMapTree, type MapTreeRow } from '@/lib/game/events'
 import { cn } from '@/lib/utils'
 
 import { EventsDataState } from './CommonEventsPane'
+import { CurrentEventsPanel } from './CurrentEventsPanel'
 import { MapDetail, NearToggle } from './MapDetail'
 import type { EventsSlot } from './types'
 
@@ -101,6 +102,17 @@ export function MapPane({ slot, filter, session, headSlot }: Props) {
         if (m.hit) out.push({ row, eventHit: m.eventHit })
       } else if (parentOf(row.id) === level) out.push({ row })
     }
+    // 未输入搜索且当前层级无子地图时，回退展示根层级或全部地图，避免空状态误报 nodata
+    if (!q && out.length === 0 && rows.length > 0) {
+      if (level !== 0) {
+        for (const row of rows) {
+          if (parentOf(row.id) === 0) out.push({ row })
+        }
+      }
+      if (out.length === 0) {
+        for (const row of rows) out.push({ row })
+      }
+    }
     return out
   }, [rows, q, level, parentOf])
 
@@ -181,6 +193,7 @@ export function MapPane({ slot, filter, session, headSlot }: Props) {
 
   return (
     <div className="@container flex min-h-0 flex-1 flex-col">
+      <CurrentEventsPanel slot={slot} />
       <div className="flex min-h-0 flex-1">
         <aside
           className={cn('min-h-0 w-full flex-col @4xl:w-[17rem] @4xl:shrink-0 @4xl:border-r @4xl:border-line', selected ? 'hidden @4xl:flex' : 'flex')}
@@ -198,7 +211,13 @@ export function MapPane({ slot, filter, session, headSlot }: Props) {
             />
           </div>
           {q ? null : breadcrumb}
-          <ScrollArea className="min-h-0 flex-1" indicator="vertical" restorationKey={`maps:${q}:${level}`} scrollProps={{ 'aria-label': t('events.map.treeAria') }}>
+          <ScrollArea
+            className="min-h-0 flex-1"
+            scrollClassName="flex flex-col min-h-full"
+            indicator="vertical"
+            restorationKey={`maps:${q}:${level}`}
+            scrollProps={{ 'aria-label': t('events.map.treeAria') }}
+          >
             {recent.length && !q && !level ? (
               <>
                 <h3 className={sideTitle}>{t('events.map.recent')}</h3>
@@ -212,13 +231,17 @@ export function MapPane({ slot, filter, session, headSlot }: Props) {
                   ? renderRow(row.id, row.name || `#${row.id}`, [pathOf(row.id), eventHit].filter(Boolean).join(' · ') || undefined, undefined, true)
                   : renderRow(row.id, row.name || `#${row.id}`, undefined, undefined, true)
               )
-            ) : (
-              <EmptyState title={t('edit.noMatch')} message={t('events.map.searchHint')} />
-            )}
+            ) : q ? (
+              <EmptyState title={t('edit.noMatch')} message={t('events.map.searchHint')} className="min-h-full" />
+            ) : null}
           </ScrollArea>
         </aside>
-        <div className={cn('min-h-0 min-w-0 flex-1', selected ? 'flex' : 'hidden @4xl:flex')}>
-          {selected ? <MapDetail key={selected.id} node={selected} data={data} slot={slot} session={session} near={near} /> : <EmptyState title={t('events.map.selectHint')} />}
+        <div className={cn('min-h-0 min-w-0 flex-1', selected ? 'flex' : 'hidden @4xl:flex flex-col items-center justify-center')}>
+          {selected ? (
+            <MapDetail key={selected.id} node={selected} data={data} slot={slot} session={session} near={near} filter={q} />
+          ) : (
+            <EmptyState title={t('events.map.selectHint')} className="min-h-full" />
+          )}
         </div>
       </div>
       {headSlot ? createPortal(<NearToggle near={near} onChange={setNear} />, headSlot) : null}

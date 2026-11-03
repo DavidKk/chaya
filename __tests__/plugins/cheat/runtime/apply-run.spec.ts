@@ -34,6 +34,9 @@ const gotoTitle = jest.fn()
 const gotoMap = jest.fn()
 const fadeIn = jest.fn()
 const resumeAfterError = jest.fn()
+const unstuck = jest.fn()
+const advanceCutscene = jest.fn()
+const returnPrevMap = jest.fn()
 const setEnemyHp = jest.fn()
 const setPartyHp = jest.fn()
 const startTroopBattle = jest.fn()
@@ -75,6 +78,9 @@ jest.mock('@/plugins/mv/src/cheat/runtime/cheats-run', () => ({
     gotoMap: () => gotoMap(),
     fadeIn: () => fadeIn(),
     resumeAfterError: () => resumeAfterError(),
+    unstuck: () => unstuck(),
+    advanceCutscene: () => advanceCutscene(),
+    returnPrevMap: () => returnPrevMap(),
     setEnemyHp: (...a: unknown[]) => setEnemyHp(...(a as [string])),
     setPartyHp: (...a: unknown[]) => setPartyHp(...(a as [string])),
   },
@@ -178,6 +184,12 @@ describe('applyRunAction / runActionNeedsClose', () => {
     expect(clearInterpreter).toHaveBeenCalled()
     applyRunAction('fix:clearOverlay')
     expect(clearOverlay).toHaveBeenCalled()
+    applyRunAction('fix:unstuck')
+    expect(unstuck).toHaveBeenCalled()
+    applyRunAction('fix:advanceCutscene')
+    expect(advanceCutscene).toHaveBeenCalled()
+    applyRunAction('fix:returnPrevMap')
+    expect(returnPrevMap).toHaveBeenCalled()
     applyRunAction('battle:start')
     expect(startTroopBattle).toHaveBeenCalledWith({ interruptEvent: true })
     applyRunAction('battle:victory')

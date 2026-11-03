@@ -1,5 +1,6 @@
 'use client'
 
+import { usePathname } from 'next/navigation'
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 
 import { type GameToolTransport, GameToolTransportContext } from '@/components/game-tools/transport'
@@ -56,6 +57,8 @@ const GameLinkContext = createContext<GameLinkContextValue | null>(null)
  * 后台发 offer 不抢别的标签页正在用的链路，等 answer 也有时限；`restart()` 才会接管 / 重新等。
  */
 export function GameLinkProvider({ children }: { children: ReactNode }) {
+  const pathname = usePathname()
+  const isPlayPage = !!pathname?.startsWith('/play')
   const [roomId, setRoomId] = useState<string | null>(null)
   const [browserMode, setBrowserMode] = useState(false)
   const [enabled, setEnabled] = useState(false)
@@ -135,7 +138,7 @@ export function GameLinkProvider({ children }: { children: ReactNode }) {
     }
   }, [])
 
-  const link = useGameLink({ roomId, enabled, autoStart: true, onMessage })
+  const link = useGameLink({ roomId, enabled: enabled && !isPlayPage, autoStart: true, onMessage })
   const { connected, send } = link
   useEffect(() => {
     if (!connected || !browserMode) return

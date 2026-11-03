@@ -16,7 +16,15 @@ type Props = {
 /** Chaya mark only; `animated` blinks the eyes. */
 export function BrandMark({ className, priority = false, animated = false }: { className?: string; priority?: boolean; animated?: boolean }) {
   return animated ? (
-    <svg viewBox="205 195 650 650" aria-hidden focusable="false" className={cn('size-6 shrink-0', className)}>
+    <svg
+      viewBox="205 195 650 650"
+      width="100%"
+      height="100%"
+      aria-hidden
+      focusable="false"
+      className={cn(className || 'size-6 shrink-0')}
+      style={{ maxWidth: '100%', maxHeight: '100%' }}
+    >
       <use href="/brand/chaya-mark.svg#chaya-body" />
       <use
         href="/brand/chaya-mark.svg#chaya-eyes"
@@ -25,7 +33,7 @@ export function BrandMark({ className, priority = false, animated = false }: { c
       />
     </svg>
   ) : (
-    <Image src="/brand/chaya-mark.svg" alt="" aria-hidden width={40} height={40} priority={priority} className={cn('size-6 shrink-0', className)} />
+    <Image src="/brand/chaya-mark.svg" alt="" aria-hidden width={40} height={40} priority={priority} className={cn(className || 'size-6 shrink-0')} />
   )
 }
 

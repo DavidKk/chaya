@@ -5,6 +5,7 @@ import { type ActorDraft, countKey, GOLD_LOCK_KEY, type ItemKind, lockKeyForActo
 import type { CatalogEntry, GameEditCatalog } from '@/lib/game/game-edit-catalog-types'
 
 import { itemLabel, tName } from '../console/item-label'
+import { getAutoTalk } from '../runtime/auto-talk'
 import { Cheats } from '../runtime/cheats'
 import { RunCheats } from '../runtime/cheats-run'
 
@@ -96,6 +97,7 @@ export function readRunFields(
   | 'runRate'
   | 'gameSpeed'
   | 'fullscreen'
+  | 'screenStretch'
   | 'alwaysDash'
   | 'god'
   | 'autoWin'
@@ -121,13 +123,15 @@ export function readRunFields(
     runRate: st?.run ?? prev.runRate,
     gameSpeed: st?.gameSpeed ?? prev.gameSpeed,
     fullscreen: RunCheats.getFullscreen(),
+    screenStretch: RunCheats.getScreenStretch(),
+
     alwaysDash: typeof ConfigManager !== 'undefined' ? !!ConfigManager.alwaysDash : prev.alwaysDash,
     god: Cheats.getGod(),
     autoWin: Cheats.getAutoWin(),
     autoBattle: Cheats.getAutoBattle(),
     skipBattleResult: Cheats.getSkipBattleResult(),
     through: Cheats.getThrough(),
-    autotalk: typeof window.ChayaEdit?.autoTalk === 'function' ? !!window.ChayaEdit.autoTalk() : prev.autotalk,
+    autotalk: typeof window.ChayaEdit?.autoTalk === 'function' ? !!window.ChayaEdit.autoTalk() : getAutoTalk(),
     encounter: RunCheats.getEncounter(),
     menuEnabled: RunCheats.getMenuEnabled(),
     saveEnabled: RunCheats.getSaveEnabled(),
@@ -231,6 +235,10 @@ function readActors(prev: SessionState, locksIn: Record<string, number>): { acto
     const [mpCur, mpMax] = String(info.mp || '0/0')
       .split('/')
       .map((x) => Number(x) || 0)
+    const inParty = Boolean(
+      (info as { inParty?: boolean })?.inParty ??
+      ($gameParty && (($gameParty._actors && $gameParty._actors.includes(i)) || $gameParty.members?.()?.some((a: { actorId?: () => number }) => a?.actorId?.() === i)))
+    )
     actors[i] = {
       name: String(info.name || $dataActors[i]?.name || `角色 #${i}`),
       nickname: String(info.nickname || ''),
@@ -248,6 +256,7 @@ function readActors(prev: SessionState, locksIn: Record<string, number>): { acto
       agi: Number(info.agi) || 0,
       luk: Number(info.luk) || 0,
       classId: Number(info.classId) || 1,
+      inParty,
       skillIds: Array.isArray(info.skills) ? info.skills.map(Number).filter((n) => n > 0) : [],
       stateIds: Array.isArray(info.states) ? info.states.map(Number).filter((n) => n > 0) : [],
     }

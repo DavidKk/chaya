@@ -21,6 +21,21 @@ describe('buildChayaEnvJs', () => {
     expect(js).toContain('delete window.CHAYA_LOG_URL')
     expect(js).toContain('window.CHAYA_MCP_GATEWAY = true')
   })
+
+  it.each([true, false])('sets host muting independently from window visibility (%s)', (muteHostAudio) => {
+    const window: Record<string, unknown> = {}
+    const js = buildChayaEnvJs('http://127.0.0.1:3000', { silentMode: false, muteHostAudio })
+    new Function('window', js)(window)
+    expect(window.__CHAYA_UNMUTE_HOST__).toBe(!muteHostAudio)
+    expect(window.CHAYA_SILENT_MODE).toBeUndefined()
+  })
+
+  it('clears stale remote audio and window preferences on an ordinary launch', () => {
+    const window: Record<string, unknown> = { CHAYA_SILENT_MODE: true, __CHAYA_UNMUTE_HOST__: true }
+    new Function('window', buildChayaEnvJs('http://127.0.0.1:3000'))(window)
+    expect(window).not.toHaveProperty('CHAYA_SILENT_MODE')
+    expect(window).not.toHaveProperty('__CHAYA_UNMUTE_HOST__')
+  })
 })
 
 describe('mergeLoaderPluginEntries', () => {

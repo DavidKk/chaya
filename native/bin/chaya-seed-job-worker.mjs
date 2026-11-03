@@ -42757,10 +42757,13 @@ function displayNameFromPath(gameRoot, opts) {
   if (!segments.length) return "\u672A\u547D\u540D\u6E38\u620F";
   const lastRaw = segments[segments.length - 1];
   const last = lastRaw.replace(/\.app$/i, "");
-  if (opts?.skipGeneric && (/* @__PURE__ */ new Set(["game", "www", "app.nw", "package.nw"])).has(last.toLowerCase()) && segments.length > 1) {
-    const parent = segments[segments.length - 2].replace(/\.app$/i, "").trim();
-    if (parent && !(/* @__PURE__ */ new Set(["game", "www", "app.nw", "package.nw"])).has(parent.toLowerCase())) {
-      return parent;
+  const genericSet = /* @__PURE__ */ new Set(["game", "www", "app.nw", "package.nw"]);
+  if (opts?.skipGeneric) {
+    for (let i = segments.length - 1; i >= 0; i--) {
+      const seg = segments[i].replace(/\.app$/i, "").trim();
+      if (seg && !genericSet.has(seg.toLowerCase())) {
+        return seg;
+      }
     }
   }
   return last || "\u672A\u547D\u540D\u6E38\u620F";

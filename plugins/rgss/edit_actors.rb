@@ -30,6 +30,14 @@ module ChayaRGSS
       def snapshot
         result = {}
         return result unless $game_actors && $data_actors
+        party_actor_ids = []
+        if defined?($game_party) && $game_party
+          if $game_party.respond_to?(:members)
+            party_actor_ids = $game_party.members.map { |m| m.respond_to?(:id) ? m.id : nil }.compact
+          elsif $game_party.respond_to?(:actors)
+            party_actor_ids = $game_party.actors.map { |m| m.is_a?(Numeric) ? m : (m.respond_to?(:id) ? m.id : nil) }.compact
+          end
+        end
         ($data_actors || []).each_with_index do |data, id|
           next unless data && id > 0
           value = $game_actors[id]
@@ -41,6 +49,7 @@ module ChayaRGSS
             'level' => read(value, 'level', 1), 'exp' => read(value, 'exp'),
             'hp' => read(value, 'hp'), 'mp' => read(value, 'mp'),
             'classId' => read(value, 'class_id', 1),
+            'inParty' => party_actor_ids.include?(id),
             'skillIds' => owned(value, :skills), 'stateIds' => owned(value, :states)
           }
           row['exp'] = 0 unless row['exp'].is_a?(Numeric)
@@ -76,7 +85,7 @@ module ChayaRGSS
       def apply(id, patch)
         value = actor(id)
         raise 'Expected actor patch' unless patch.is_a?(Hash)
-        unknown = patch.keys - (PARAMS.keys + %w[name nickname profile level exp hp mp classId skillIds stateIds])
+        unknown = patch.keys - (PARAMS.keys + %w[name nickname profile level exp hp mp classId skillIds stateIds inParty])
         raise "Unsupported actor fields: #{unknown.join(', ')}" unless unknown.empty?
         patch.each do |key, target|
           if PARAMS.key?(key)
@@ -84,6 +93,14 @@ module ChayaRGSS
           elsif %w[name nickname profile].include?(key)
             raise "Actor field #{key} is unsupported by this game" unless value.respond_to?("#{key}=")
             value.public_send("#{key}=", target.to_s)
+          elsif key == 'inParty'
+            if defined?($game_party) && $game_party
+              if target && $game_party.respond_to?(:add_actor)
+                $game_party.add_actor(id)
+              elsif !target && $game_party.respond_to?(:remove_actor)
+                $game_party.remove_actor(id)
+              end
+            end
           elsif key == 'level'
             raise 'Actor level cannot be changed in this game' unless value.respond_to?(:change_level)
             maximum = value.respond_to?(:max_level) ? value.max_level : 99
@@ -101,6 +118,9 @@ module ChayaRGSS
               raise 'Actor class cannot be changed in this game'
             end
           elsif key == 'hp' || key == 'mp'
+            if defined?($game_party) && $game_party && $game_party.respond_to?(:in_battle) && $game_party.in_battle
+              ChayaRGSS::EditRuntime.mark_battle_vital_overridden if defined?(ChayaRGSS::EditRuntime)
+            end
             maximum = read(value, key == 'hp' ? 'mhp' : 'mmp')
             raise 'Expected non-negative integer' unless target.is_a?(Integer) && target >= 0
             value.public_send("#{key}=", [target, maximum].min)

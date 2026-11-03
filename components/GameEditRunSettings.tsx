@@ -19,6 +19,7 @@ export type GameEditRunSettingsState = Pick<
   | 'walkRate'
   | 'gameSpeed'
   | 'fullscreen'
+  | 'screenStretch'
   | 'alwaysDash'
   | 'god'
   | 'autoWin'

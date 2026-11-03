@@ -540,6 +540,24 @@ module ChayaRGSS
         install_battle_command_guards
         if defined?(BattleManager)
           bm_meta = class << BattleManager; self; end
+          if BattleManager.respond_to?(:setup) && !bm_meta.method_defined?(:chaya_orig_setup)
+            bm_meta.class_eval do
+              alias_method :chaya_orig_setup, :setup
+              def setup(*args)
+                ChayaRGSS::EditRuntime.record_pre_battle_vitals if defined?(ChayaRGSS::EditRuntime)
+                chaya_orig_setup(*args)
+              end
+            end
+          end
+          if BattleManager.respond_to?(:battle_end) && !bm_meta.method_defined?(:chaya_orig_battle_end)
+            bm_meta.class_eval do
+              alias_method :chaya_orig_battle_end, :battle_end
+              def battle_end(*args)
+                ChayaRGSS::EditRuntime.restore_pre_battle_vitals if defined?(ChayaRGSS::EditRuntime)
+                chaya_orig_battle_end(*args)
+              end
+            end
+          end
           if BattleManager.respond_to?(:judge_win_loss) && !bm_meta.method_defined?(:chaya_orig_judge_win_loss)
             bm_meta.class_eval do
               alias_method :chaya_orig_judge_win_loss, :judge_win_loss
@@ -549,6 +567,15 @@ module ChayaRGSS
                 end
                 chaya_orig_judge_win_loss
               end
+            end
+          end
+        end
+        if defined?(Scene_Battle) && Scene_Battle.method_defined?(:terminate) && !Scene_Battle.method_defined?(:chaya_orig_terminate)
+          Scene_Battle.class_eval do
+            alias_method :chaya_orig_terminate, :terminate
+            def terminate(*args)
+              ChayaRGSS::EditRuntime.restore_pre_battle_vitals if defined?(ChayaRGSS::EditRuntime)
+              chaya_orig_terminate(*args)
             end
           end
         end
@@ -703,6 +730,7 @@ module ChayaRGSS
       end
 
       def execute_battle_party_heal
+        mark_battle_vital_overridden
         return false unless defined?($game_party) && $game_party
         $game_party.members.each do |actor|
           if actor.respond_to?(:recover_all)
@@ -722,6 +750,7 @@ module ChayaRGSS
       end
 
       def execute_battle_party_hp1
+        mark_battle_vital_overridden
         return false unless defined?($game_party) && $game_party
         $game_party.members.each do |actor|
           next unless actor.respond_to?(:hp) && actor.respond_to?(:hp=)
@@ -731,11 +760,48 @@ module ChayaRGSS
       end
 
       def execute_battle_party_hp0
+        mark_battle_vital_overridden
         return false unless defined?($game_party) && $game_party
         $game_party.members.each do |actor|
           actor.hp = 0 if actor.respond_to?(:hp=)
         end
         true
+      end
+
+      def record_pre_battle_vitals
+        @pre_battle_vitals = {}
+        @has_battle_vital_overrides = false
+        if defined?($game_party) && $game_party && $game_party.respond_to?(:members)
+          $game_party.members.each do |m|
+            next unless m.respond_to?(:id) && m.respond_to?(:hp)
+            @pre_battle_vitals[m.id] = {
+              :hp => m.hp,
+              :mp => m.respond_to?(:mp) ? m.mp : 0,
+              :tp => m.respond_to?(:tp) ? m.tp : 0
+            }
+          end
+        end
+      end
+
+      def mark_battle_vital_overridden
+        record_pre_battle_vitals if @pre_battle_vitals.nil? || @pre_battle_vitals.empty?
+        @has_battle_vital_overrides = true
+      end
+
+      def restore_pre_battle_vitals
+        return unless @has_battle_vital_overrides && @pre_battle_vitals
+        if defined?($game_party) && $game_party && $game_party.respond_to?(:members)
+          $game_party.members.each do |m|
+            next unless m.respond_to?(:id)
+            snap = @pre_battle_vitals[m.id]
+            next unless snap
+            m.hp = snap[:hp] if m.respond_to?(:hp=)
+            m.mp = snap[:mp] if m.respond_to?(:mp=)
+            m.tp = snap[:tp] if m.respond_to?(:tp=)
+          end
+        end
+        @pre_battle_vitals = {}
+        @has_battle_vital_overrides = false
       end
 
       def goto_scene(cls)

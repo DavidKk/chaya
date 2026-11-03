@@ -16,13 +16,14 @@ export function observeHttpRequest({ request, response }: RequestStart) {
   const path = (request.url || '/').split('?')[0]!
   if (request.headers.upgrade) return
   const logTransport = path === '/api/logs' || path.startsWith('/api/logs/')
+  const isLongPoll = path === '/api/runtime/agent'
   const incoming = request.headers['x-chaya-request-id']
   const id = operationId(typeof incoming === 'string' ? incoming : undefined)
   const timing = startOperation('http', 'http.server', { method: request.method, path }, { operationId: id, start: !logTransport })
   request.headers['x-chaya-request-id'] = id
   request.headers['x-chaya-request-started-at'] = String(timing.startedAt)
   response.setHeader('X-Chaya-Request-Id', id)
-  const finishSlow = watchSlowHttpRequest({ requestId: id, method: request.method || 'GET', path, startedAt: timing.startedAt }, timing.elapsedMs)
+  const finishSlow = watchSlowHttpRequest({ requestId: id, method: request.method || 'GET', path, startedAt: timing.startedAt }, timing.elapsedMs, isLongPoll ? 35_000 : undefined)
 
   let finished = false
   const finish = (aborted: boolean, phase = aborted ? 'connection-closed' : 'response-finished') => {
@@ -37,7 +38,8 @@ export function observeHttpRequest({ request, response }: RequestStart) {
         status: response.statusCode,
         phase,
       })
-    if (elapsedMs >= 1000 || response.statusCode >= 500) {
+    const isSlow = isLongPoll ? elapsedMs >= 35_000 : elapsedMs >= 1000
+    if (isSlow || response.statusCode >= 500) {
       // eslint-disable-next-line no-console -- correlate native Next timing lines with persisted request records
       console.warn(`[Chaya HTTP] ${request.method} ${path} ${response.statusCode} ${elapsedMs}ms requestId=${id}${aborted ? ' aborted' : ''}`)
     }

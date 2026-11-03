@@ -193,6 +193,7 @@ export function hotkeyMapsEqual(a?: HotkeyMap | null, b?: HotkeyMap | null): boo
 /** 与运行页开关一致，可供快捷键绑定 */
 export const RUN_FLAG_HOTKEY_ROWS: ReadonlyArray<{ key: RunFlagKey; labelKey: MessageKey; descKey: MessageKey; hintKey?: MessageKey }> = [
   { key: 'fullscreen', labelKey: 'edit.flagFullscreen', descKey: 'edit.flagFullscreenDesc' },
+  { key: 'screenStretch', labelKey: 'edit.flagScreenStretch', descKey: 'edit.flagScreenStretchDesc' },
   { key: 'alwaysDash', labelKey: 'edit.flagAlwaysDash', descKey: 'edit.flagAlwaysDashDesc' },
   { key: 'god', labelKey: 'edit.flagGod', descKey: 'edit.flagGodDesc' },
   { key: 'autoWin', labelKey: 'edit.flagAutoWin', descKey: 'edit.flagAutoWinDesc', hintKey: 'edit.flagAutoWinHint' },

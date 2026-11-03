@@ -20,22 +20,23 @@ const SKILL_ICONS: Record<SkillId, IconType> = {
 }
 
 /** Skills 子页：左半「skill 列表 + 正文」（构建期渲染的 HTML），右半「安装到 Agent」 */
-export function SkillsView({ activeId, html }: { activeId: SkillId; html: Record<Locale, string> }) {
+export function SkillsView({ activeId, html }: { activeId: SkillId; html: string | Record<Locale, string> }) {
   const t = useT()
   const locale = useLocaleCode()
   const active = SKILLS.find((skill) => skill.id === activeId) ?? SKILLS[0]
   const connection = useMcpConnection()
   const local = connection.status === 'ready' && connection.connection.available
   const install = connection.status === 'loading' ? <Spinner size="sm" label={t('common.loading')} /> : <SkillInstall id={activeId} local={local} />
+  const contentHtml = typeof html === 'string' ? html : (html[locale] ?? html.en ?? '')
 
   return (
     <HubLayout
       header={
         <HubPaneHeader
-          title={active.title[locale]}
+          title={active.title}
           description={
             <>
-              {active.summary[locale]} <code className="font-mono text-[11px]">{active.id}</code>
+              {active.summary} <code className="font-mono text-[11px]">{active.id}</code>
             </>
           }
         />
@@ -51,9 +52,9 @@ export function SkillsView({ activeId, html }: { activeId: SkillId; html: Record
                   href={integrationSkillHref(skill.id)}
                   active={skill.id === activeId}
                   icon={<Icon size={15} />}
-                  label={skill.title[locale]}
+                  label={skill.title}
                   meta={skill.id}
-                  title={skill.summary[locale]}
+                  title={skill.summary}
                 />
               )
             })}
@@ -75,7 +76,7 @@ export function SkillsView({ activeId, html }: { activeId: SkillId; html: Record
         <h2 className="m-0 text-[13px] font-semibold text-ink">{t('integration.installTitle')}</h2>
         {install}
       </section>
-      <article className={markdownBody} dangerouslySetInnerHTML={{ __html: html[locale] ?? html.en }} />
+      <article className={markdownBody} dangerouslySetInnerHTML={{ __html: contentHtml }} />
     </HubLayout>
   )
 }

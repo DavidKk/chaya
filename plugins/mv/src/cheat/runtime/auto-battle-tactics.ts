@@ -210,7 +210,7 @@ export function selectBestAction(actor: AutoActor, availableMp: number, availabl
       if (![1, 2, 3, 4, 5, 6].includes(item.scope) || ![1, 5].includes(item.damage?.type)) continue
       const probe = createAction(actor)
       setActionItem(probe, item.id)
-      const target = sortedEnemies.find((enemy) => safeEvaluateDamage(probe, enemy) > 0)
+      const target = sortedEnemies.find((enemy) => (typeof probe.makeDamageValue === 'function' ? safeEvaluateDamage(probe, enemy) > 0 : true))
       if (!target) continue
       setActionItem(action, item.id)
       setActionTarget(action, target.index?.() ?? 0)

@@ -15,6 +15,7 @@ import { legalZh } from '@/lib/i18n/messages/parts/legal'
 import { marketingZh } from '@/lib/i18n/messages/parts/marketing'
 import { mcpGatewayZh } from '@/lib/i18n/messages/parts/mcp-gateway'
 import { panelsZh } from '@/lib/i18n/messages/parts/panels'
+import { playZh } from '@/lib/i18n/messages/parts/play'
 import { savesZh } from '@/lib/i18n/messages/parts/saves'
 import { translateZh } from '@/lib/i18n/messages/parts/translate'
 import type { MessageTree } from '@/lib/i18n/messages/types'
@@ -23,6 +24,7 @@ import type { MessageTree } from '@/lib/i18n/messages/types'
 export const zh = {
   floatingBall: floatingBallZh,
   debug: debugZh,
+  play: playZh,
   ...commonZh,
   ...marketingZh,
   ...dashboardZh,

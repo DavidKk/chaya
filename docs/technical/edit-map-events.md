@@ -245,3 +245,9 @@ type ScriptLine = {
 - **link 消息体积**：`edit.events` 已分片。`edit.catalog` 仍未分片，超大数据库游戏可能受影响，后续可改用 `link-chunks`。
 - **自动执行事件锁死**：打开触发开关可能让游戏陷入自动执行循环；确认框提示，且开关在面板中始终可关闭（面板不受游戏输入锁影响）。
 - **`GameEditWorkbench.tsx` 行数**：新分支只透传 slot，必要时把 tab 分支表抽到 `workbench-body.tsx`。
+
+## 11. 运行中事件监控与卡死救援
+
+- **只读诊断与 Agent 接口**：`chaya_live_events`（只读）及 `game.events` 遍历 `$gameMap._interpreter`、并行公共事件、地图事件及子解释器；提供 `EventActivity` 快照（含 `transparent`、`movementLocked`、`faded` 及 `candidates` 候选剧情列表）。
+- **单帧安全控制**：`plugins/mv/src/cheat/session/event-control.ts` 通过 `token` 绑定解释器生命周期，支持单个调用栈的 `skip`（`terminate()`）和 `restart`（`setup()`），不按数字盲猜下一事件；消息忙或等待非路线时拦截。
+- **卡死自救动作**：`RUN_ACTION_IDS` 增加 `fix:unstuck`，由 `RunCheats.unstuck()` 统一处理屏幕淡入、主角透明度重置、`$gameTemp._stopMapPlayer` 移动锁清理及强制移动路线恢复。

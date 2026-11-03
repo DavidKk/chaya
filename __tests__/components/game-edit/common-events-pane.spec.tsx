@@ -150,3 +150,87 @@ test('asks before running events with risky effects', async () => {
   expect(s.onAct).not.toHaveBeenCalled()
   expect(document.querySelector('[role="dialog"]')?.textContent).toContain('Boss')
 })
+
+test('displays orphaned alert, unstuck button, and candidate events to advance', async () => {
+  const s = slot({
+    eventActivity: {
+      entries: [],
+      transparent: true,
+      movementLocked: true,
+      faded: true,
+      candidates: [{ mapId: 225, eventId: 4, page: 0, name: 'Scene', trigger: 3, missingConditions: ['#450'] }],
+    },
+  })
+  await render(s)
+  expect(document.body.textContent).toContain('没有事件运行，但主角仍透明或被锁定移动')
+  expect(document.body.textContent).toContain('可推进剧情事件')
+  expect(document.body.textContent).toContain('Scene')
+  expect(document.body.textContent).toContain('缺 #450')
+
+  const unstuckBtn = buttonByText('脱离卡死')!
+  expect(unstuckBtn).not.toBeNull()
+  await act(async () => unstuckBtn.click())
+  expect(s.onAct).toHaveBeenCalledWith({ op: 'runAction', id: 'fix:unstuck' })
+
+  const runBtn = buttonByText('强制执行')!
+  expect(runBtn).not.toBeNull()
+  await act(async () => runBtn.click())
+  expect(document.querySelector('[role="dialog"]')?.textContent).toContain('强制执行「Scene」？')
+  const confirmBtn = [...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent?.trim() === '强制执行') as HTMLButtonElement
+  await act(async () => confirmBtn.click())
+  expect(s.onAct).toHaveBeenCalledWith({ op: 'mapEvent', mapId: 225, eventId: 4, page: 0, from: 0 })
+})
+
+test('allows switching between running events and candidate events and toggling collapse', async () => {
+  const s = slot({
+    eventActivity: {
+      entries: [
+        {
+          path: 'common:3',
+          commonEventId: 3,
+          mapId: 0,
+          eventId: 0,
+          page: null,
+          name: 'Clock',
+          index: 0,
+          code: 230,
+          previousCode: null,
+          waitMode: '',
+          child: false,
+          token: 'token:3',
+          waiting: false,
+          skipBlocked: null,
+          restartBlocked: null,
+          advanceBlocked: null,
+        },
+      ],
+      transparent: false,
+      movementLocked: false,
+      faded: false,
+      candidates: [{ mapId: 225, eventId: 4, page: 0, name: 'Scene', trigger: 3, missingConditions: ['#450'] }],
+    },
+  })
+  await render(s)
+  expect(document.body.textContent).toContain('当前执行')
+  expect(document.body.textContent).toContain('可推进剧情事件')
+  // Default is running since runningCount > 0
+  expect(document.body.textContent).toContain('Clock')
+
+  // Switch to candidates tab
+  const candTab = buttonByText('可推进剧情事件', false)!
+  await act(async () => candTab.click())
+  expect(document.body.textContent).toContain('Scene')
+
+  // Collapse the panel
+  const collapseBtn = document.querySelector('button[aria-label="收起"]') as HTMLButtonElement
+  expect(collapseBtn).not.toBeNull()
+  await act(async () => collapseBtn.click())
+  // Body is collapsed
+  expect(document.body.textContent).not.toContain('Scene')
+
+  // Expand the panel
+  const expandBtn = document.querySelector('button[aria-label="展开"]') as HTMLButtonElement
+  expect(expandBtn).not.toBeNull()
+  await act(async () => expandBtn.click())
+  expect(document.body.textContent).toContain('Scene')
+})

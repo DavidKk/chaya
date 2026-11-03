@@ -55,6 +55,8 @@ export function fieldsForEditCmd(cmd: GameEditCmd): string[] {
       return [`action:${cmd.id}`]
     case 'commonEvent':
       return [`action:commonEvent:${cmd.id}`]
+    case 'eventControl':
+      return [`action:eventControl:${cmd.target.path}`]
     case 'mapEvent':
       return [`action:mapEvent:${cmd.eventId}`]
     case 'teleport':
@@ -146,6 +148,7 @@ export function expectForEditCmd(cmd: GameEditCmd): unknown {
       return cmd.patch
     case 'runAction':
     case 'commonEvent':
+    case 'eventControl':
     case 'mapEvent':
     case 'teleport':
     case 'troop':
