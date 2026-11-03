@@ -237,6 +237,7 @@ export function MapDetail({
         (chestInfo.rewardText && chestInfo.rewardText.toLowerCase().includes(query)) ||
         (transferInfo.name && transferInfo.name.toLowerCase().includes(query)) ||
         (transferInfo.targetMapName && transferInfo.targetMapName.toLowerCase().includes(query)) ||
+        `${ev.x},${ev.y}`.includes(query) ||
         String(ev.id) === query
       )
     },
@@ -300,7 +301,7 @@ export function MapDetail({
   const chestList: MapChestItem[] = useMemo(() => {
     if (!detail?.events) return []
     return sortedEvents.filter(isChestEvent).map((ev) => {
-      const info = resolveChestInfo(ev, data.names, detail)
+      const info = resolveChestInfo(ev, { ...data.names, goldLabel: t('events.map.chestGold') }, detail)
       return {
         event: ev,
         name: info.name,
@@ -310,7 +311,7 @@ export function MapDetail({
         state: eventStateOf(ev, detail, session),
       }
     })
-  }, [data.names, detail, session, sortedEvents])
+  }, [data.names, detail, session, sortedEvents, t])
 
   const transferList: MapTransferItem[] = useMemo(() => {
     if (!detail?.events) return []
@@ -331,16 +332,6 @@ export function MapDetail({
     return data.mapIndex.entrances[node.id] || []
   }, [data.mapIndex.entrances, node.id])
 
-  const entranceList: MapEntranceItem[] = useMemo(() => {
-    return rawEntrances.map((ent, idx) => {
-      const resolved = resolveEntranceInfo(ent, data.names)
-      return {
-        ...resolved,
-        key: `${ent.from.kind}:${ent.from.id}:${ent.from.eventId ?? 0}:${ent.from.page ?? 0}:${ent.x}:${ent.y}:${idx}`,
-      }
-    })
-  }, [data.names, rawEntrances])
-
   const isEntranceMatch = useCallback(
     (item: MapEntranceItem) => {
       if (!query) return false
@@ -357,10 +348,24 @@ export function MapDetail({
     [query]
   )
 
-  const displayedEntrances = useMemo(() => {
-    if (!query) return entranceList
-    return entranceList.filter(isEntranceMatch)
-  }, [entranceList, isEntranceMatch, query])
+  const entranceList: MapEntranceItem[] = useMemo(() => {
+    const list = rawEntrances.map((ent, idx) => {
+      const resolved = resolveEntranceInfo(ent, data.names)
+      return {
+        ...resolved,
+        key: `${ent.from.kind}:${ent.from.id}:${ent.from.eventId ?? 0}:${ent.from.page ?? 0}:${ent.x}:${ent.y}:${idx}`,
+      }
+    })
+    if (!query) return list
+    return [...list].sort((a, b) => {
+      const aHit = isEntranceMatch(a) ? 1 : 0
+      const bHit = isEntranceMatch(b) ? 1 : 0
+      if (aHit !== bHit) return bHit - aHit
+      return 0
+    })
+  }, [data.names, isEntranceMatch, query, rawEntrances])
+
+  const displayedEntrances = entranceList
 
   const displayedEvents = sortedEvents
 
@@ -567,7 +572,7 @@ export function MapDetail({
                     <span className="font-medium text-ink">
                       {t('events.map.colNpc')} ({npcList.length})
                     </span>
-                    <span className="text-[0.7rem] text-ink-soft/75">点击卡片可查看对应事件详情</span>
+                    <span className="text-[0.7rem] text-ink-soft/75">{t('events.map.cardDetailHint')}</span>
                   </div>
                   {npcList.map((npc) => {
                     const hit = isMatch(npc.primaryEvent)
@@ -608,7 +613,9 @@ export function MapDetail({
                                 {npc.npcInfo.faceName || npc.npcInfo.characterName}
                               </span>
                             )}
-                            {hit && <span className="shrink-0 rounded-[0.2rem] bg-accent/20 px-1.5 py-0.5 text-[0.65rem] font-semibold text-accent">NPC 匹配</span>}
+                            {hit && (
+                              <span className="shrink-0 rounded-[0.2rem] bg-accent/20 px-1.5 py-0.5 text-[0.65rem] font-semibold text-accent">{t('events.map.matchBadge')}</span>
+                            )}
                           </div>
                           {npc.npcInfo.dialogueSnippet ? (
                             <div className="mt-1 flex items-start gap-1 text-[0.76rem] text-ink-soft">
@@ -647,7 +654,7 @@ export function MapDetail({
                     <span className="font-medium text-ink">
                       {t('events.map.tabChest')} ({chestList.length})
                     </span>
-                    <span className="text-[0.7rem] text-ink-soft/75">点击卡片可查看对应事件详情</span>
+                    <span className="text-[0.7rem] text-ink-soft/75">{t('events.map.cardDetailHint')}</span>
                   </div>
                   {chestList.map((chest) => {
                     const hit = isMatch(chest.event)
@@ -682,7 +689,9 @@ export function MapDetail({
                             >
                               #{chest.event.id} ({chest.event.x},{chest.event.y})
                             </button>
-                            {hit && <span className="shrink-0 rounded-[0.2rem] bg-accent/20 px-1.5 py-0.5 text-[0.65rem] font-semibold text-accent">宝箱匹配</span>}
+                            {hit && (
+                              <span className="shrink-0 rounded-[0.2rem] bg-accent/20 px-1.5 py-0.5 text-[0.65rem] font-semibold text-accent">{t('events.map.matchBadge')}</span>
+                            )}
                           </div>
                           {chest.rewardText ? (
                             <div className="mt-1 flex items-center gap-1.5 text-[0.76rem] text-ink-soft">
@@ -721,7 +730,7 @@ export function MapDetail({
                     <span className="font-medium text-ink">
                       {t('events.map.tabTransfer')} ({transferList.length})
                     </span>
-                    <span className="text-[0.7rem] text-ink-soft/75">点击卡片可查看对应事件详情</span>
+                    <span className="text-[0.7rem] text-ink-soft/75">{t('events.map.cardDetailHint')}</span>
                   </div>
                   {transferList.map((transfer) => {
                     const hit = isMatch(transfer.event)
@@ -752,7 +761,7 @@ export function MapDetail({
                             )}
                             {transfer.targetCoords && (
                               <span className="shrink-0 rounded-[0.2rem] border border-line/60 bg-paper-1/80 px-1.5 py-0.5 font-mono text-[0.65rem] text-ink-soft">
-                                目标: {transfer.targetCoords.x},{transfer.targetCoords.y}
+                                {t('events.map.transferTargetPos')}: {transfer.targetCoords.x},{transfer.targetCoords.y}
                               </span>
                             )}
                             <button
@@ -763,11 +772,13 @@ export function MapDetail({
                             >
                               #{transfer.event.id} ({transfer.event.x},{transfer.event.y})
                             </button>
-                            {hit && <span className="shrink-0 rounded-[0.2rem] bg-accent/20 px-1.5 py-0.5 text-[0.65rem] font-semibold text-accent">传送匹配</span>}
+                            {hit && (
+                              <span className="shrink-0 rounded-[0.2rem] bg-accent/20 px-1.5 py-0.5 text-[0.65rem] font-semibold text-accent">{t('events.map.matchBadge')}</span>
+                            )}
                           </div>
                           <div className="mt-1 flex items-center gap-2 text-[0.74rem] text-ink-soft">
                             <span>
-                              当前位置: ({transfer.event.x}, {transfer.event.y})
+                              {t('events.map.transferCurrentPos')}: ({transfer.event.x}, {transfer.event.y})
                             </span>
                             {transfer.targetMapId > 0 && transfer.targetMapId !== node.id && (
                               <button
@@ -775,7 +786,7 @@ export function MapDetail({
                                 onClick={() => slot.onSelectMap(transfer.targetMapId)}
                                 className="m-0 cursor-pointer border-none bg-transparent p-0 text-accent underline-offset-2 hover:underline"
                               >
-                                查看目标地图 →
+                                {t('events.map.transferViewTargetMap')}
                               </button>
                             )}
                           </div>
@@ -810,7 +821,7 @@ export function MapDetail({
                     <span className="font-medium text-ink">
                       {t('events.map.tabEntrance')} ({displayedEntrances.length})
                     </span>
-                    <span className="text-[0.7rem] text-ink-soft/75">点击落点坐标可传送，点击来源可查看对应地图</span>
+                    <span className="text-[0.7rem] text-ink-soft/75">{t('events.map.entranceHint')}</span>
                   </div>
                   {displayedEntrances.map((entrance) => {
                     const hit = isEntranceMatch(entrance)
@@ -859,7 +870,9 @@ export function MapDetail({
                                 {t('events.map.entranceFacing')}: {entrance.directionArrow}
                               </span>
                             )}
-                            {hit && <span className="shrink-0 rounded-[0.2rem] bg-accent/20 px-1.5 py-0.5 text-[0.65rem] font-semibold text-accent">入口匹配</span>}
+                            {hit && (
+                              <span className="shrink-0 rounded-[0.2rem] bg-accent/20 px-1.5 py-0.5 text-[0.65rem] font-semibold text-accent">{t('events.map.matchBadge')}</span>
+                            )}
                           </div>
                           <div className="mt-1 flex items-center gap-2 text-[0.74rem] text-ink-soft">
                             <span>

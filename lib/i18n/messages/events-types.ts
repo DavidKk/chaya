@@ -267,6 +267,13 @@ export type EventsMapMessages = {
   entranceSourceMap: string
   entranceCommonEvent: string
   entranceViewSourceMap: string
+  cardDetailHint: string
+  entranceHint: string
+  matchBadge: string
+  transferViewTargetMap: string
+  transferCurrentPos: string
+  transferTargetPos: string
+  chestGold: string
   chestOpened: string
   chestUnopened: string
   chestReward: string

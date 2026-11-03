@@ -162,6 +162,7 @@ export type ChestResolvedInfo = {
 
 export function isChestEvent(ev: MapEventInfo): boolean {
   if (ev.type === 'chest') return true
+  if (/^(?:宝箱|chest|treasure)/i.test(ev.name) || /^(?:宝箱|chest|treasure)/i.test(ev.rawName)) return true
   if (ev.pages.some((p) => /chest|treasure|宝箱|box/i.test(p.characterName))) return true
   const has = (codes: readonly number[]) => ev.pages.some((p) => p.list.some((cmd) => codes.includes(cmd.code)))
   return has([125, 126, 127, 128]) && has([123]) && ev.pages.length <= 4
@@ -169,16 +170,17 @@ export function isChestEvent(ev: MapEventInfo): boolean {
 
 export function resolveChestInfo(
   ev: MapEventInfo,
-  names?: { items?: readonly string[]; weapons?: readonly string[]; armors?: readonly string[] },
+  names?: { items?: readonly string[]; weapons?: readonly string[]; armors?: readonly string[]; goldLabel?: string },
   detail?: MapDetailData | null
 ): ChestResolvedInfo {
   const rewards: string[] = []
+  const goldUnit = names?.goldLabel || '金币'
 
   for (const page of ev.pages || []) {
     for (const cmd of page.list || []) {
       if (cmd.code === 125) {
         const val = Number(cmd.parameters?.[2]) || 0
-        if (val > 0) rewards.push(`${val} 金币`)
+        if (val > 0) rewards.push(`${val} ${goldUnit}`)
       } else if (cmd.code === 126) {
         const id = Number(cmd.parameters?.[0]) || 0
         const val = Number(cmd.parameters?.[3]) || 1
@@ -199,9 +201,8 @@ export function resolveChestInfo(
   }
 
   let isOpened = false
-  if (detail?.live?.onThisMap) {
-    const selfSwitches = detail.live.selfSwitches?.[ev.id] || ''
-    isOpened = selfSwitches.includes('A')
+  if (detail?.live?.selfSwitches?.[ev.id]?.includes('A')) {
+    isOpened = true
   } else if (ev.pages.length > 1) {
     const activePage = (detail?.live?.activePage?.[ev.id] ?? 1) - 1
     isOpened = activePage >= 1
@@ -229,6 +230,7 @@ export type TransferResolvedInfo = {
 
 export function isTransferEvent(ev: MapEventInfo): boolean {
   if (ev.type === 'transfer') return true
+  if (/^(?:传送|出口|出入口|transfer|exit|warp|portal|to_)/i.test(ev.name) || /^(?:传送|出口|出入口|transfer|exit|warp|portal|to_)/i.test(ev.rawName)) return true
   return ev.pages.some((p) => p.list.some((cmd) => cmd.code === 201))
 }
 
