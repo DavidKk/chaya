@@ -772,3 +772,26 @@ pnpm exec tsx scripts/tools/companion-production-smoke.cts \
 T0 的旧路径基线包含六次未完成战斗的记录；T6 按实际结局标记失败，没有把任务 `completed` 当作胜利。r7 旧路径轨迹中，模型在战斗场景调用地图交互工具，得到错误后以“等待战斗结束”回答；旧工具循环允许已调用工具后的普通回答返回 `answered`，未核对战斗胜利。本批保留此失败原因，不修改旧循环以制造双方获胜样本。新路径两次实际获胜足以验证本地闭环；由于旧路径没有成功样本，不提供有效加速倍数。
 
 上述结论不承诺任意模型均能在预算内完成，也不代表所有游戏和第三方插件兼容。历史暖路由超时、引擎开窗等待与未确认提交的暂停仍是后续优化依据。MZ 已测引擎与真实模型宿主，完整 Next 页面链路仅在 MV 样例验证。物品、复活、主动逃跑策略、TPB、自定义战斗、RGSS、超出 §8.3 首增量的经验推导及角色模型配置保持前文的未支持或后续范围。
+
+## 11. 战斗逻辑共享与剧情全托管演进（2026-11-04）
+
+### 11.1 战斗效果抽取与模块复用
+- 抽取 `plugins/mv/src/helpers/game/battle-effects.ts`，导出 `createAction`、`setActionItem`、`safeEvaluateDamage`、`estimateHpRecovery`、`getUsableItems` 等标准评估函数。
+- 原 `plugins/mv/src/cheat/runtime/auto-battle-effects.ts` 改为向前兼容导出，避免自动战斗作弊逻辑漂移。
+- 旅伴决策层（`action-selector.ts`）与导航层（`battle-navigator.ts`、`battle-input.ts`）打通 `_itemWindow` 道具窗口和阵亡目标（`one_dead_ally`）的快速导航与动作绑定。
+
+### 11.2 单实例与资源安全
+- 自动化运行器（`companion-engine-smoke.cjs`）增加 `terminatePriorGameInstances()`，通过进程表在启动新测试前自动终结游荡的 NW.js、mkxp-z 与旧 Electron Smoke 窗口。
+- `companion-host-smoke.cts` 在退出与异常中断的 `finally` 阶段触发强杀，彻底杜绝测试进程资源泄漏。
+
+### 11.3 目标游戏实机验证
+- 目标游戏：《Heroines of Swords & Spells II》（ID: `cfbafc20-c4d9-4b96-ad07-21ce55722678`）
+- 解决 SV 模式缺失动作贴图时的 `_movementDuration` 战斗起手卡死。
+- 6 大 Engine Smoke 场景通过（证据归档 `/tmp/smoke-run`），局域网 Ollama MBA `qwen3:4b` Host Smoke 端到端验收通过（证据归档 `/tmp/host-smoke`）。
+
+### 11.4 剧情全托管技术架构设计
+1. **Dialogue Driver**：基于 `Window_Message` 扩展打字机快进与自然停顿，流水沉淀 `dialogue_history`。
+2. **Choice Arbiter**：常见功能项（住宿/购买/确认）走静态规则；主线分支由 4B 模型基于剧情上下文与旅伴人设决策。
+3. **Exploration Engine**：基于 `$gameMap.events()` 提取出入口、宝箱与 NPC 实体，结合 `smart-path` 实现拓扑遍历。
+4. **Stuck Detector**：超时或无状态变更时唤醒推理模型重读 NPC 对话并重定目标。
+
