@@ -200,6 +200,8 @@ export function battleLockKey(change: Pick<BattleLockChange, 'side' | 'id' | 'ki
 
 export const GOLD_LOCK_KEY = 'gold:0'
 
+export { evalNumericCondition, matchRowQuery, type NumericCondition, parseNumericCondition, type RowQueryTarget } from '@/lib/game/save-data'
+
 export function matchFilter(text: string, q: string) {
   if (!q) return true
   return text.toLowerCase().includes(q)

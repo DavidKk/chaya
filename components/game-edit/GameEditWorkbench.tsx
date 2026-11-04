@@ -39,7 +39,7 @@ import {
   lockKeyForCount,
   lockKeyForSwitch,
   lockKeyForVar,
-  matchFilter,
+  matchRowQuery,
   MAX_ROWS,
   type RunActionId,
   type RunFlagKey,
@@ -278,8 +278,7 @@ export function GameEditWorkbench({
         const count = session.counts[countKey(kind, entry.id)] ?? 0
         if (ownedOnly && count <= 0) continue
         if (onlyNamed && !hasCatalogName(entry.name)) continue
-        const blob = `${entry.name} ${entry.description || ''} ${entry.id}`
-        if (!matchFilter(blob, q)) continue
+        if (!matchRowQuery({ id: entry.id, name: entry.name, description: entry.description, value: count }, q)) continue
         out.push({
           id: entry.id,
           name: entry.name || t('edit.unnamedId', { id: entry.id }),
@@ -305,7 +304,7 @@ export function GameEditWorkbench({
       for (const entry of catalog.variables) {
         const value = session.vars[entry.id] ?? 0
         if (onlyNamed && !hasCatalogName(entry.name)) continue
-        if (!matchFilter(`${entry.name} ${entry.id}`, q)) continue
+        if (!matchRowQuery({ id: entry.id, name: entry.name, value }, q)) continue
         out.push({ id: entry.id, name: entry.name || t('edit.varFallback', { id: entry.id }), value, valueType: 'var' })
       }
       return out
@@ -316,7 +315,7 @@ export function GameEditWorkbench({
       for (const entry of catalog.switches) {
         const value = session.switches[entry.id] ?? false
         if (onlyNamed && !hasCatalogName(entry.name)) continue
-        if (!matchFilter(`${entry.name} ${entry.id}`, q)) continue
+        if (!matchRowQuery({ id: entry.id, name: entry.name, value }, q)) continue
         out.push({ id: entry.id, name: entry.name || t('edit.swFallback', { id: entry.id }), value, valueType: 'sw' })
       }
       return out

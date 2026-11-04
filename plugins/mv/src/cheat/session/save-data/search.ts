@@ -1,5 +1,17 @@
 /** Sliced iterative DFS from one level; hits stream out per slice and the search can be cancelled */
-import { annotate, type DataPath, type DataRowAt, PATH_DEPTH_MAX, SEARCH_HIT_MAX, SEARCH_NODE_MAX, SEARCH_SLICE_MS, type SearchBatch, type SearchScope } from '@/lib/game/save-data'
+import {
+  annotate,
+  type DataPath,
+  type DataRowAt,
+  evalNumericCondition,
+  parseNumericCondition,
+  PATH_DEPTH_MAX,
+  SEARCH_HIT_MAX,
+  SEARCH_NODE_MAX,
+  SEARCH_SLICE_MS,
+  type SearchBatch,
+  type SearchScope,
+} from '@/lib/game/save-data'
 
 import { liveNames } from './names'
 import { ensureReady, rowAt } from './read'
@@ -11,12 +23,16 @@ const now = () => (typeof performance !== 'undefined' ? performance.now() : Date
 
 function matcher(query: string, scope: SearchScope) {
   const q = query.trim().toLowerCase()
+  const cond = parseNumericCondition(q)
   const n = q && Number.isFinite(Number(q)) ? Number(q) : null
-  const bool = q === 'true' ? true : q === 'false' ? false : null
+  const bool = q === 'true' || q === 'on' || q === '开' ? true : q === 'false' || q === 'off' || q === '关' ? false : null
   const byName = (key: string, label: string | undefined) => key.toLowerCase().includes(q) || (!!label && label.toLowerCase().includes(q))
   const byValue = (value: unknown) => {
     if (typeof value === 'string') return value.toLowerCase().includes(q)
-    if (typeof value === 'number') return n != null && value === n
+    if (typeof value === 'number') {
+      if (cond) return evalNumericCondition(value, cond)
+      return n != null && value === n
+    }
     if (typeof value === 'boolean') return bool != null && value === bool
     return false
   }
