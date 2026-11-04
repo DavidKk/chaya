@@ -19,6 +19,7 @@
 | Agent 分层任务、batch | [助手](game-agent.md) / [托管](game-assistance.md) | [任务执行](technical/game-agent-jobs.md)；只覆盖执行层 |
 | 旅伴陪玩、反射引擎、情绪反馈 | [旅伴](companion.md) / [现状问题](companion-optimization.md) | [陪玩实现](technical/companion.md) |
 | 旅伴核心重构、本地执行、动态战术、并发决策与多模型预留 | [重构需求](companion-core-rebuild.md)（交付范围见页头） | [重构技术方案](technical/companion-core-rebuild.md) |
+| 旅伴全托管剧情与推进、对话快进、分支决断、地图自律探索 | [全托管剧情需求](companion-story-automation.md) | [全托管技术方案](technical/companion-story-automation.md) |
 | 旅伴 HP 条件经验、样本统计、反例与经验引用 | [重构需求](companion-core-rebuild.md) §6 | [HP 条件经验](technical/companion-experience.md)（T7 首增量；非完整经验推理） |
 | 旅伴游玩记忆、死亡 / 读档采集 | [游玩记忆](companion-memory.md) | [记忆实现](technical/companion-memory.md) |
 | 本波补齐、可恢复性、冻结清单 | [能力补齐](capability-supplement.md) §3–9 | [补齐设计](technical/capability-supplement.md)；排期才读 [backlog](backlog-2026-10-08.md) |
