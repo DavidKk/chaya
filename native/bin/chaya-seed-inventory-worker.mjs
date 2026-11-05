@@ -15,7 +15,7 @@ import { parentPort as parentPort2, workerData } from "node:worker_threads";
 import fs11 from "node:fs";
 import path9 from "node:path";
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/entity.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/entity.js
 var entityKind = /* @__PURE__ */ Symbol.for("drizzle:entityKind");
 function is(value, type) {
   if (!value || typeof value !== "object") return false;
@@ -29,7 +29,7 @@ function is(value, type) {
   return false;
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/query-promise.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/query-promise.js
 var QueryPromise = class {
   static [entityKind] = "QueryPromise";
   [Symbol.toStringTag] = "QueryPromise";
@@ -50,10 +50,10 @@ var QueryPromise = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/column-common.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/column-common.js
 var OriginalColumn = /* @__PURE__ */ Symbol.for("drizzle:OriginalColumn");
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/column.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/column.js
 var noop = (v) => v;
 noop.isNoop = true;
 var Column = class {
@@ -125,10 +125,10 @@ var Column = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/table.utils.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/table.utils.js
 var TableName = /* @__PURE__ */ Symbol.for("drizzle:Name");
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/table.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/table.js
 var TableSchema = /* @__PURE__ */ Symbol.for("drizzle:Schema");
 var TableColumns = /* @__PURE__ */ Symbol.for("drizzle:Columns");
 var ExtraConfigColumns = /* @__PURE__ */ Symbol.for("drizzle:ExtraConfigColumns");
@@ -187,7 +187,7 @@ function getTableName(table) {
   return table[TableName];
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/subquery.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/subquery.js
 var Subquery = class {
   static [entityKind] = "Subquery";
   constructor(sql2, fields2, alias, isWith = false, usedTables = []) {
@@ -205,15 +205,15 @@ var WithSubquery = class extends Subquery {
   static [entityKind] = "WithSubquery";
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/tracing.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/tracing.js
 var tracer = { startActiveSpan(name2, fn) {
   return fn();
 } };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/view-common.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/view-common.js
 var ViewBaseConfig = /* @__PURE__ */ Symbol.for("drizzle:ViewBaseConfig");
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sql/sql.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sql/sql.js
 var FakePrimitiveParam = class {
   static [entityKind] = "FakePrimitiveParam";
 };
@@ -685,7 +685,7 @@ Subquery.prototype.getSQL = function() {
   return new SQL([this]);
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/errors.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/errors.js
 var DrizzleError = class extends Error {
   static [entityKind] = "DrizzleError";
   constructor({ message, cause }) {
@@ -715,7 +715,7 @@ var TransactionRollbackError = class extends DrizzleError {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sql/expressions/conditions.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sql/expressions/conditions.js
 function bindIfParam(value, column) {
   if (isDriverValueEncoder(column) && !isSQLWrapper(value) && !is(value, Param) && !is(value, Placeholder) && !is(value, Column) && !is(value, Table) && !is(value, View)) return new Param(value, column);
   return value;
@@ -830,7 +830,7 @@ function arrayOverlaps(column, values) {
   return sql`${column} && ${bindIfParam(values, column)}`;
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sql/expressions/select.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sql/expressions/select.js
 function asc(column) {
   return sql`${column} asc`;
 }
@@ -838,7 +838,7 @@ function desc(column) {
   return sql`${column} desc`;
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/alias.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/alias.js
 var ColumnTableAliasProxyHandler = class {
   static [entityKind] = "ColumnTableAliasProxyHandler";
   constructor(table, ignoreColumnAlias) {
@@ -933,7 +933,7 @@ function getOriginalColumnFromAlias(column) {
   return column[OriginalColumn]();
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/utils.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/utils.js
 var FnConstructor = Object.getPrototypeOf(() => null).constructor;
 function makeJitQueryMapperInner(columns, joinsNotNullableMap = {}) {
   const preFn = [];
@@ -1163,7 +1163,7 @@ function assertUnreachable(_x) {
   throw new Error("Didn't expect to get here");
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/relations.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/relations.js
 var Relation = class {
   static [entityKind] = "RelationV2";
   fieldName;
@@ -1747,7 +1747,7 @@ function getTableAsAliasSQL(table) {
   return sql`${table[IsAlias] ? sql`${sql`${sql.identifier(table[TableSchema] ?? "")}.`.if(table[TableSchema])}${sql.identifier(table[OriginalName])} as ${table}` : table}`;
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/column-builder.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/column-builder.js
 var ColumnBuilder = class {
   static [entityKind] = "ColumnBuilder";
   /** @internal */
@@ -1851,7 +1851,7 @@ var ColumnBuilder = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/logger.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/logger.js
 var ConsoleLogWriter = class {
   static [entityKind] = "ConsoleLogWriter";
   write(message) {
@@ -1882,7 +1882,7 @@ var NoopLogger = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sql/functions/aggregate.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sql/functions/aggregate.js
 function count(expression) {
   return sql`count(${expression || sql.raw("*")})`.mapWith(Number);
 }
@@ -5212,7 +5212,7 @@ function planGameCache(src, pair, index2, context2) {
   return { plan, records: records2 };
 }
 
-// node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/normalize.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/normalize.js
 var MASK_CHAR = "\0";
 var SMALL_KANA = {
   \u3041: "\u3042",
@@ -5326,7 +5326,7 @@ function detectMode(word) {
   return /^[\x20-\x7e]+$/.test(word) ? "en" : "ja";
 }
 
-// node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/filter.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/filter.js
 function createFilter({ lists, allowlist = [] }) {
   const jaEntries = [];
   const enTokens = /* @__PURE__ */ new Map();
@@ -5461,7 +5461,7 @@ function createFilter({ lists, allowlist = [] }) {
   };
 }
 
-// node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/generated/data.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/generated/data.js
 var data_exports = {};
 __export(data_exports, {
   en: () => en,
@@ -5487,7 +5487,7 @@ var ja = {
 };
 var languages = ["en", "ja"];
 
-// node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/wordguard.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/wordguard@0.1.1/node_modules/wordguard/dist/wordguard.js
 var DEFAULT_CATEGORIES = ["sexual", "slur", "abuse"];
 function pick(languages2, categories) {
   const lists = [];
@@ -6037,7 +6037,7 @@ import fs10 from "node:fs";
 import path8 from "node:path";
 import { DatabaseSync as DatabaseSync4 } from "node:sqlite";
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/count.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/count.js
 var SQLiteCountBuilder = class SQLiteCountBuilder2 extends SQL {
   static [entityKind] = "SQLiteCountBuilder";
   dialect;
@@ -6066,7 +6066,7 @@ var SQLiteCountBuilder = class SQLiteCountBuilder2 extends SQL {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/count.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/count.js
 var SQLiteAsyncCountBuilder = class extends SQLiteCountBuilder {
   static [entityKind] = "SQLiteAsyncCountBuilder";
   constructor(countConfig) {
@@ -6092,7 +6092,7 @@ var SQLiteSyncCountBuilder = class extends SQLiteAsyncCountBuilder {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/query.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/query.js
 var RelationalQueryBuilder = class {
   static [entityKind] = "SQLiteRelationalQueryBuilderV2";
   constructor(mode, schema, table, tableConfig, dialect, session, forbidJsonb, builder = SQLiteRelationalQuery) {
@@ -6157,7 +6157,7 @@ var SQLiteRelationalQuery = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/query.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/query.js
 var SQLiteAsyncRelationalQuery = class extends SQLiteRelationalQuery {
   static [entityKind] = "SQLiteAsyncRelationalQueryV2";
   /** @internal */
@@ -6188,7 +6188,7 @@ var SQLiteSyncRelationalQuery = class extends SQLiteAsyncRelationalQuery {
 };
 applyMixins(SQLiteAsyncRelationalQuery, [QueryPromise]);
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/selection-proxy.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/selection-proxy.js
 var SelectionProxyHandler = class SelectionProxyHandler2 {
   static [entityKind] = "SelectionProxyHandler";
   config;
@@ -6226,7 +6226,7 @@ var SelectionProxyHandler = class SelectionProxyHandler2 {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/foreign-keys.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/foreign-keys.js
 var ForeignKeyBuilder = class {
   static [entityKind] = "SQLiteForeignKeyBuilder";
   /** @internal */
@@ -6291,7 +6291,7 @@ var ForeignKey = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/common.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/common.js
 var SQLiteColumnBuilder = class extends ColumnBuilder {
   static [entityKind] = "SQLiteColumnBuilder";
   foreignKeyConfigs = [];
@@ -6343,7 +6343,7 @@ var SQLiteColumn = class extends Column {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/blob.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/blob.js
 function hexToText(hexString) {
   let result = "";
   for (let i = 0; i < hexString.length; i += 2) {
@@ -6435,7 +6435,7 @@ function blob(a, b) {
   return new SQLiteBlobJsonBuilder(name2);
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/custom.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/custom.js
 var SQLiteCustomColumnBuilder = class extends SQLiteColumnBuilder {
   static [entityKind] = "SQLiteCustomColumnBuilder";
   constructor(name2, fieldConfig, customTypeParams) {
@@ -6498,7 +6498,7 @@ function customType(customTypeParams) {
   };
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/integer.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/integer.js
 var SQLiteBaseIntegerBuilder = class extends SQLiteColumnBuilder {
   static [entityKind] = "SQLiteBaseIntegerBuilder";
   constructor(name2, dataType, columnType) {
@@ -6590,7 +6590,7 @@ function integer(a, b) {
   return new SQLiteIntegerBuilder(name2);
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/numeric.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/numeric.js
 var SQLiteNumericBuilder = class extends SQLiteColumnBuilder {
   static [entityKind] = "SQLiteNumericBuilder";
   constructor(name2) {
@@ -6656,7 +6656,7 @@ function numeric(a, b) {
   return mode === "number" ? new SQLiteNumericNumberBuilder(name2) : mode === "bigint" ? new SQLiteNumericBigIntBuilder(name2) : new SQLiteNumericBuilder(name2);
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/real.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/real.js
 var SQLiteRealBuilder = class extends SQLiteColumnBuilder {
   static [entityKind] = "SQLiteRealBuilder";
   constructor(name2) {
@@ -6677,7 +6677,7 @@ function real(name2) {
   return new SQLiteRealBuilder(name2 ?? "");
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/text.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/text.js
 var SQLiteTextBuilder = class extends SQLiteColumnBuilder {
   static [entityKind] = "SQLiteTextBuilder";
   constructor(name2, config) {
@@ -6728,7 +6728,7 @@ function text(a, b = {}) {
   return new SQLiteTextBuilder(name2, config);
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/all.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/columns/all.js
 function getSQLiteColumnBuilders() {
   return {
     blob,
@@ -6740,7 +6740,7 @@ function getSQLiteColumnBuilders() {
   };
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/casing.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/casing.js
 function toSnakeCase(input) {
   return (input.replace(/['\u2019]/g, "").match(/[\da-z]+|[A-Z]+(?![a-z])|[A-Z][\da-z]+/g) ?? []).map((word) => word.toLowerCase()).join("_");
 }
@@ -6755,7 +6755,7 @@ function getCasingFn(casing) {
   return (name2) => name2;
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/table.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/table.js
 var InlineForeignKeys = /* @__PURE__ */ Symbol.for("drizzle:SQLiteInlineForeignKeys");
 var SQLiteTable = class extends Table {
   static [entityKind] = "SQLiteTable";
@@ -6790,7 +6790,7 @@ function sqliteTableWithCasing(casing) {
 }
 var sqliteTable = sqliteTableWithCasing(void 0);
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/indexes.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/indexes.js
 var IndexBuilderOn = class {
   static [entityKind] = "SQLiteIndexBuilderOn";
   constructor(name2, unique) {
@@ -6841,7 +6841,7 @@ function index(name2) {
   return new IndexBuilderOn(name2, false);
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/primary-keys.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/primary-keys.js
 function primaryKey(...config) {
   if (config[0].columns) return new PrimaryKeyBuilder(config[0].columns, config[0].name);
   return new PrimaryKeyBuilder(config);
@@ -6877,7 +6877,7 @@ var PrimaryKey = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/utils.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/utils.js
 function extractUsedTable(table) {
   if (is(table, SQLiteTable)) return [`${table[Table.Symbol.BaseName]}`];
   if (is(table, Subquery)) return table._.usedTables ?? [];
@@ -6885,7 +6885,7 @@ function extractUsedTable(table) {
   return [];
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/delete.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/delete.js
 var SQLiteDeleteBase = class {
   static [entityKind] = "SQLiteDelete";
   /** @internal */
@@ -6965,7 +6965,7 @@ var SQLiteDeleteBase = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/delete.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/delete.js
 var SQLiteAsyncDeleteBase = class extends SQLiteDeleteBase {
   static [entityKind] = "SQLiteAsyncDelete";
   /** @internal */
@@ -6996,12 +6996,12 @@ var SQLiteAsyncDeleteBase = class extends SQLiteDeleteBase {
 };
 applyMixins(SQLiteAsyncDeleteBase, [QueryPromise]);
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/view-base.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/view-base.js
 var SQLiteViewBase = class extends View {
   static [entityKind] = "SQLiteViewBase";
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/query-builders/query-builder.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/query-builders/query-builder.js
 var TypedQueryBuilder = class {
   static [entityKind] = "TypedQueryBuilder";
   /** @internal */
@@ -7014,7 +7014,7 @@ var TypedQueryBuilder = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/select.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/select.js
 var SQLiteSelectBuilder = class {
   static [entityKind] = "SQLiteSelectBuilder";
   fields;
@@ -7591,7 +7591,7 @@ var unionAll = createSetOperator("union", true);
 var intersect = createSetOperator("intersect", false);
 var except = createSetOperator("except", false);
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/dialect.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/dialect.js
 var SQLiteDialect = class {
   static [entityKind] = "SQLiteDialect";
   mapperGenerators;
@@ -7976,7 +7976,7 @@ var SQLiteDialect = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/query-builder.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/query-builder.js
 var QueryBuilder = class {
   static [entityKind] = "SQLiteQueryBuilder";
   dialect;
@@ -8042,7 +8042,7 @@ var QueryBuilder = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/insert.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/insert.js
 var SQLiteInsertBuilder = class {
   static [entityKind] = "SQLiteInsertBuilder";
   constructor(table, session, dialect, withList, builder = SQLiteInsertBase) {
@@ -8177,7 +8177,7 @@ var SQLiteInsertBase = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/insert.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/insert.js
 var SQLiteAsyncInsertBase = class extends SQLiteInsertBase {
   static [entityKind] = "SQLiteAsyncInsert";
   /** @internal */
@@ -8208,7 +8208,7 @@ var SQLiteAsyncInsertBase = class extends SQLiteInsertBase {
 };
 applyMixins(SQLiteAsyncInsertBase, [QueryPromise]);
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/raw.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/raw.js
 var SQLiteRaw = class {
   static [entityKind] = "SQLiteRaw";
   constructor(prepared, sql2, query) {
@@ -8227,7 +8227,7 @@ var SQLiteRaw = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/raw.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/raw.js
 var SQLiteAsyncRaw = class extends SQLiteRaw {
   static [entityKind] = "SQLiteAsyncRaw";
   constructor(prepared, sql2, query) {
@@ -8239,7 +8239,7 @@ var SQLiteAsyncRaw = class extends SQLiteRaw {
 };
 applyMixins(SQLiteAsyncRaw, [QueryPromise]);
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/select.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/select.js
 var SQLiteAsyncSelectBase = class extends SQLiteSelectBase {
   static [entityKind] = "SQLiteAsyncSelect";
   /** @internal */
@@ -8273,7 +8273,7 @@ var SQLiteAsyncSelectBase = class extends SQLiteSelectBase {
 };
 applyMixins(SQLiteAsyncSelectBase, [QueryPromise]);
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/update.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/query-builders/update.js
 var SQLiteUpdateBuilder = class {
   static [entityKind] = "SQLiteUpdateBuilder";
   constructor(table, session, dialect, withList, builder = SQLiteUpdateBase) {
@@ -8402,7 +8402,7 @@ var SQLiteUpdateBase = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/update.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/update.js
 var SQLiteAsyncUpdateBase = class extends SQLiteUpdateBase {
   static [entityKind] = "SQLiteAsyncUpdate";
   /** @internal */
@@ -8433,7 +8433,7 @@ var SQLiteAsyncUpdateBase = class extends SQLiteUpdateBase {
 };
 applyMixins(SQLiteAsyncUpdateBase, [QueryPromise]);
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/db.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/db.js
 var SQLiteAsyncDatabase = class {
   static [entityKind] = "BaseSQLiteDatabase";
   query;
@@ -8697,7 +8697,7 @@ var SQLiteAsyncDatabase = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/cache/core/cache.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/cache/core/cache.js
 var Cache = class {
   static [entityKind] = "Cache";
 };
@@ -8739,7 +8739,7 @@ async function hashQuery(sql2, params) {
   return [...new Uint8Array(hashBuffer)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/session.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/session.js
 var SQLitePreparedQuery = class {
   static [entityKind] = "SQLiteBasePreparedQuery";
   /** @internal */
@@ -8763,7 +8763,7 @@ var SQLiteSession = class {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/session.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/sqlite-core/async/session.js
 var ExecuteResultSync = class extends QueryPromise {
   static [entityKind] = "ExecuteResultSync";
   constructor(resultCb) {
@@ -8929,7 +8929,7 @@ var SQLiteAsyncTransaction = class extends SQLiteAsyncDatabase {
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/node-sqlite/session.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/node-sqlite/session.js
 var NodeSQLiteSession = class extends SQLiteAsyncSession {
   static [entityKind] = "SQLJsSession";
   logger;
@@ -9000,7 +9000,7 @@ var NodeSQLiteTransaction = class NodeSQLiteTransaction2 extends SQLiteAsyncTran
   }
 };
 
-// node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/node-sqlite/driver.js
+// ../../../ops/apps/chaya/node_modules/.pnpm/drizzle-orm@1.0.0-rc.4_@sinclair+typebox@0.34.52_zod@3.25.76/node_modules/drizzle-orm/node-sqlite/driver.js
 import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
 var NodeSQLiteDatabase = class extends SQLiteAsyncDatabase {
   static [entityKind] = "NodeSQLiteDatabase";
