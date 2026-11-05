@@ -25,18 +25,19 @@ import {
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-async function testOllamaProfile(value: Partial<GameAgentProfile>) {
+async function testOllamaProfile(value: Partial<GameAgentProfile>, draftToken?: string) {
   const profile = normalizeGameAgentProfile(value)
-  const models = await listOllamaModels(profile.endpoint, ollamaFetch(profile), AbortSignal.timeout(5_000), readGameAgentToken(profile.id))
+  const token = draftToken || readGameAgentToken(profile.id)
+  const models = await listOllamaModels(profile.endpoint, ollamaFetch(profile), AbortSignal.timeout(5_000), token)
   saveAgentModelCache(profile, models)
   const defaultModel = models.some((model) => model.name === profile.defaultModel) ? profile.defaultModel : pickDefaultModel(models)
   return { profileId: profile.id, models, defaultModel }
 }
 
-async function testOpenApiProfile(value: Partial<GameAgentProfile>) {
+async function testOpenApiProfile(value: Partial<GameAgentProfile>, draftToken?: string) {
   const profile = normalizeGameAgentProfile(value)
   if (!isOpenApiProvider(profile.provider)) throw new Error('Unknown agent provider')
-  const token = readGameAgentToken(profile.id)
+  const token = draftToken || readGameAgentToken(profile.id)
   const fetcher = ollamaFetch(profile)
   const signal = AbortSignal.timeout(8_000)
   const models =
@@ -44,7 +45,14 @@ async function testOpenApiProfile(value: Partial<GameAgentProfile>) {
       ? await listAnthropicModels(profile.endpoint, fetcher, signal, token)
       : profile.provider === 'gemini-api' && !usesGeminiOpenAiCompat(profile.endpoint)
         ? await listGeminiModels(profile.endpoint, fetcher, signal, token, profile.proxyHeaders)
-        : await listOpenAiModels(profile.endpoint, fetcher, signal, token, openApiGatewayRequestHeaders(profile.provider, profile.endpoint, profile.proxyHeaders))
+        : await listOpenAiModels(
+            profile.endpoint,
+            fetcher,
+            signal,
+            token,
+            openApiGatewayRequestHeaders(profile.provider, profile.endpoint, profile.proxyHeaders),
+            profile.modelsEndpoint
+          )
   saveAgentModelCache(profile, models)
   const defaultModel = models.some((model) => model.name === profile.defaultModel) ? profile.defaultModel : models[0]?.name || ''
   return { profileId: profile.id, models, defaultModel }
@@ -109,8 +117,9 @@ export const POST = defineApiRoute('post:/api/integration/game-agent', async ({ 
   if ((body?.action !== 'test' && body?.action !== 'models') || !body.profile) return apiError(400, 'INVALID_AGENT_ACTION', 'Only test, models, or token actions are supported')
   if (isCliProvider(body.profile.provider)) return testCliProfile(body.profile, body.action === 'test', request.signal)
   try {
-    if (isOpenApiProvider(body.profile.provider)) return apiOk(await testOpenApiProfile(body.profile))
-    return apiOk(await testOllamaProfile(body.profile))
+    const draftToken = typeof body.token === 'string' && body.token.trim() ? body.token.trim() : undefined
+    if (isOpenApiProvider(body.profile.provider)) return apiOk(await testOpenApiProfile(body.profile, draftToken))
+    return apiOk(await testOllamaProfile(body.profile, draftToken))
   } catch (error) {
     return apiError(400, 'AGENT_CONNECTION_FAILED', error instanceof Error ? error.message : String(error))
   }

@@ -14,6 +14,7 @@ export type AgentSyncProfile = {
   label: string
   provider: GameAgentProvider
   endpoint: string
+  modelsEndpoint?: string
   defaultModel: string
   temperature: number
   keepAlive: string
@@ -35,6 +36,7 @@ export const AGENT_SYNC_FIELDS = [
   'label',
   'provider',
   'endpoint',
+  'modelsEndpoint',
   'defaultModel',
   'temperature',
   'keepAlive',
@@ -65,8 +67,8 @@ export type AgentSyncDocument = {
 
 const ZERO_STAMP: AgentSyncStamp = { counter: 0, actorId: '' }
 
-function copyStamp(stamp: AgentSyncStamp): AgentSyncStamp {
-  return { counter: stamp.counter, actorId: stamp.actorId }
+function copyStamp(stamp: AgentSyncStamp | undefined): AgentSyncStamp {
+  return stamp ? { counter: stamp.counter, actorId: stamp.actorId } : { ...ZERO_STAMP }
 }
 
 export function compareAgentSyncStamps(left: AgentSyncStamp | undefined, right: AgentSyncStamp | undefined): number {
@@ -285,6 +287,7 @@ export function parseAgentSyncDocument(value: unknown): AgentSyncDocument | null
       ...record.values,
       ...normalizeAgentTimeouts(record.values),
       proxy: typeof record.values.proxy === 'string' ? record.values.proxy : '',
+      modelsEndpoint: typeof record.values.modelsEndpoint === 'string' ? record.values.modelsEndpoint : '',
       proxyProtocols,
       proxyHeaders,
     }
@@ -295,6 +298,7 @@ export function parseAgentSyncDocument(value: unknown): AgentSyncDocument | null
       typeof values.label !== 'string' ||
       !isGameAgentProvider(values.provider) ||
       typeof values.endpoint !== 'string' ||
+      typeof values.modelsEndpoint !== 'string' ||
       typeof values.defaultModel !== 'string' ||
       typeof values.temperature !== 'number' ||
       typeof values.keepAlive !== 'string' ||

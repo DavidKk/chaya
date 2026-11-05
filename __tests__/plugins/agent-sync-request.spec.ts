@@ -86,6 +86,7 @@ test('first plugin sync merges an empty cache without clearing service settings'
     ...settings,
     profiles: settings.profiles.map((profile) => ({
       ...profile,
+      modelsEndpoint: '',
       modelRequestTimeoutMs: 10_000,
       modelTimeoutMs: 120_000,
       gameCallTimeoutMs: 15_000,

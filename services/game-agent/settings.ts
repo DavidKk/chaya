@@ -28,6 +28,7 @@ export type GameAgentProfile = AgentTimeoutSettings & {
   label: string
   provider: GameAgentProvider
   endpoint: string
+  modelsEndpoint?: string
   defaultModel: string
   temperature: number
   keepAlive: string
@@ -135,6 +136,7 @@ export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fall
   const proxy = normalizeAgentProxy(value.proxy)
   const proxyProtocols = normalizeAgentProxyProtocols(proxy, value.proxyProtocols)
   const proxyHeaders = normalizeAgentProxyHeaders(value.proxyHeaders)
+  const modelsEndpoint = typeof value.modelsEndpoint === 'string' ? value.modelsEndpoint.trim() : ''
   if (isCliProvider(provider)) {
     // HTTP-only fields keep fixed values so sync records stay comparable; CLI runs ignore them.
     return {
@@ -142,6 +144,7 @@ export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fall
       label: text(value.label, PROVIDER_META[provider].label),
       provider,
       endpoint: '',
+      modelsEndpoint: '',
       defaultModel: typeof value.defaultModel === 'string' ? value.defaultModel.trim() : '',
       temperature: 0.2,
       keepAlive: '10m',
@@ -161,6 +164,7 @@ export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fall
       label: text(value.label, PROVIDER_META[provider].label),
       provider,
       endpoint: normalizeGameAgentEndpoint(value.endpoint || PROVIDER_META[provider].defaultEndpoint || ''),
+      modelsEndpoint,
       defaultModel: typeof value.defaultModel === 'string' ? value.defaultModel.trim() : '',
       temperature,
       keepAlive,
@@ -175,6 +179,7 @@ export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fall
     label: text(value.label, 'Ollama'),
     provider: 'ollama',
     endpoint: normalizeGameAgentEndpoint(value.endpoint),
+    modelsEndpoint: '',
     defaultModel: typeof value.defaultModel === 'string' ? value.defaultModel.trim() : '',
     temperature,
     keepAlive,

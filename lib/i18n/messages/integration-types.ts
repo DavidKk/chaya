@@ -83,6 +83,10 @@ export type IntegrationMessages = {
   agentApiKeyPlaceholder: string
   agentApiKeyClear: string
   agentApiKeyCleared: string
+  agentModelsEndpoint: string
+  agentModelsEndpointDesc: string
+  agentModelManualInput: string
+  agentModelSelectFromList: string
   agentDefaultModel: string
   agentDefaultModelDesc: string
   agentTemperature: string

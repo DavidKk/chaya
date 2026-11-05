@@ -47,11 +47,24 @@ export async function listOpenAiModels(
   fetcher: typeof fetch = fetch,
   signal?: AbortSignal,
   token?: string,
-  requestHeaders?: Record<string, string>
+  requestHeaders?: Record<string, string>,
+  modelsEndpoint?: string
 ): Promise<OllamaModel[]> {
+  let targetUrl: string
+  const custom = modelsEndpoint?.trim()
+  if (custom) {
+    if (/^https?:\/\//i.test(custom)) {
+      targetUrl = custom
+    } else {
+      targetUrl = `${baseUrl(endpoint)}/${custom.replace(/^\/+/, '')}`
+    }
+  } else {
+    targetUrl = `${baseUrl(endpoint)}/models`
+  }
+
   let response: Response
   try {
-    response = await fetcher(`${baseUrl(endpoint)}/models`, {
+    response = await fetcher(targetUrl, {
       signal,
       cache: 'no-store',
       headers: buildOpenApiFetchHeaders({ token, requestHeaders }),
@@ -60,12 +73,37 @@ export async function listOpenAiModels(
     throw new Error(`Failed to connect to OpenAPI service: ${messageFrom(error)}`)
   }
   if (!response.ok) throw new Error(`OpenAPI model list request failed (HTTP ${response.status})`)
-  const body = (await response.json()) as { data?: Array<{ id?: unknown }> }
-  const models = (body.data ?? [])
-    .map((item) => (typeof item.id === 'string' ? item.id.trim() : ''))
-    .filter(Boolean)
-    .map((name) => ({ name }))
-  return models.sort((a, b) => a.name.localeCompare(b.name))
+  const body = (await response.json()) as {
+    data?: Array<{ id?: unknown; name?: unknown; display_name?: unknown; magpie_label?: unknown }>
+    models?: Array<{ slug?: unknown; id?: unknown; model?: unknown; display_name?: unknown; name?: unknown; magpie_label?: unknown }>
+  }
+  const rawList = Array.isArray(body.data) ? body.data : Array.isArray(body.models) ? body.models : []
+  const models = rawList
+    .map((item) => {
+      const raw = item as Record<string, unknown>
+      const name =
+        typeof raw.id === 'string' && raw.id.trim()
+          ? raw.id.trim()
+          : typeof raw.slug === 'string' && raw.slug.trim()
+            ? raw.slug.trim()
+            : typeof raw.model === 'string' && raw.model.trim()
+              ? raw.model.trim()
+              : typeof raw.name === 'string' && raw.name.trim()
+                ? raw.name.trim()
+                : ''
+      const labelCandidate =
+        typeof raw.display_name === 'string' && raw.display_name.trim()
+          ? raw.display_name.trim()
+          : typeof raw.magpie_label === 'string' && raw.magpie_label.trim()
+            ? raw.magpie_label.trim()
+            : typeof raw.name === 'string' && raw.name.trim()
+              ? raw.name.trim()
+              : name
+      const label = labelCandidate && labelCandidate !== name ? `${labelCandidate} (${name})` : name
+      return { name, label: label || name }
+    })
+    .filter((model) => Boolean(model.name))
+  return models.sort((a, b) => (a.label || a.name).localeCompare(b.label || b.name))
 }
 
 type OpenAiToolCall = { id?: string; type?: string; function?: { name?: string; arguments?: string } }

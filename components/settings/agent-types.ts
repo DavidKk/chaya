@@ -8,6 +8,7 @@ export type AgentProfile = AgentTimeoutSettings & {
   label: string
   provider: GameAgentProvider
   endpoint: string
+  modelsEndpoint?: string
   defaultModel: string
   temperature: number
   keepAlive: string
@@ -41,6 +42,7 @@ export function withAgentProvider(profile: AgentProfile, provider: GameAgentProv
       provider,
       label,
       endpoint: PROVIDER_META[provider].defaultEndpoint || '',
+      modelsEndpoint: '',
       defaultModel: '',
       temperature: OLLAMA_DEFAULTS.temperature,
       keepAlive: OLLAMA_DEFAULTS.keepAlive,
@@ -54,6 +56,7 @@ export function withAgentProvider(profile: AgentProfile, provider: GameAgentProv
       provider,
       label,
       endpoint: '',
+      modelsEndpoint: '',
       defaultModel: '',
       temperature: OLLAMA_DEFAULTS.temperature,
       keepAlive: OLLAMA_DEFAULTS.keepAlive,
@@ -80,6 +83,7 @@ export function createAgentProfile(): AgentProfile {
     label: 'Ollama',
     provider: 'ollama',
     endpoint: 'http://127.0.0.1:11434',
+    modelsEndpoint: '',
     defaultModel: '',
     temperature: 0.2,
     keepAlive: '10m',

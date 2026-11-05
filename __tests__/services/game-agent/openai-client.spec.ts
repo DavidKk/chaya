@@ -1,5 +1,5 @@
 import { isOpenApiGatewayEndpoint } from '@/lib/game-agent/providers'
-import { buildOpenApiFetchHeaders, completeOpenAiChat, openApiGatewayRequestHeaders } from '@/services/game-agent/openai-client'
+import { buildOpenApiFetchHeaders, completeOpenAiChat, listOpenAiModels, openApiGatewayRequestHeaders } from '@/services/game-agent/openai-client'
 
 it('encodes runtime observations without inventing an unmatched tool call id', async () => {
   const fetcher = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>().mockResolvedValue(new Response(JSON.stringify({ choices: [{ message: { content: 'Done' } }] })))
@@ -54,5 +54,42 @@ describe('OpenAPI gateway headers (web-scripts style)', () => {
       Authorization: 'Bearer gate',
       'X-Foo': '1',
     })
+  })
+})
+
+describe('listOpenAiModels with custom models endpoint and catalog support', () => {
+  it('defaults to /models when modelsEndpoint is not provided', async () => {
+    const fetcher = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>().mockResolvedValue(new Response(JSON.stringify({ data: [{ id: 'gpt-4o' }] })))
+    const models = await listOpenAiModels('https://api.openai.com/v1', fetcher, undefined, 'sk-test')
+    expect(fetcher).toHaveBeenCalledWith('https://api.openai.com/v1/models', expect.any(Object))
+    expect(models).toEqual([{ name: 'gpt-4o', label: 'gpt-4o' }])
+  })
+
+  it('resolves relative modelsEndpoint against base endpoint', async () => {
+    const fetcher = jest
+      .fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>()
+      .mockResolvedValue(new Response(JSON.stringify({ models: [{ slug: 'antigravity/gemini-3.8-flash', display_name: 'Gemini 3.8 Flash' }] })))
+    const models = await listOpenAiModels('http://127.0.0.1:3425/v1', fetcher, undefined, 'sk-magpie', undefined, '/codex/models')
+    expect(fetcher).toHaveBeenCalledWith('http://127.0.0.1:3425/v1/codex/models', expect.any(Object))
+    expect(models).toEqual([{ name: 'antigravity/gemini-3.8-flash', label: 'Gemini 3.8 Flash (antigravity/gemini-3.8-flash)' }])
+  })
+
+  it('supports absolute URL for modelsEndpoint and parses magpie format', async () => {
+    const fetcher = jest.fn<ReturnType<typeof fetch>, Parameters<typeof fetch>>().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          models: [
+            { slug: 'codex/gpt-6.1-sol', magpie_label: 'GPT-6.1-Sol' },
+            { model: 'workbuddy/deepseek-v4.1-flash', display_name: 'DeepSeek-V4.1-Flash' },
+          ],
+        })
+      )
+    )
+    const models = await listOpenAiModels('http://127.0.0.1:3425/v1', fetcher, undefined, 'sk-magpie', undefined, 'http://127.0.0.1:3425/v1/codex/models')
+    expect(fetcher).toHaveBeenCalledWith('http://127.0.0.1:3425/v1/codex/models', expect.any(Object))
+    expect(models).toEqual([
+      { name: 'workbuddy/deepseek-v4.1-flash', label: 'DeepSeek-V4.1-Flash (workbuddy/deepseek-v4.1-flash)' },
+      { name: 'codex/gpt-6.1-sol', label: 'GPT-6.1-Sol (codex/gpt-6.1-sol)' },
+    ])
   })
 })

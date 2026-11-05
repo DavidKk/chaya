@@ -97,6 +97,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   const [apiKeyUnlocked, setApiKeyUnlocked] = useState(false)
   const [proxyHeadersDraft, setProxyHeadersDraft] = useState('')
   const [proxyProtocolsOpen, setProxyProtocolsOpen] = useState(false)
+  const [manualModelInput, setManualModelInput] = useState(false)
   /** CLI agent types need the local service; Cloud and browser runtimes answer LOCAL_ONLY. */
   const [cliAvailable, setCliAvailable] = useState(true)
   /** Types whose sign-in Chaya does not support yet, or whose CLI is not installed, cannot be picked. */
@@ -121,8 +122,8 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
       draft.provider !== saved.provider ||
       draft.defaultModel !== saved.defaultModel ||
       draft.endpoint !== saved.endpoint ||
-      draft.proxy ||
-      ') !== (saved.proxy || ' ||
+      (draft.modelsEndpoint || '') !== (saved.modelsEndpoint || '') ||
+      (draft.proxy || '') !== (saved.proxy || '') ||
       JSON.stringify(draft.proxyProtocols || {}) !== JSON.stringify(saved.proxyProtocols || {}) ||
       proxyHeadersText(saved.proxyHeaders) !== proxyHeadersDraft ||
       draft.keepAlive !== saved.keepAlive ||
@@ -174,6 +175,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
           }
           setDraft({
             ...profile,
+            modelsEndpoint: profile.modelsEndpoint || '',
             proxy: profile.proxy || '',
             proxyProtocols: profile.proxyProtocols || {},
             proxyHeaders: profile.proxyHeaders || {},
@@ -266,7 +268,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
     }
     setBusy('save')
     try {
-      const nextDraft = { ...draft, proxyHeaders, proxyProtocols }
+      const nextDraft = { ...draft, modelsEndpoint: (draft.modelsEndpoint || '').trim(), proxyHeaders, proxyProtocols }
       const profiles = creating ? [...settings.profiles, nextDraft] : settings.profiles.map((item) => (item.id === draft.id ? nextDraft : item))
       const saved = await saveSettings({ ...settings, profiles })
       const savedProfile = (saved.profiles.find((item) => item.id === draft.id) || nextDraft) as AgentProfileView
@@ -310,7 +312,11 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
         const response = await request(API, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: feedback === 'test' ? 'test' : 'models', profile }),
+          body: JSON.stringify({
+            action: feedback === 'test' ? 'test' : 'models',
+            profile,
+            token: apiKeyDraft.trim() || undefined,
+          }),
         })
         const body = (await response.json().catch(() => null)) as { models?: AgentModel[]; defaultModel?: string; model?: string; latencyMs?: number }
         if (!response.ok) throw new Error(apiError(body, `HTTP ${response.status}`))
@@ -335,7 +341,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
         if (feedback === 'test') setBusy('')
       }
     },
-    [notify, request, t]
+    [apiKeyDraft, notify, request, t]
   )
 
   useEffect(() => {
@@ -550,7 +556,12 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
               <span className={formTitleInline}>{t('integration.agentProfileLabel')}</span>
               <span className={formDescInline}>{t('integration.agentProfileLabelDesc')}</span>
               <div className={formControlInlineStart}>
-                <TextInput className="w-full" value={draft.label} onChange={(event) => update({ label: event.target.value })} />
+                <TextInput
+                  className="w-full"
+                  value={draft.label}
+                  onChange={(event) => update({ label: event.target.value })}
+                  onInput={(event) => update({ label: (event.target as HTMLInputElement).value })}
+                />
               </div>
             </label>
             {cli && savedProvider === draftProvider ? (
@@ -584,6 +595,21 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                     <TextInput className="w-full" value={draft.endpoint} onChange={(event) => update({ endpoint: event.target.value })} spellCheck={false} />
                   </div>
                 </label>
+                {openApi ? (
+                  <label className={formFieldInlineWideLabel}>
+                    <span className={formTitleInline}>{t('integration.agentModelsEndpoint')}</span>
+                    <span className={formDescInline}>{t('integration.agentModelsEndpointDesc')}</span>
+                    <div className={formControlInlineStart}>
+                      <TextInput
+                        className="w-full"
+                        value={draft.modelsEndpoint || ''}
+                        placeholder="/models 或 /codex/models"
+                        onChange={(event) => update({ modelsEndpoint: event.target.value })}
+                        spellCheck={false}
+                      />
+                    </div>
+                  </label>
+                ) : null}
                 {isApiKeyProvider(draftProvider) ? (
                   <label className={formFieldInlineWideLabel}>
                     <span className={formTitleInline}>{t('integration.agentApiKey')}</span>
@@ -611,15 +637,43 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
               <span className={formTitleInline}>{t('integration.agentDefaultModel')}</span>
               <span className={formDescInline}>{t('integration.agentDefaultModelDesc')}</span>
               <div className={formControlInlineStart}>
-                <Select
-                  className="w-full"
-                  value={draft.defaultModel}
-                  options={modelOptions}
-                  placeholder={t('integration.agentNoModels')}
-                  loading={modelsBusy}
-                  onOpen={loadModelsOnOpen}
-                  onChange={(defaultModel) => update({ defaultModel })}
-                />
+                {manualModelInput ? (
+                  <div className="flex w-full flex-col gap-1.5">
+                    <TextInput
+                      className="w-full"
+                      value={draft.defaultModel}
+                      placeholder="如 antigravity/gemini-3.8-flash 或 codex/gpt-6.1-sol"
+                      onChange={(event) => update({ defaultModel: event.target.value })}
+                      spellCheck={false}
+                    />
+                    <button
+                      type="button"
+                      className="self-start text-xs text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                      onClick={() => setManualModelInput(false)}
+                    >
+                      {t('integration.agentModelSelectFromList')}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex w-full flex-col gap-1.5">
+                    <Select
+                      className="w-full"
+                      value={draft.defaultModel}
+                      options={modelOptions}
+                      placeholder={t('integration.agentNoModels')}
+                      loading={modelsBusy}
+                      onOpen={loadModelsOnOpen}
+                      onChange={(defaultModel) => update({ defaultModel })}
+                    />
+                    <button
+                      type="button"
+                      className="self-start text-xs text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
+                      onClick={() => setManualModelInput(true)}
+                    >
+                      {t('integration.agentModelManualInput')}
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
             {httpModel ? (
