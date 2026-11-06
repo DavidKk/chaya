@@ -46,6 +46,7 @@ import { runChestRoutine } from './chest-routine'
 import { assertControlStartLive, controlStartCancelled, createCompanionControlGate } from './companion-control-gate'
 import { createBattleHost } from './companion-core/battle-host'
 import { createBattleCapabilitiesRevision } from './companion-core/battle-support'
+import { createStoryHost } from './companion-core/story-host'
 import { createCompanionFacts } from './companion-facts'
 import { installCompanionMilestones } from './companion-facts-milestones'
 import { createCompanionHost } from './companion-host'
@@ -560,6 +561,11 @@ export function createGameAgentRuntime(libraryGameId = gameRoomId()) {
     complete: completeCompanion,
     getCapabilitiesRevision: createBattleCapabilitiesRevision(() => facts.current()),
   })
+  const storyHost = createStoryHost({
+    runtimeInstanceId: runtime.identity.runtimeInstanceId,
+    controller,
+    complete: completeCompanion,
+  })
   const companion = createCompanionHost({
     facts,
     memory: memory.store,
@@ -583,7 +589,11 @@ export function createGameAgentRuntime(libraryGameId = gameRoomId()) {
         },
         remote,
         signal,
-        input.action === 'battle' && input.shape === 'open' ? battleHost.execute : undefined
+        input.action === 'custody' || input.action === 'story'
+          ? storyHost.execute
+          : input.action === 'battle' && input.shape === 'open'
+            ? battleHost.execute
+            : undefined
       ) as Promise<AgentTask>
     },
   })

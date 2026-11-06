@@ -386,6 +386,26 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
     const stamp = deps.facts.current().stamp
     const prompt = message.prompt.trim()
     if (!prompt) return { kind: 'clarification', text: '我还没确定你的意思，请说明是想聊聊，还是让我操作游戏。', stamp }
+
+    if (/^(开启|开始)?(全托管|全托管剧情|托管剧情|剧情托管|自律推进|继续剧情)/i.test(prompt)) {
+      const ticketId = `ticket-${message.requestId}`
+      const ticket: ControlTicket = {
+        ticketId,
+        requestId: message.requestId,
+        prompt,
+        goal: '全托管剧情推进与地图探索',
+        action: 'custody',
+        shape: 'open',
+        lifetime: 'until_stopped',
+        stamp,
+        selection,
+        conversationId: message.conversationId,
+        expiresAt: now() + CONTROL_TICKET_TTL_MS,
+        createdAt: now(),
+      }
+      ledger.putTicket(ticket)
+      return { kind: 'control', ticketId, goal: ticket.goal, shape: ticket.shape, lifetime: ticket.lifetime, expiresAt: ticket.expiresAt, stamp }
+    }
     const controller = new AbortController()
     if (signal?.aborted) controller.abort(signal.reason)
     const onAbort = () => controller.abort(signal?.reason)

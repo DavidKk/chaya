@@ -1,6 +1,6 @@
 'use client'
 
-import { Brain } from 'lucide-react'
+import { Brain, Compass, Square } from 'lucide-react'
 import { useCallback, useEffect, useState } from 'react'
 
 import { ConfirmProvider } from '@/components/confirm/ConfirmProvider'
@@ -129,6 +129,22 @@ function CompanionPanelBody({ gameId, open, observe: _observe, request }: Props)
           {session.controlBusy ? <AutopilotGlowKeyframes /> : null}
           <Button
             size="mini"
+            variant={session.controlBusy ? 'accent' : 'plain'}
+            className={cn(TOUCH_TARGET, session.controlBusy && 'bg-[color-mix(in_oklab,var(--accent)_18%,transparent)] text-accent')}
+            aria-label={session.controlBusy ? (locale.startsWith('zh') ? '停止全托管' : 'Stop Custody') : (locale.startsWith('zh') ? '开启全托管剧情' : 'Start Story Custody')}
+            tooltip={session.controlBusy ? (locale.startsWith('zh') ? '停止全托管' : 'Stop Custody') : (locale.startsWith('zh') ? '开启全托管剧情' : 'Start Story Custody')}
+            onClick={() => {
+              if (session.controlBusy) {
+                void session.stopControl()
+              } else {
+                void session.sendPrompt('开启全托管剧情')
+              }
+            }}
+          >
+            {session.controlBusy ? <Square size={13} aria-hidden /> : <Compass size={13} aria-hidden />}
+          </Button>
+          <Button
+            size="mini"
             variant="plain"
             className={cn(TOUCH_TARGET, activityVisible && 'bg-[color-mix(in_oklab,var(--accent)_18%,transparent)] text-accent')}
             aria-label={viewLabel}
@@ -203,7 +219,18 @@ function CompanionPanelBody({ gameId, open, observe: _observe, request }: Props)
             </ScrollArea>
           ) : (
             <MiniPanelNotice>
-              {locale.startsWith('zh') || locale === 'cht' ? '跟旅伴聊聊天，或直接交代游戏里的事。' : 'Chat with your companion, or ask them to handle something in the game.'}
+              <div className="flex flex-col items-center gap-2">
+                <span>{locale.startsWith('zh') || locale === 'cht' ? '跟旅伴聊聊天，或直接交代游戏里的事。' : 'Chat with your companion, or ask them to handle something in the game.'}</span>
+                <Button
+                  size="mini"
+                  variant="accent"
+                  className="mt-1"
+                  onClick={() => void session.sendPrompt('开启全托管剧情')}
+                >
+                  <Compass size={12} className="mr-1" aria-hidden />
+                  {locale.startsWith('zh') || locale === 'cht' ? '开启全托管剧情' : 'Start Story Custody'}
+                </Button>
+              </div>
             </MiniPanelNotice>
           )
         ) : (
@@ -218,6 +245,19 @@ function CompanionPanelBody({ gameId, open, observe: _observe, request }: Props)
           </ScrollArea>
         )}
         {showScrollToBottom ? <ScrollToLatestCue ariaLabel={t('companion.scrollToBottom')} onActivate={scrollToBottom} className="bottom-6 [@media(hover:none)]:bottom-9" /> : null}
+        {session.controlBusy ? (
+          <div className="flex shrink-0 items-center justify-between border-t border-line bg-[color-mix(in_oklab,var(--accent)_12%,var(--panel-2))] px-2.5 py-1 text-xs">
+            <div className="flex min-w-0 items-center gap-1.5 truncate">
+              <span className="h-1.5 w-1.5 shrink-0 animate-ping rounded-full bg-accent" />
+              <span className="truncate font-medium text-ink">
+                {session.controlProgress || (locale.startsWith('zh') || locale === 'cht' ? '全托管剧情推进中…' : 'Story custody in progress…')}
+              </span>
+            </div>
+            <Button size="mini" variant="fail" onClick={() => void session.stopControl()}>
+              {locale.startsWith('zh') || locale === 'cht' ? '停止' : 'Stop'}
+            </Button>
+          </div>
+        ) : null}
         <CompanionComposer
           locale={locale}
           question={session.question}
