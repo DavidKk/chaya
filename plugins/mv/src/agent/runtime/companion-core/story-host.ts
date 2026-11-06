@@ -41,6 +41,8 @@ export function createStoryHost(deps: StoryHostDeps) {
         complete: deps.complete,
         profileId: task.profileId,
         model: task.model,
+        character: (task as any).character || (task as any).companionCharacter,
+        locale: task.locale,
         signal,
         onProgress: (update: StoryProgressUpdate) => {
           deps.controller.emit(task.id, 'progress.updated', {

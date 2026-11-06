@@ -1,8 +1,10 @@
 import { AGENT_MANUAL_INPUT_EVENT, readAgentGameState } from '../../handlers'
 import type { InteractIo } from '../../interact'
 import type { CompanionComplete } from '../companion-chat'
+import { CompanionBanterEngine } from './story-banter'
 import { StoryDriver } from './story-driver'
 import { type ExplorationTarget, StoryExplorationPlanner } from './story-exploration'
+import { StoryPuzzleSolver } from './story-puzzle-solver'
 
 export type StoryRuntimePhase =
   | 'title'
@@ -25,6 +27,8 @@ export type StoryRuntimeDeps = {
   complete?: CompanionComplete
   profileId?: string
   model?: string
+  character?: string
+  locale?: string
   signal: AbortSignal
   onProgress?: (update: StoryProgressUpdate) => void
 }
@@ -57,9 +61,13 @@ class StuckDetector {
 export class CompanionStoryRuntime {
   private readonly driver: StoryDriver
   private readonly planner: StoryExplorationPlanner
+  private readonly puzzleSolver: StoryPuzzleSolver
+  private readonly banter: CompanionBanterEngine
   private readonly stuckDetector = new StuckDetector(25_000)
   private pausedUntil = 0
   private active = false
+  private inBattle = false
+  private lastMapId: number | null = null
   private bgTimer: ReturnType<typeof setInterval> | null = null
   private cleanups: Array<() => void> = []
   private lastPhase: StoryRuntimePhase | null = null
@@ -72,7 +80,24 @@ export class CompanionStoryRuntime {
       model: deps.model,
       signal: deps.signal,
     })
-    this.planner = new StoryExplorationPlanner()
+    this.puzzleSolver = new StoryPuzzleSolver({
+      complete: deps.complete,
+      profileId: deps.profileId,
+      model: deps.model,
+      signal: deps.signal,
+    })
+    this.planner = new StoryExplorationPlanner(this.puzzleSolver)
+    this.banter = new CompanionBanterEngine({
+      complete: deps.complete,
+      profileId: deps.profileId,
+      model: deps.model,
+      character: deps.character,
+      locale: deps.locale,
+      signal: deps.signal,
+      onBanter: (line) => {
+        this.emit('dialogue', `旅伴说：“${line}”`)
+      },
+    })
   }
 
   private emit(phase: StoryRuntimePhase, summary: string, detail?: unknown): void {
@@ -164,14 +189,27 @@ export class CompanionStoryRuntime {
 
       // 4. Battle scene -> High-Speed Local Battle Resolution
       if (sceneName === 'Scene_Battle') {
+        if (!this.inBattle) {
+          this.inBattle = true
+          this.banter.trigger('battle_start')
+        }
         this.emit('battle', '战斗接管中：本地高速战斗核心正在歼灭敌人…')
         this.resolveBattleStep(scene)
         await this.sleep(50)
         continue
+      } else if (this.inBattle) {
+        this.inBattle = false
+        this.banter.trigger('battle_win')
       }
 
       // 5. Map scene -> Dialogue, Choices & Exploration
       if (sceneName === 'Scene_Map') {
+        const curMapId = g.$gameMap?.mapId?.() ?? null
+        if (curMapId !== null && curMapId !== this.lastMapId) {
+          this.lastMapId = curMapId
+          this.banter.trigger('map_transition', { mapId: curMapId })
+        }
+
         const message = g.$gameMessage
         const messageWindow = scene._messageWindow
 
@@ -228,6 +266,7 @@ export class CompanionStoryRuntime {
           if (mapId === 6) {
             const switches = g.$gameSwitches
             if (switches && (switches.value(24) || switches.value(25))) {
+              this.banter.trigger('milestone')
               this.emit('completed', '🎉 序章试炼已顺利通关！全托管已完成当前阶段目标。')
               this.stop()
               return
@@ -235,7 +274,15 @@ export class CompanionStoryRuntime {
           }
 
           // Next target from exploration planner
-          const target = this.planner.findNextTarget(mapId, { x: px, y: py })
+          let target = this.planner.findNextTarget(mapId, { x: px, y: py })
+          if (!target) {
+            // Try puzzle reasoning when topological candidates are exhausted
+            target = await this.planner.resolvePuzzleTarget(mapId, { x: px, y: py }, this.driver.getRecentHistory(10))
+            if (target) {
+              this.banter.trigger('puzzle', { detail: target.hint })
+            }
+          }
+
           if (target) {
             const desc = target.hint || target.name || `事件 ${target.eventId}`
             this.emit('exploring', `地图探索中：前往 ${desc} (${target.x}, ${target.y})…`)
@@ -248,7 +295,14 @@ export class CompanionStoryRuntime {
               interrupted: () => !this.active || this.deps.signal.aborted || this.isPreempted(),
             }
 
-            await this.planner.executeTarget(target, io, this.deps.signal)
+            const actionRes = await this.planner.executeTarget(target, io, this.deps.signal)
+            if (actionRes.success) {
+              if (target.kind === 'chest') {
+                this.banter.trigger('loot', { name: target.name || undefined })
+              } else if (target.kind === 'lever') {
+                this.banter.trigger('puzzle')
+              }
+            }
             await this.sleep(200)
             continue
           } else {

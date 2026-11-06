@@ -2,6 +2,7 @@ import { chestEventOpened } from '../../event-facts'
 import { movePlayer, planVisibleRoute } from '../../game-control'
 import { readAgentGameState } from '../../handlers'
 import { type InteractIo, interactEvent } from '../../interact'
+import type { StoryPuzzleSolver } from './story-puzzle-solver'
 
 export type TargetKind = 'guide' | 'chest' | 'lever' | 'npc' | 'transfer' | 'other'
 
@@ -26,6 +27,8 @@ export class StoryExplorationPlanner {
   private visitedKeys = new Set<string>()
   private failedTargetAttempts = new Map<number, number>()
   private currentMapId: number | null = null
+
+  constructor(private readonly puzzleSolver?: StoryPuzzleSolver) {}
 
   public setMap(mapId: number): void {
     if (this.currentMapId !== mapId) {
@@ -238,6 +241,65 @@ export class StoryExplorationPlanner {
     })
 
     return candidates[0]
+  }
+
+  /**
+   * When standard topological scanning produces no candidates, invoke PuzzleSolver
+   * to reason across dialogue, items, and map events to deduce the next objective.
+   */
+  public async resolvePuzzleTarget(
+    mapId: number,
+    playerPos: { x: number; y: number },
+    recentDialogue: string[] = []
+  ): Promise<ExplorationTarget | null> {
+    if (!this.puzzleSolver) return null
+    const g = globalThis as any
+    const map = g.$gameMap
+    if (!map || typeof map.events !== 'function') return null
+
+    const mapInfos = g.$dataMapInfos as Array<{ name?: string } | null> | undefined
+    const mapName = mapInfos?.[mapId]?.name || `Map ${mapId}`
+
+    const allEvents = (map.events() || []) as any[]
+    const visibleEvents: Array<{ id: number; name: string; x: number; y: number; kind?: string }> = []
+
+    for (const event of allEvents) {
+      if (!event || event._erased) continue
+      const eventId = typeof event.eventId === 'function' ? event.eventId() : event._eventId
+      if (!eventId || typeof eventId !== 'number') continue
+      const name = event.event?.()?.name || `Event ${eventId}`
+      visibleEvents.push({ id: eventId, name, x: Number(event._x), y: Number(event._y) })
+    }
+
+    const party = g.$gameParty
+    const items = party && typeof party.items === 'function' ? (party.items() as any[]) : []
+    const inventorySummary = items.map((i) => i.name).filter(Boolean)
+
+    const diagnosis = await this.puzzleSolver.diagnoseNextStep({
+      mapId,
+      mapName,
+      playerPos,
+      recentDialogue,
+      inventorySummary,
+      visibleEvents,
+    })
+
+    if (diagnosis.targetEventId) {
+      const ev = visibleEvents.find((e) => e.id === diagnosis.targetEventId)
+      if (ev) {
+        return {
+          eventId: ev.id,
+          x: ev.x,
+          y: ev.y,
+          kind: 'guide',
+          name: ev.name,
+          priority: 95,
+          hint: diagnosis.hint || `根据线索调查 ${ev.name}`,
+        }
+      }
+    }
+
+    return null
   }
 
   /**
