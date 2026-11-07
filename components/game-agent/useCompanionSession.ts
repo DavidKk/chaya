@@ -95,9 +95,13 @@ export function useCompanionSession(input: {
   const [messages, setMessages] = useState<ChatLine[]>(() => messagesRef.current)
   const [activityEvents, setActivityEvents] = useState<AgentActivityEvent[]>(() => loadCompanionTranscript(gameId).activity)
   const [hostStatus, setHostStatus] = useState<CompanionHostStatus | null>(null)
+  const hostStatusRef = useRef<CompanionHostStatus | null>(null)
+  hostStatusRef.current = hostStatus
   const [agentStatus, setAgentStatus] = useState<AgentStatus | null>(null)
   const [gap, setGap] = useState(false)
   const [chatBusy, setChatBusy] = useState(false)
+  const chatBusyRef = useRef(false)
+  chatBusyRef.current = chatBusy
   const [chatProgress, setChatProgress] = useState('')
   const [activeReplyId, setActiveReplyId] = useState('')
   const [controlTaskId, setControlTaskId] = useState('')
@@ -106,6 +110,9 @@ export function useCompanionSession(input: {
   controlProgressRef.current = controlProgress
   const [question, setQuestion] = useState('')
   const [controlStarting, setControlStarting] = useState(false)
+  const controlStartingRef = useRef(false)
+  controlStartingRef.current = controlStarting
+  const [latestThought, setLatestThought] = useState<import('./companion-control-events').ModelThought | null>(null)
   const [hostMissing, setHostMissing] = useState(false)
   const [cancelUnknown, setCancelUnknown] = useState(false)
   const [conversationId, setConversationId] = useState(conversationIdRef.current)
@@ -141,7 +148,7 @@ export function useCompanionSession(input: {
           seenKeys: seenMessageRef.current,
           afterSeq: afterSeqRef.current,
           gameId,
-          runtimeInstanceId: hostStatus?.stamp.scope.runtimeInstanceId,
+          runtimeInstanceId: hostStatusRef.current?.stamp.scope.runtimeInstanceId,
         },
         event
       )
@@ -160,7 +167,7 @@ export function useCompanionSession(input: {
         setCancelUnknown(false)
       }
     },
-    [character, gameId, hostStatus?.stamp.scope.runtimeInstanceId]
+    [character, gameId]
   )
 
   const abortChat = useCallback((reason: string) => {
@@ -208,8 +215,8 @@ export function useCompanionSession(input: {
       const active = body.session?.activeTurn
       if (active && (active.capability === 'play' || active.capability === 'companion')) {
         setControlTaskId((current) => current || active.id)
-        setControlProgress((current) => current || active.phase || '托管进行中')
-      } else if (!readerRef.current && !controlStarting) {
+        setControlProgress((current) => current || active.phase || '托管推进中…')
+      } else if (!readerRef.current && !controlStartingRef.current) {
         setControlTaskId('')
         setControlProgress('')
       }
@@ -217,7 +224,7 @@ export function useCompanionSession(input: {
       if (isCompanionAbortError(error)) return
       setAgentStatus({ available: false, profiles: [], defaultProfileId: '', session: null, reason: formatCompanionError(error) })
     }
-  }, [controlStarting, gameId, onProfiles, request])
+  }, [gameId, onProfiles, request])
 
   const pollEvents = useCallback(
     async (isVisible: boolean) => {
@@ -286,20 +293,24 @@ export function useCompanionSession(input: {
   const stopControl = useCallback(async () => {
     const taskId = controlTaskId
     abortControlLocal('stop')
+    setControlTaskId('')
+    setControlProgress('')
+    setQuestion('')
+    setControlStarting(false)
     if (!taskId) {
       abortChat('stop')
-      setControlStarting(false)
-      setControlProgress('')
       return
     }
     try {
       const response = await request(`/api/game-agent/turn/${encodeURIComponent(taskId)}?gameId=${encodeURIComponent(gameId)}`, { method: 'DELETE' })
       if (!response.ok) throw toCompanionClientError(await response.json().catch(() => null), `HTTP ${response.status}`, response.status)
-      setControlTaskId('')
-      setControlProgress('')
-      setQuestion('')
     } catch (error) {
-      if (!isCompanionAbortError(error)) append({ id: crypto.randomUUID(), role: 'error', text: formatCompanionError(error) })
+      if (!isCompanionAbortError(error)) {
+        const formatted = formatCompanionError(error)
+        if (!formatted.includes("Task not found") && !formatted.includes("AGENT_TURN_NOT_FOUND")) {
+          append({ id: crypto.randomUUID(), role: 'error', text: formatted })
+        }
+      }
     } finally {
       void refreshAgentStatus()
     }
@@ -330,6 +341,7 @@ export function useCompanionSession(input: {
             }
             if (result.question !== undefined) setQuestion(result.question || '')
             if (result.controlProgress !== undefined) setControlProgress(result.controlProgress || '')
+            if (result.latestThought !== undefined) setLatestThought(result.latestThought)
             if (result.appendError) append({ id: crypto.randomUUID(), role: 'error', text: result.appendError })
             if (result.appendText) append({ id: crypto.randomUUID(), role: 'chaya', text: result.appendText, character })
             if (result.ended) {
@@ -348,7 +360,15 @@ export function useCompanionSession(input: {
         )
         if (readerRef.current === reader) readerRef.current = null
       } catch (error) {
-        if (!isCompanionAbortError(error)) append({ id: crypto.randomUUID(), role: 'error', text: formatCompanionError(error) })
+        if (!isCompanionAbortError(error)) {
+          const formatted = formatCompanionError(error)
+          if (!formatted.includes("Task not found")) {
+            append({ id: crypto.randomUUID(), role: 'error', text: formatted })
+          } else {
+            setControlTaskId("")
+            setControlProgress("")
+          }
+        }
       } finally {
         if (controlAbortRef.current === abort) controlAbortRef.current = null
         void refreshAgentStatus()
@@ -372,7 +392,12 @@ export function useCompanionSession(input: {
       const abort = new AbortController()
       chatAbortRef.current = abort
       setChatBusy(true)
-      setChatProgress('路由中…')
+      const isCustodyPrompt = /^(开启|开始|启动|帮我|请帮我)?\s*(托管|全托管|全剧情托管|剧情全托管|全托管剧情|托管剧情|剧情托管|自律推进|继续剧情|自动过剧情|自动剧情|过剧情|代打剧情)(\s*(剧情|探索|模式|游玩))?$/i.test(text.trim())
+      if (isCustodyPrompt) {
+        setControlStarting(true)
+        setControlProgress('托管启动中…')
+      }
+      setChatProgress(isCustodyPrompt ? '托管启动中…' : '路由中…')
       chatRequestIdRef.current = routeRequestId
       try {
         const routed = await call<CompanionRouteResult>(
@@ -387,6 +412,10 @@ export function useCompanionSession(input: {
         )
         if (generation !== generationRef.current || abort.signal.aborted) return
         if (routed.kind === 'clarification') {
+          if (isCustodyPrompt) {
+            setControlStarting(false)
+            setControlProgress('')
+          }
           chatRequestIdRef.current = ''
           setChatBusy(false)
           setChatProgress('')
@@ -414,11 +443,18 @@ export function useCompanionSession(input: {
             if (isCompanionAbortError(error) || generation !== generationRef.current) return
             if (isCapabilityUnsupported(error)) setHostMissing(true)
             setControlProgress('')
-            append({ id: crypto.randomUUID(), role: 'error', text: formatCompanionError(error) })
+            const formatted = formatCompanionError(error)
+            if (!formatted.includes("Task not found") && !formatted.includes("AGENT_TURN_NOT_FOUND")) {
+              append({ id: crypto.randomUUID(), role: 'error', text: formatted })
+            }
           } finally {
             if (generation === generationRef.current) setControlStarting(false)
           }
           return
+        }
+        if (isCustodyPrompt) {
+          setControlStarting(false)
+          setControlProgress('')
         }
         const stamp = routed.stamp || hostStatus?.stamp || emptyStamp(gameId)
         chatRequestIdRef.current = chatRequestId
@@ -441,6 +477,10 @@ export function useCompanionSession(input: {
           append({ id: ack.messageId, role: 'chaya', text: '', character })
         }
       } catch (error) {
+        if (isCustodyPrompt && generation === generationRef.current) {
+          setControlStarting(false)
+          setControlProgress('')
+        }
         if (isCompanionAbortError(error) || generation !== generationRef.current) return
         if (isCapabilityUnsupported(error)) setHostMissing(true)
         chatRequestIdRef.current = ''
@@ -566,17 +606,34 @@ export function useCompanionSession(input: {
       void pollEvents(false)
       return
     }
+
+    let active = true
+    let pollTimer: ReturnType<typeof setTimeout> | null = null
+
     void refreshHostStatus()
     void refreshAgentStatus()
     void pollEvents(true)
-    const eventsTimer = window.setInterval(() => void pollEvents(true), EVENTS_MS)
-    const statusTimer = window.setInterval(() => {
-      void refreshHostStatus()
-      void refreshAgentStatus()
-    }, STATUS_MS)
+
+    const schedulePoll = () => {
+      if (!active) return
+      const delay = chatBusyRef.current ? 600 : 2_500
+      pollTimer = setTimeout(async () => {
+        if (!active) return
+        await pollEvents(true)
+        schedulePoll()
+      }, delay)
+    }
+
+    schedulePoll()
+
+    const statusTimer = setInterval(() => {
+      if (active) void refreshAgentStatus()
+    }, 4_000)
+
     return () => {
-      window.clearInterval(eventsTimer)
-      window.clearInterval(statusTimer)
+      active = false
+      if (pollTimer) clearTimeout(pollTimer)
+      clearInterval(statusTimer)
     }
   }, [cancelChat, pollEvents, refreshAgentStatus, refreshHostStatus, visible])
 
@@ -621,6 +678,7 @@ export function useCompanionSession(input: {
     controlProgress,
     question,
     conversationId,
+    latestThought,
     append,
     updateCards,
     sendPrompt,

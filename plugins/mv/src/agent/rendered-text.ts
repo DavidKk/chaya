@@ -42,6 +42,7 @@ const MAX_COMMAND_KEYS = 12
 const current = new Map<string, CanvasText>()
 const recent = new Map<string, CanvasText>()
 const canvasIds = new WeakMap<object, number>()
+const canvasKeys = new Map<number, Set<string>>()
 const activeCanvases = new Map<number, number>()
 let nextCanvasId = 0
 let scene: unknown
@@ -57,13 +58,17 @@ function resetForScene() {
   current.clear()
   recent.clear()
   activeCanvases.clear()
+  canvasKeys.clear()
 }
 
 function remember(target: Map<string, CanvasText>, canvas: object, value: unknown, x: unknown, y: unknown) {
-  const text = String(value ?? '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .slice(0, MAX_TEXT_LENGTH)
+  if (value == null) return
+  const raw = typeof value === 'string' ? value : String(value)
+  if (!raw) return
+  const text =
+    raw.length > MAX_TEXT_LENGTH
+      ? raw.replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT_LENGTH)
+      : raw.trim()
   if (!text) return
   let canvasId = canvasIds.get(canvas)
   if (!canvasId) {
@@ -75,6 +80,12 @@ function remember(target: Map<string, CanvasText>, canvas: object, value: unknow
   const key = `${canvasId}:${px}:${py}`
   if (!target.delete(key)) activeCanvases.set(canvasId, (activeCanvases.get(canvasId) ?? 0) + 1)
   target.set(key, { text, at: Date.now(), canvas: canvasId, x: px, y: py })
+  let keys = canvasKeys.get(canvasId)
+  if (!keys) {
+    keys = new Set()
+    canvasKeys.set(canvasId, keys)
+  }
+  keys.add(key)
   if (target.size > MAX_LINES) removeLine(target, target.keys().next().value!)
 }
 
@@ -85,14 +96,25 @@ function removeLine(source: Map<string, CanvasText>, key: string) {
   const remaining = (activeCanvases.get(entry.canvas) ?? 1) - 1
   if (remaining > 0) activeCanvases.set(entry.canvas, remaining)
   else activeCanvases.delete(entry.canvas)
+  const keys = canvasKeys.get(entry.canvas)
+  if (keys) {
+    keys.delete(key)
+    if (keys.size === 0) canvasKeys.delete(entry.canvas)
+  }
 }
 
 function forget(canvas: number, x: number, y: number, w: number, h: number) {
-  for (const source of [current, recent]) {
-    for (const [key, entry] of source) {
-      if (entry.canvas === canvas && entry.x >= x && entry.x < x + w && entry.y >= y && entry.y <= y + h) {
-        removeLine(source, key)
-      }
+  const keys = canvasKeys.get(canvas)
+  if (!keys || keys.size === 0) return
+  for (const key of Array.from(keys)) {
+    const entry = current.get(key) || recent.get(key)
+    if (!entry) {
+      keys.delete(key)
+      continue
+    }
+    if (entry.canvas === canvas && entry.x >= x && entry.x < x + w && entry.y >= y && entry.y <= y + h) {
+      removeLine(current, key)
+      removeLine(recent, key)
     }
   }
 }
@@ -157,7 +179,8 @@ export function startRenderedTextCapture(): () => void {
   if (typeof CanvasRenderingContext2D === 'undefined') return () => {}
   const prototype = CanvasRenderingContext2D.prototype
   const capture = (context: CanvasRenderingContext2D, value: unknown, x: unknown, y: unknown) => {
-    resetForScene()
+    const cur = (globalThis as any).SceneManager?._scene
+    if (scene !== cur) resetForScene()
     const canvas = context.canvas
     if (!canvas) return
     remember(canvas.isConnected ? current : recent, canvas, value, x, y)
@@ -166,18 +189,18 @@ export function startRenderedTextCapture(): () => void {
     prototype,
     'fillText',
     (original) =>
-      function (this: CanvasRenderingContext2D, text: string, ...args: unknown[]) {
-        capture(this, text, args[0], args[1])
-        return original.call(this, text, ...args)
+      function (this: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth?: number) {
+        if (text) capture(this, text, x, y)
+        return maxWidth !== undefined ? original.call(this, text, x, y, maxWidth) : original.call(this, text, x, y)
       }
   )
   const stopStroke = hookMethod(
     prototype,
     'strokeText',
     (original) =>
-      function (this: CanvasRenderingContext2D, text: string, ...args: unknown[]) {
-        capture(this, text, args[0], args[1])
-        return original.call(this, text, ...args)
+      function (this: CanvasRenderingContext2D, text: string, x: number, y: number, maxWidth?: number) {
+        if (text) capture(this, text, x, y)
+        return maxWidth !== undefined ? original.call(this, text, x, y, maxWidth) : original.call(this, text, x, y)
       }
   )
   // Bitmap.clear / clearRect wipe redrawn window contents; drop glyphs drawn there before
@@ -186,7 +209,7 @@ export function startRenderedTextCapture(): () => void {
     'clearRect',
     (original) =>
       function (this: CanvasRenderingContext2D, x: number, y: number, w: number, h: number) {
-        if (activeCanvases.size > 0) {
+        if (activeCanvases.size > 0 && this.canvas) {
           const id = this.canvas ? canvasIds.get(this.canvas) : undefined
           if (id && activeCanvases.has(id)) forget(id, x, y, w, h)
         }
@@ -200,5 +223,6 @@ export function startRenderedTextCapture(): () => void {
     current.clear()
     recent.clear()
     activeCanvases.clear()
+    canvasKeys.clear()
   }
 }

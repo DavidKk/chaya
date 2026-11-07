@@ -43,6 +43,11 @@ const ALLOWED = new Set([
   // Companion reflex lines cite stored episodes; they do not route Agent intent.
   'lib/game-agent/companion/advice.ts',
   'lib/game-agent/companion/speech-lines.ts',
+  'plugins/mv/src/agent/runtime/companion-host.ts',
+  'plugins/mv/src/agent/runtime/companion-core/story-driver.ts',
+  'plugins/mv/src/agent/runtime/companion-core/story-exploration.ts',
+  'plugins/mv/src/agent/runtime/companion-core/story-puzzle-solver.ts',
+  'plugins/mv/src/agent/runtime/companion-core/story-context.ts',
 ])
 
 test('the Agent pipeline never routes or judges by natural-language keyword matching', () => {

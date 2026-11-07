@@ -1,3 +1,5 @@
+import type { AgentSyncSettings } from '@/lib/game-agent/settings-sync'
+import { profileOf, readConfig } from '../host'
 import type { AgentTask, AgentTaskController } from '@/lib/game-agent/runtime'
 
 import type { CompanionComplete } from '../companion-chat'
@@ -5,8 +7,9 @@ import { CompanionStoryRuntime, type StoryProgressUpdate } from './story-runtime
 
 export type StoryHostDeps = {
   runtimeInstanceId: string
-  controller: Pick<AgentTaskController, 'emit' | 'stop'>
+  controller: Pick<AgentTaskController, "emit" | "stop">
   complete: CompanionComplete
+  readConfig?: () => AgentSyncSettings | null
 }
 
 export function createStoryHost(deps: StoryHostDeps) {
@@ -19,32 +22,46 @@ export function createStoryHost(deps: StoryHostDeps) {
     async execute(task: AgentTask, signal: AbortSignal): Promise<void> {
       signal.throwIfAborted()
 
-      await deps.complete.ensureReady?.({
-        profileId: task.profileId,
-        model: task.model,
-        signal,
-        conversationKey: JSON.stringify(['warmup', deps.runtimeInstanceId, task.id]),
-        onModelStatus: (modelStatus) =>
-          deps.controller.emit(task.id, 'progress.updated', {
-            executor: 'story_custody',
-            modelStatus,
-            summary:
-              modelStatus.phase === 'loading'
-                ? '模型冷启动加载中…'
-                : '模型已就绪，正在准备全托管剧情…',
-          }),
-      })
+      const config = (deps.readConfig || readConfig)()
+      const profile = config ? profileOf(config, task.profileId) : null
+      const effectiveProfileId = profile?.id || task.profileId || ""
+      const effectiveModel = task.model || profile?.defaultModel || ""
 
-      signal.throwIfAborted()
+      if (deps.complete.ensureReady && effectiveProfileId && effectiveModel) {
+        void deps.complete.ensureReady({
+          profileId: effectiveProfileId,
+          model: effectiveModel,
+          signal,
+          conversationKey: JSON.stringify(['warmup', deps.runtimeInstanceId, task.id]),
+          onModelStatus: (modelStatus) => {
+            if (modelStatus.phase === 'loading') {
+              deps.controller.emit(task.id, 'progress.updated', {
+                executor: 'story_custody',
+                modelStatus,
+                summary: '模型冷启动加载中…',
+              })
+            }
+          },
+        }).catch((err) => {
+          console.warn('[story-host] Background warmup failed:', err)
+        })
+      }
 
       const runtime = new CompanionStoryRuntime({
         complete: deps.complete,
-        profileId: task.profileId,
-        model: task.model,
+        profileId: effectiveProfileId,
+        model: effectiveModel,
         character: (task as any).character || (task as any).companionCharacter,
         locale: task.locale,
         signal,
+        onThought: (thought) => {
+          deps.controller.emit(task.id, 'model.thought', thought as Record<string, unknown>)
+        },
         onProgress: (update: StoryProgressUpdate) => {
+          if (update.phase === 'thought' && update.detail) {
+            deps.controller.emit(task.id, 'model.thought', update.detail as Record<string, unknown>)
+            return
+          }
           deps.controller.emit(task.id, 'progress.updated', {
             executor: 'story_custody',
             phase: update.phase,
@@ -65,9 +82,18 @@ export function createStoryHost(deps: StoryHostDeps) {
         deps.controller.emit(task.id, 'progress.updated', {
           executor: 'story_custody',
           phase: 'exploring',
-          summary: '全托管剧情已启动，自律推进中…',
+          summary: '托管已启动，自律推进中…',
         })
-        await runtime.start()
+        while (!signal.aborted) {
+          try {
+            await runtime.start()
+          } catch (err) {
+            console.warn('[story-host] Custody runtime threw, auto-restarting:', err)
+          }
+          if (!signal.aborted) {
+            await new Promise((resolve) => setTimeout(resolve, 1000))
+          }
+        }
       } finally {
         signal.removeEventListener('abort', onAbort)
         runtime.stop()

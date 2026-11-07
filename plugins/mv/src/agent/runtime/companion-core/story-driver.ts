@@ -1,5 +1,7 @@
 import type { CompanionComplete } from '../companion-chat'
 
+import type { ModelThoughtEvent } from './story-puzzle-solver'
+
 export type DialogueEntry = {
   speaker: string | null
   text: string
@@ -11,6 +13,7 @@ export type StoryDriverDeps = {
   profileId?: string
   model?: string
   signal?: AbortSignal
+  onThought?: (thought: ModelThoughtEvent) => void
 }
 
 export class StoryDriver {
@@ -35,8 +38,8 @@ export class StoryDriver {
 
   public computeReadingFrames(text: string): number {
     const clean = text.replace(/<[^>]+>/g, '').trim()
-    const baseFrames = 8 // ~130ms at 60fps
-    const extraFrames = Math.min(24, Math.floor(clean.length / 8))
+    const baseFrames = 4
+    const extraFrames = Math.min(8, Math.floor(clean.length / 12))
     return baseFrames + extraFrames
   }
 
@@ -63,12 +66,32 @@ export class StoryDriver {
     return false
   }
 
-  public async resolveChoice(choices: string[], currentMapId?: number | null): Promise<number> {
+  public async resolveChoice(choices: string[], currentMapId?: number | null, playerGuidance?: string | null): Promise<number> {
     if (!choices || choices.length === 0) return 0
     const choiceKey = `${currentMapId ?? ''}:${choices.join('|')}`
     const attempts = this.choiceAttempts.get(choiceKey) || new Set<number>()
 
+    // Priority L-guidance: player explicit suggestion
+    if (playerGuidance) {
+      const lower = playerGuidance.toLowerCase()
+      const matchIdx = choices.findIndex((c) => {
+        const clean = c.replace(/<[^>]+>/g, "").trim().toLowerCase()
+        return clean && (lower.includes(clean) || clean.includes(lower))
+      })
+      if (matchIdx >= 0) return matchIdx
+    }
+
     // L0: Deterministic rule filter
+    const lockpickIdx = choices.findIndex((c) => /撬锁|开锁|lockpick/i.test(c.trim()))
+    if (lockpickIdx >= 0) {
+      const g = globalThis as any
+      const party = g.$gameParty
+      const otmychka = g.$dataItems?.[5]
+      const hasOtmychka = party?.hasItem && otmychka ? party.hasItem(otmychka) : true
+      if (hasOtmychka) {
+        return lockpickIdx
+      }
+    }
     if (currentMapId === 215) {
       const act1Idx = choices.findIndex((c) => c.includes('第一幕') || c.includes('Act I') || c.includes('1Prolog'))
       if (act1Idx >= 0) return act1Idx
@@ -83,10 +106,15 @@ export class StoryDriver {
     // L1: LLM model choice decision
     if (this.deps.complete && this.deps.profileId && this.deps.model) {
       try {
+        const startedAt = Date.now()
         const recent = this.getRecentHistory(5).join('\n')
+        const attemptsHint =
+          attempts.size > 0 && attempts.size < choices.length - 1
+            ? `\n（提示：选项 ${Array.from(attempts).join(', ')} 之前已尝试过，请选择其他推进项）`
+            : ''
         const prompt = `剧情对话上下文：\n${recent || '（开场）'}\n\n当前可选分支：\n${choices
           .map((c, i) => `${i}. ${c}`)
-          .join('\n')}${attempts.size > 0 ? `\n（提示：选项 ${Array.from(attempts).join(', ')} 之前已尝试过，请选择其他推进项）` : ''}\n请选择推进剧情的选项编号：`
+          .join('\n')}${attemptsHint}\n请选择推进剧情的选项编号：`
 
         const reply = await this.deps.complete(
           [
@@ -97,16 +125,26 @@ export class StoryDriver {
             profileId: this.deps.profileId,
             model: this.deps.model,
             purpose: 'route',
-            signal: this.deps.signal,
+            signal: this.deps.signal ?? new AbortController().signal,
           }
         )
 
+        const durationMs = Date.now() - startedAt
+        const thought = reply.thought || (reply as any).reasoning_content || undefined
         const match = reply.content.match(/\d+/)
         if (match) {
           const picked = parseInt(match[0], 10)
           if (picked >= 0 && picked < choices.length && !attempts.has(picked)) {
             attempts.add(picked)
             this.choiceAttempts.set(choiceKey, attempts)
+            this.deps.onThought?.({
+              model: this.deps.model,
+              durationMs,
+              thought,
+              promptSummary: `剧情分支选项仲裁：[${choices.join(' / ')}]`,
+              decision: `选择分支 ${picked}: "${choices[picked]}"`,
+              at: Date.now(),
+            })
             return picked
           }
         }

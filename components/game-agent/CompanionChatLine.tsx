@@ -1,9 +1,12 @@
 'use client'
 
+import { ChevronRight } from 'lucide-react'
+
 import { useT } from '@/components/i18n/LocaleProvider'
 import { Spinner } from '@/components/sk'
 import { COMPANION_CHARACTER_PROFILES, type CompanionCharacter, type CompanionChest } from '@/lib/game-agent/companion'
 import type { PlayerCard } from '@/lib/game-agent/player-card'
+import type { ModelThought } from './companion-control-events'
 
 import { type PlayerCardState, PlayerCardView } from './PlayerCardView'
 
@@ -20,6 +23,7 @@ export type ChatLine = {
   cardTurnId?: string
   /** 旅伴主动提出的宝箱托管，回答由面板自己处理 */
   offer?: CompanionChest
+  thought?: ModelThought
 }
 
 type Props = {
@@ -44,6 +48,43 @@ export function CompanionChatLine({ line, character, pending, offerLocked, onAns
     />
   ) : null
   if (line.card && !line.text) return <div className="mb-1 last:mb-0">{card}</div>
+  if (line.thought) {
+    return (
+      <div className="mb-1 last:mb-0">
+        <details className="group rounded border border-line/50 bg-panel-2 px-2 py-1.5 text-xs" open={false}>
+          <summary className="flex cursor-pointer select-none items-center justify-between text-ink-soft hover:text-ink list-none">
+            <div className="flex items-center gap-1.5 truncate">
+              <span className="text-[11px]" aria-hidden>🧠</span>
+              <span className="font-medium text-ink">思考过程</span>
+              <span className="text-[10px] opacity-75">
+                ({line.thought.durationMs}ms · {line.thought.model || 'model'})
+              </span>
+            </div>
+            <ChevronRight size={12} className="shrink-0 opacity-70 transition-transform group-open:rotate-90" aria-hidden />
+          </summary>
+          <div className="mt-1.5 space-y-1 font-mono text-[11px] leading-relaxed">
+            {line.thought.promptSummary ? (
+              <div className="text-ink-soft">
+                <span className="font-semibold text-ink">分析目标：</span>
+                {line.thought.promptSummary}
+              </div>
+            ) : null}
+            {line.thought.thought ? (
+              <div className="max-h-36 overflow-y-auto whitespace-pre-wrap rounded border border-line/40 bg-surface-subtle p-2 text-ink">
+                {line.thought.thought}
+              </div>
+            ) : null}
+            {line.thought.decision ? (
+              <div className="text-ink-soft">
+                <span className="font-semibold text-ink">推理结论：</span>
+                <span className="font-medium text-accent">{line.thought.decision}</span>
+              </div>
+            ) : null}
+          </div>
+        </details>
+      </div>
+    )
+  }
   if (!line.text && !pending) return null
   return (
     <div className="mb-1 last:mb-0">

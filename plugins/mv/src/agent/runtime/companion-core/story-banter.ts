@@ -152,7 +152,7 @@ export class CompanionBanterEngine {
           profileId: this.deps.profileId,
           model: this.deps.model,
           purpose: 'chat',
-          signal: this.deps.signal,
+          signal: this.deps.signal ?? new AbortController().signal,
         }
       )
       const clean = reply.content.replace(/^["'“‘]|["'”’]$/g, '').trim()

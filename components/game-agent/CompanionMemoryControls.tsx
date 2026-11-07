@@ -100,16 +100,17 @@ function PreferenceChoice({
   onChange: (value: string) => void
 }) {
   return (
-    <div className="px-2 py-1.5">
+    <div className="px-2.5 py-1.5">
       <p className="m-0 mb-1 text-[10px] text-ink-soft">{label}</p>
-      <div className="flex flex-wrap gap-1">
+      <div className="flex flex-nowrap gap-1">
         {options.map((option) => (
           <Button
             key={option.value}
             type="button"
-            size="mini"
+            size="xs"
             variant={option.value === value ? 'accent' : 'plain'}
             aria-pressed={option.value === value}
+            className="h-6 w-auto shrink-0 whitespace-nowrap px-2 text-[11px]"
             onClick={() => onChange(option.value)}
           >
             {option.label}
@@ -238,7 +239,7 @@ export function CompanionMemoryControls({ locale, hostStatus, call, onClearChat,
             <Popover.Positioner side="bottom" align="end" sideOffset={6} collisionPadding={8} positionMethod="fixed" className="z-[70]">
               <Popover.Popup
                 aria-label={copy.prefs}
-                className="w-52 overflow-hidden rounded-md border border-line bg-panel-2 shadow-[0_12px_32px_rgb(0_0_0/0.4)] outline-none"
+                className="w-56 overflow-hidden rounded-md border border-line bg-panel-2 shadow-[0_12px_32px_rgb(0_0_0/0.4)] outline-none"
                 onPointerDown={(event) => event.stopPropagation()}
                 onMouseDown={(event) => event.stopPropagation()}
                 onTouchStart={(event) => event.stopPropagation()}

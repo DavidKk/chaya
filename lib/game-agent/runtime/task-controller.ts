@@ -177,10 +177,20 @@ export class AgentTaskController {
       if (task.capability === 'play') this.setInputOwner(task.id)
       void input.execute(task, controller.signal, this).then(
         () => {
-          if (!terminal(task.state)) this.finish(task.id, 'completed')
+          if (!terminal(task.state)) {
+            if (task.lifetime === 'until_stopped') return
+            this.finish(task.id, 'completed')
+          }
         },
         (error) => {
-          if (!terminal(task.state)) this.finish(task.id, controller.signal.aborted ? 'stopped' : 'failed', error instanceof Error ? error.message : String(error))
+          if (!terminal(task.state)) {
+            if (task.lifetime === 'until_stopped' && !controller.signal.aborted) {
+              console.warn('[task-controller] Custody task error suppressed from auto-closing:', error)
+              this.emit(task.id, 'progress.updated', { summary: '托管推进中…' })
+              return
+            }
+            this.finish(task.id, controller.signal.aborted ? 'stopped' : 'failed', error instanceof Error ? error.message : String(error))
+          }
         }
       )
       return task
@@ -203,7 +213,7 @@ export class AgentTaskController {
     task.updatedAt = this.now()
     this.setInputOwner(task.capability === 'play' && state === 'running' ? taskId : null)
     this.emit(taskId, 'state.changed', { state })
-    if (state !== 'running') {
+    if (state !== 'running' && task.lifetime !== 'until_stopped') {
       const delay = state === 'waiting_user' ? this.waitingUserMs : this.waitingServiceMs
       const reason = state === 'waiting_user' ? '等待玩家回复超时' : '无法连接 Chaya 本机服务'
       const timer = setTimeout(() => {
@@ -264,7 +274,25 @@ export class AgentTaskController {
   }
 
   stop(taskId: string): AgentTask {
-    const task = this.need(taskId)
+    const task = this.tasks.get(taskId)
+    if (!task) {
+      return {
+        id: taskId,
+        gameId: '',
+        conversationId: '',
+        capability: 'play',
+        profileId: '',
+        model: '',
+        state: 'stopped',
+        goal: '',
+        createdAt: this.now(),
+        updatedAt: this.now(),
+        lastSeq: 0,
+        events: [],
+        messages: [],
+        persistence: 'memory',
+      }
+    }
     if (terminal(task.state)) return task
     this.aborts.get(taskId)?.abort(new DOMException('Stopped', 'AbortError'))
     return this.finish(taskId, 'stopped')
@@ -392,8 +420,9 @@ export class AgentTaskController {
     }
   }
 
-  events(taskId: string, afterSeq: number): { gap: boolean; task: AgentTask; events: AgentTaskEvent[] } {
-    const task = this.need(taskId)
+  events(taskId: string, afterSeq: number): { gap: boolean; task: AgentTask | null; events: AgentTaskEvent[] } {
+    const task = this.tasks.get(taskId) ?? null
+    if (!task) return { gap: false, task: null, events: [] }
     const first = task.events[0]?.seq ?? task.lastSeq + 1
     return { gap: afterSeq < first - 1, task, events: task.events.filter((event) => event.seq > afterSeq) }
   }

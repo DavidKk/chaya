@@ -2282,7 +2282,7 @@ export const ptBR: MessageTree = {
     chestAccept: 'Yes, please',
     chestDecline: 'No thanks',
     chestGoal: 'Get the chest at ({x}, {y}) for me',
-    autopilotPlaceholder: 'Autopilot on. Stop it from the toolbar',
+    autopilotPlaceholder: 'Custody in progress, feel free to chat or give guidance…',
     autopilotStop: 'Stop autopilot',
     cardYes: 'Sure',
     cardNo: 'No thanks',

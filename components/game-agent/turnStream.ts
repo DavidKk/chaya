@@ -27,6 +27,11 @@ export type TurnEvent = {
   content?: string
   role?: string
   card?: unknown
+  id?: string
+  thought?: string
+  promptSummary?: string
+  decision?: string
+  at?: number
 }
 
 /** 逐条读取 Agent Turn 的 SSE `data:` 事件，直到流结束或 `signal` 取消 */

@@ -82,8 +82,10 @@ export function createCompanionModel(readConfig: () => AgentSyncSettings | null)
     if (!profile) throw Object.assign(new Error('请先配置陪玩模型'), { code: 'MODEL_UNAVAILABLE', retryable: true })
     const tactic = options.purpose === 'tactic-quick' || options.purpose === 'tactic-deep'
     const timeoutMs =
-      options.purpose === 'route' || options.purpose === 'warmup'
+      options.purpose === 'warmup'
         ? 5_000
+        : options.purpose === 'route'
+          ? 15_000
         : options.purpose === 'prepare'
           ? 10_000
           : options.purpose === 'tactic-quick'
@@ -100,8 +102,10 @@ export function createCompanionModel(readConfig: () => AgentSyncSettings | null)
       const requestId = crypto.randomUUID()
       const resourceKey = ollamaBrowserResourceKey(profile.endpoint)
       const logger = createLogger('companion-model')
-      const diagnostic = (phase: string, meta?: Record<string, unknown>) =>
+      const diagnostic = (phase: string, meta?: Record<string, unknown>) => {
+        if (phase !== 'completed' && phase !== 'failed') return
         logger[phase === 'failed' ? 'warn' : 'info'](`Model ${phase}`, { requestId, resourceKey, model: options.model, purpose: `companion-${options.purpose}`, ...meta })
+      }
       let startupStarted: number | undefined
       let startupMs: number | undefined
       let queueMs: number | undefined
@@ -164,7 +168,7 @@ export function createCompanionModel(readConfig: () => AgentSyncSettings | null)
                   messages: trimmed,
                   tools: [],
                   think: options.purpose === 'tactic-deep',
-                  maxTokens: options.purpose === 'route' ? 128 : tactic ? 768 : options.purpose === 'prepare' ? 384 : 256,
+                  maxTokens: options.purpose === 'route' ? 512 : tactic ? 768 : options.purpose === 'prepare' ? 384 : 256,
                   temperature: options.purpose === 'chat' ? profile.temperature : 0,
                   keepAlive: COMPANION_KEEP_ALIVE,
                   timeoutMs: remaining,

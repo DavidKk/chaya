@@ -6,8 +6,6 @@ import { type FormEvent, useState } from 'react'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { Button } from '@/components/sk'
 
-import { AUTOPILOT_GLOW_CLASS } from './AutopilotGlow'
-
 const COPY = {
   zh: {
     stopChat: '停止回复',
@@ -46,7 +44,6 @@ export function CompanionComposer({ locale, question, chatBusy, controlBusy, can
   }
 
   const showStopChat = chatBusy
-  const showStopControl = controlBusy && !chatBusy
 
   return (
     <form className="flex h-8 shrink-0 items-stretch border-t border-line bg-inset [@media(hover:none)]:h-11" onSubmit={submit}>
@@ -61,17 +58,17 @@ export function CompanionComposer({ locale, question, chatBusy, controlBusy, can
         placeholder={question || (chatBusy ? copy.chatBusy : controlBusy ? t('companion.autopilotPlaceholder') : t('companion.placeholder'))}
         className="min-w-0 flex-1 border-0 bg-transparent px-2 text-[11px] text-ink outline-none placeholder:text-ink-soft focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
       />
-      {showStopChat || showStopControl ? (
+      {showStopChat ? (
         <Button
           type="button"
           variant="plain"
           size="icon"
           className="h-8 w-8 shrink-0 overflow-visible text-fail hover:enabled:text-fail [@media(hover:none)]:h-11 [@media(hover:none)]:w-11"
-          aria-label={showStopChat ? copy.stopChat : copy.stopControl}
-          tooltip={showStopChat ? copy.stopChat : copy.stopControl}
-          onClick={() => (showStopChat ? onStopChat() : onStopControl())}
+          aria-label={copy.stopChat}
+          tooltip={copy.stopChat}
+          onClick={onStopChat}
         >
-          <Square size={showStopControl ? 12 : 13} fill="currentColor" aria-hidden className={showStopControl ? AUTOPILOT_GLOW_CLASS : undefined} />
+          <Square size={13} fill="currentColor" aria-hidden />
         </Button>
       ) : (
         <Button
@@ -86,19 +83,6 @@ export function CompanionComposer({ locale, question, chatBusy, controlBusy, can
           <SendHorizontal size={14} aria-hidden />
         </Button>
       )}
-      {controlBusy && chatBusy ? (
-        <Button
-          type="button"
-          variant="plain"
-          size="icon"
-          className="h-8 w-8 shrink-0 overflow-visible text-fail hover:enabled:text-fail [@media(hover:none)]:h-11 [@media(hover:none)]:w-11"
-          aria-label={copy.stopControl}
-          tooltip={copy.stopControl}
-          onClick={onStopControl}
-        >
-          <Square size={12} fill="currentColor" aria-hidden className={AUTOPILOT_GLOW_CLASS} />
-        </Button>
-      ) : null}
     </form>
   )
 }

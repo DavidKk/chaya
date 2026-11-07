@@ -268,7 +268,8 @@ it('can stop a red running task button before the turn id arrives', async () => 
   await act(async () => input.form!.requestSubmit())
   const stop = host.querySelector<HTMLButtonElement>('button[aria-label="停止托管"]')!
   expect(stop.disabled).toBe(false)
-  expect(stop.className).toContain('text-fail')
+  expect(stop.className).toContain('text-accent')
+  expect(stop.getAttribute('aria-pressed')).toBe('true')
   await act(async () => stop.click())
   expect(turnSignal?.aborted).toBe(true)
 })
@@ -404,10 +405,14 @@ it('offers to fetch a nearby chest and hands the walk to 托管 once accepted', 
   const stopAutopilot = host.querySelector<HTMLButtonElement>('button[aria-label="停止托管"]')!
   expect(stopAutopilot.disabled).toBe(false)
   expect(stopAutopilot.className).not.toContain('chaya-autopilot')
-  expect(stopAutopilot.querySelector('svg')?.getAttribute('class')).toContain('chaya-autopilot-firefly')
+  expect(stopAutopilot.querySelector('svg')?.getAttribute('class')).toContain('lucide-compass')
+  expect(stopAutopilot.getAttribute('aria-pressed')).toBe('true')
   expect(clearButton()).not.toBeNull()
   expect(host.querySelector('button[aria-label^="选择平台与模型"]')).not.toBeNull()
-  expect(host.querySelector<HTMLInputElement>('input[placeholder="托管中，可在工具栏停止托管"]')).not.toBeNull()
+  const custodyInput = host.querySelector<HTMLInputElement>('input[placeholder="托管推进中，可随时交流或给出建议…"]')!
+  expect(custodyInput).not.toBeNull()
+  // Composer remains open for chat/guidance during custody
+  expect(host.querySelector('button[aria-label="发送"]')).not.toBeNull()
   await act(async () => stopAutopilot.click())
   expect(deletes()).toContainEqual({ path: '/api/game-agent/turn/turn-chest?gameId=game-a', method: 'DELETE' })
 })

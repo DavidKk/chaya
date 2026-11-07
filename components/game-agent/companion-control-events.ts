@@ -6,6 +6,16 @@ import type { TurnEvent } from './turnStream'
 
 const SEEN_LIMIT = 256
 
+export type ModelThought = {
+  id: string
+  model: string
+  durationMs: number
+  thought?: string
+  promptSummary?: string
+  decision?: string
+  at: number
+}
+
 export type ControlEventResult = {
   messages?: ChatLine[]
   question?: string | null
@@ -13,6 +23,7 @@ export type ControlEventResult = {
   ended?: boolean
   appendError?: string
   appendText?: string
+  latestThought?: ModelThought | null
 }
 
 export function controlEventKey(taskId: string, item: TurnEvent) {
@@ -65,19 +76,57 @@ export function applyControlTurnEvent(input: { taskId: string; item: TurnEvent; 
     return { controlProgress: label && item.step && item.maxSteps ? `${label} ${item.step}/${item.maxSteps}` : label }
   }
   if (item.type === 'progress.updated') return { controlProgress: item.summary || '托管进行中' }
-  if (item.type === 'turn.failed') {
+  if (item.type === 'model.thought') {
+    const thought: ModelThought = {
+      id: item.id || crypto.randomUUID(),
+      model: item.model || '',
+      durationMs: typeof item.durationMs === 'number' ? item.durationMs : 0,
+      thought: typeof item.thought === 'string' ? item.thought : undefined,
+      promptSummary: typeof item.promptSummary === 'string' ? item.promptSummary : undefined,
+      decision: typeof item.decision === 'string' ? item.decision : undefined,
+      at: typeof item.at === 'number' ? item.at : Date.now(),
+    }
     return {
-      ended: true,
-      appendError: item.message || '托管失败',
-      messages: messages.map((line) => (line.cardTurnId === taskId && line.cardState === 'pending' ? { ...line, cardState: 'expired' as const } : line)),
-      question: '',
-      controlProgress: '',
+      latestThought: thought,
+      messages: [
+        ...messages,
+        {
+          id: crypto.randomUUID(),
+          role: 'chaya' as const,
+          text: '',
+          character,
+          thought,
+        },
+      ].slice(-200),
     }
   }
-  if (item.type === 'turn.completed' || item.type === 'turn.stopped') {
+  if (item.type === 'turn.failed') {
+    const isTaskNotFound = String(item.message || "").includes("Task not found")
+    if (isTaskNotFound) {
+      return {
+        ended: true,
+        messages: messages.map((line) => (line.cardTurnId === taskId && line.cardState === 'pending' ? { ...line, cardState: 'expired' as const } : line)),
+        question: "",
+        controlProgress: "",
+      }
+    }
+    return {
+      ended: false,
+      appendError: item.message || '托管异常',
+      messages: messages.map((line) => (line.cardTurnId === taskId && line.cardState === 'pending' ? { ...line, cardState: 'expired' as const } : line)),
+    }
+  }
+  if (item.type === 'turn.completed') {
+    return {
+      ended: false,
+      appendText: (item.brief || item.text || '').trim() || undefined,
+      messages: messages.map((line) => (line.cardTurnId === taskId && line.cardState === 'pending' ? { ...line, cardState: 'expired' as const } : line)),
+    }
+  }
+  if (item.type === 'turn.stopped') {
     return {
       ended: true,
-      appendText: item.type === 'turn.completed' ? (item.brief || item.text || '').trim() || undefined : undefined,
+      appendText: (item.brief || item.text || '').trim() || undefined,
       messages: messages.map((line) => (line.cardTurnId === taskId && line.cardState === 'pending' ? { ...line, cardState: 'expired' as const } : line)),
       question: '',
       controlProgress: '',

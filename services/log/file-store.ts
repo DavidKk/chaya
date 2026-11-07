@@ -190,16 +190,17 @@ function pruneFiles(logDir: string) {
 function writeBatch(file: string, batch: PendingWrite): boolean {
   const logDir = path.dirname(file)
   return withDirectoryLock(logDir, () => {
-    pruneFiles(logDir)
     const { maxFileBytes } = filePolicy(logDir)
     let size = fs.existsSync(file) ? fs.statSync(file).size : 0
     let lines: string[] = []
     let bytes = 0
+    let rotated = false
     const append = () => {
       if (!lines.length) return
       if (size && size + bytes > maxFileBytes) {
         fs.renameSync(file, path.join(logDir, `${path.basename(file, '.ndjson')}.${Date.now()}-${randomUUID()}.ndjson`))
         size = 0
+        rotated = true
       }
       fs.appendFileSync(file, lines.join(''), 'utf8')
       size += bytes
@@ -213,7 +214,9 @@ function writeBatch(file: string, batch: PendingWrite): boolean {
       bytes += length
     }
     append()
-    pruneFiles(logDir)
+    if (rotated) {
+      pruneFiles(logDir)
+    }
   })
 }
 

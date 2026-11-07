@@ -1,3 +1,4 @@
+import type { CompanionStoryRuntime } from './companion-core/story-runtime'
 /**
  * Companion host orchestration (T5). Parent wires createCompanionHost into the game host.
  */
@@ -44,6 +45,7 @@ export type CompanionHostDependencies = {
   onMemoryChanged?: () => Promise<void>
   getBattleContext?: () => unknown
   beginBattleIntent?: (sourceId: string, prompt: string) => BattleIntentReceipt | null
+  getCustodyRuntime?: () => CompanionStoryRuntime | null
   now?: () => number
   random?: () => number
 }
@@ -111,6 +113,10 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
     currentFacts: () => deps.facts.current(),
     getPreferences: () => readablePreferences(),
     getBattleContext: deps.getBattleContext,
+    getCustodyContext: () => {
+      const runtime = deps.getCustodyRuntime?.()
+      return runtime && runtime.isActive() ? runtime.getChatContext() : null
+    },
   }
   const chat = new CompanionChatSlot(chatDeps)
   let memoryVersion = `${deps.memory.getEpoch()}:${deps.memory.getRecordingRevision()}`
@@ -387,13 +393,28 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
     const prompt = message.prompt.trim()
     if (!prompt) return { kind: 'clarification', text: '我还没确定你的意思，请说明是想聊聊，还是让我操作游戏。', stamp }
 
-    if (/^(开启|开始)?(全托管|全托管剧情|托管剧情|剧情托管|自律推进|继续剧情)/i.test(prompt)) {
+    const custody = deps.getCustodyRuntime?.()
+    if (custody && custody.isActive()) {
+      if (/^(停止|取消|关掉|退出|暂停|不要|别再?)\s*(托管|全托管|自律推进|剧情推进|代打)/i.test(prompt)) {
+        deps.stopExternalControl?.()
+        return { kind: 'clarification', text: '好的，已为你停止托管。随时可以让我继续或聊聊天！', stamp }
+      }
+      custody.applyPlayerGuidance(prompt)
+      return { kind: 'chat', stamp }
+    }
+
+    if (/^(停止|取消|关掉|退出|暂停|不要|别再?)\s*(托管|全托管|自律推进|剧情推进|代打)/i.test(prompt)) {
+      deps.stopExternalControl?.()
+      return { kind: 'clarification', text: '当前没有在托管中哦。有什么想聊的或者需要我帮忙的吗？', stamp }
+    }
+
+    if (/^(开启|开始|启动|帮我|请帮我)?\s*(托管|全托管|全剧情托管|剧情全托管|全托管剧情|托管剧情|剧情托管|自律推进|继续剧情|自动过剧情|自动剧情|过剧情|代打剧情)(\s*(剧情|探索|模式|游玩))?$/i.test(prompt)) {
       const ticketId = `ticket-${message.requestId}`
       const ticket: ControlTicket = {
         ticketId,
         requestId: message.requestId,
         prompt,
-        goal: '全托管剧情推进与地图探索',
+        goal: '托管推进与地图探索',
         action: 'custody',
         shape: 'open',
         lifetime: 'until_stopped',
@@ -548,7 +569,7 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
         companionCharacter: consumed.selection.character,
         conversationId: consumed.conversationId,
       },
-      remote,
+      false,
       signal
     )
     return task

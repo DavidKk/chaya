@@ -17,6 +17,7 @@ type QueueItem = {
   message: string
   meta?: unknown
   ts: number
+  repeatCount?: number
 }
 
 export type LocalPluginLog = QueueItem & { id: number }
@@ -52,6 +53,10 @@ let probing = false
 let probeTimer: ReturnType<typeof setTimeout> | null = null
 
 const PROBE_RETRY_MS = 12_000
+const FLUSH_DELAY_MS = 800
+const URGENT_FLUSH_DELAY_MS = 50
+const URGENT_QUEUE_THRESHOLD = 25
+const DEDUP_WINDOW_MS = 1500
 const HOME_PATH = /(?:\/Users\/[^/\s]+|\/home\/[^/\s]+|\/root|[A-Za-z]:[\\/]+Users[\\/]+[^\\/\s]+)(?:[\\/][^\s"'<>()[\],;]*)*/g
 
 function redactLocalPaths(text: string): string {
@@ -127,23 +132,42 @@ async function probeConnected(): Promise<boolean> {
   return connected === true
 }
 
-function scheduleFlush() {
-  if (timer) return
+function scheduleFlush(urgent = false) {
   if (connected === false) return
+  if (urgent) {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() => {
+      timer = null
+      void flush()
+    }, URGENT_FLUSH_DELAY_MS)
+    return
+  }
+  if (timer) return
   timer = setTimeout(() => {
     timer = null
     void flush()
-  }, 120)
+  }, FLUSH_DELAY_MS)
 }
 
 async function flush() {
+  if (timer) {
+    clearTimeout(timer)
+    timer = null
+  }
   if (!queue.length) return
   if (!(await probeConnected())) {
     // Service down: drop pending reports to avoid backlog; already logged to console
     queue.length = 0
     return
   }
-  const batch = queue.splice(0, queue.length)
+  const rawBatch = queue.splice(0, queue.length)
+  const batch = rawBatch.map((item) => ({
+    level: item.level,
+    source: item.source,
+    message: item.repeatCount && item.repeatCount > 1 ? `[重复 ${item.repeatCount} 次] ${item.message}` : item.message,
+    meta: item.meta,
+    ts: item.ts,
+  }))
   try {
     const res = await chayaPostJson(resolveLogUrl(), { entries: batch })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
@@ -172,15 +196,36 @@ function emit(level: ChayaLogLevel, source: string, ...contents: unknown[]) {
   // Known disconnected, or logs travel over the game link: do not queue HTTP reports
   if (connected === false || logsViaLink()) return
 
-  queue.push({
-    level,
-    source: safeSource,
-    message,
-    meta: contents.length === 1 && typeof contents[0] === 'string' ? undefined : meta,
-    ts: Date.now(),
-  })
+  const now = Date.now()
+  const sanitizedMeta = contents.length === 1 && typeof contents[0] === 'string' ? undefined : meta
+  const last = queue[queue.length - 1]
+  const metaMatch =
+    (!sanitizedMeta && !last?.meta) ||
+    (sanitizedMeta !== undefined && last?.meta !== undefined && JSON.stringify(sanitizedMeta) === JSON.stringify(last.meta))
+  const isDuplicate =
+    last &&
+    last.level === level &&
+    last.source === safeSource &&
+    last.message === message &&
+    now - last.ts < DEDUP_WINDOW_MS &&
+    metaMatch
+
+  if (isDuplicate) {
+    last.repeatCount = (last.repeatCount ?? 1) + 1
+    last.ts = now
+  } else {
+    queue.push({
+      level,
+      source: safeSource,
+      message,
+      meta: sanitizedMeta,
+      ts: now,
+    })
+  }
   if (queue.length > 200) queue.splice(0, queue.length - 200)
-  scheduleFlush()
+
+  const isUrgent = level === 'fail' || level === 'warn' || queue.length >= URGENT_QUEUE_THRESHOLD
+  scheduleFlush(isUrgent)
 }
 
 /** Scoped logger (MagickMonkey-style scopes) */

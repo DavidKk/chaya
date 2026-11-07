@@ -76,6 +76,18 @@ type SceneManagerLike = {
   _exiting?: boolean
   _nextScene?: unknown
 }
+type HighHzSceneManager = SceneManagerLike & {
+  updateMain?: (this: HighHzSceneManager) => void
+  _accumulator?: number
+  _deltaTime?: number
+  _currentTime?: number
+  _getTimeInMsWithoutMobileSafari?: () => number
+  tickStart?: () => void
+  tickEnd?: () => void
+  renderScene?: () => void
+  requestUpdate?: () => void
+  changeScene?: () => void
+}
 const sceneEngine = globalThis as { SceneManager?: SceneManagerLike }
 
 const GAME_SPEED_MIN = 1
@@ -89,6 +101,7 @@ let _origPlayerMoveSpeedRate: ((this: SpeedActor) => number) | null = null
 let _origCharacterDistancePerFrame: ((this: SpeedActor) => number) | null = null
 let _origPlayerDistancePerFrame: ((this: SpeedActor) => number) | null = null
 let _origUpdateScene: ((this: SceneManagerLike) => void) | null = null
+let _origUpdateMain: ((this: HighHzSceneManager) => void) | null = null
 let gameSpeed = 1
 let speedCarry = 0
 const hot = globalThis as typeof globalThis & { __chayaBoostDispose?: () => void }
@@ -116,6 +129,53 @@ hot.__chayaBoostDispose = () => {
   }
   const sm = sceneEngine.SceneManager
   if (sm && _origUpdateScene && sm.updateScene === chayaUpdateScene) sm.updateScene = _origUpdateScene
+  const hsm = sm as HighHzSceneManager | undefined
+  if (hsm && _origUpdateMain && hsm.updateMain === chayaUpdateMain) hsm.updateMain = _origUpdateMain
+}
+
+function chayaUpdateMain(this: HighHzSceneManager): void {
+  if (typeof this._accumulator !== 'number' || typeof this._deltaTime !== 'number') {
+    _origUpdateMain?.call(this)
+    return
+  }
+  let ranFrame = false
+  const Utils = (globalThis as any).Utils
+  if (Utils && typeof Utils.isMobileSafari === 'function' && Utils.isMobileSafari()) {
+    this.changeScene?.()
+    this.updateScene()
+    ranFrame = true
+  } else {
+    const newTime =
+      typeof this._getTimeInMsWithoutMobileSafari === 'function'
+        ? this._getTimeInMsWithoutMobileSafari()
+        : performance.now()
+    let fTime = (newTime - (this._currentTime ?? newTime)) / 1000
+    if (fTime > 0.25) fTime = 0.25
+    this._currentTime = newTime
+    this._accumulator += fTime
+    while (this._accumulator >= this._deltaTime) {
+      if (!ranFrame) this.tickStart?.()
+      ranFrame = true
+      this.updateInputData?.()
+      this.changeScene?.()
+      this.updateScene()
+      this._accumulator -= this._deltaTime
+    }
+    if (ranFrame) this.tickEnd?.()
+  }
+  if (ranFrame) {
+    this.renderScene?.()
+  }
+  this.requestUpdate?.()
+}
+
+function ensureHighHzFix(): boolean {
+  const sm = sceneEngine.SceneManager as HighHzSceneManager | undefined
+  if (!sm || typeof sm.updateMain !== 'function') return false
+  if (sm.updateMain === chayaUpdateMain) return true
+  _origUpdateMain = sm.updateMain
+  sm.updateMain = chayaUpdateMain
+  return true
 }
 
 /** Extra scene updates per frame; input is refreshed between them so triggers fire once */
@@ -383,9 +443,7 @@ const ChayaBoost = {
     return this.status()
   },
   status() {
-    const info = currentRates()
-    log.info('status', info)
-    return info
+    return currentRates()
   },
 }
 
@@ -405,5 +463,6 @@ declarePluginTools('ChayaBoost', {
 })
 
 ensureWalkRunHook()
+ensureHighHzFix()
 
 log.ok(`Registered: ${PLUGIN_BOOST_NAME}.on()/off()/walkRate()/runRate()/rates()/speed()`)

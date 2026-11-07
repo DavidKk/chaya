@@ -76,7 +76,7 @@ function parseConfig(value: unknown): AgentSyncSettings | null {
 }
 
 let runtimeConfig: AgentSyncSettings | null = null
-function readConfig(): AgentSyncSettings | null {
+export function readConfig(): AgentSyncSettings | null {
   if (runtimeConfig) return runtimeConfig
   const shared = readSharedAgentSync()
   if (shared) return parseConfig(agentSettingsFromSyncDocument(shared))
@@ -96,7 +96,7 @@ function saveConfig(value: unknown): AgentSyncSettings {
   return config
 }
 
-function profileOf(config: AgentSyncSettings | null | undefined, profileId?: string) {
+export function profileOf(config: AgentSyncSettings | null | undefined, profileId?: string) {
   if (!config) throw new Error('请先在 Chaya 网页连接一次游戏以同步 Agent 配置')
   return config.profiles.find((profile) => profile.id === profileId) ?? config.profiles.find((profile) => profile.id === config.defaultProfileId) ?? config.profiles[0]
 }
@@ -193,6 +193,7 @@ export function createGameAgentRuntime(libraryGameId = gameRoomId()) {
       gate.abortPending(controlStartCancelled('游戏读档，未开始的控制请求已取消'))
       for (const task of controller.list()) {
         if (!['running', 'waiting_user', 'waiting_service'].includes(task.state) || task.id === event.initiatorTaskId) continue
+        if (task.lifetime === 'until_stopped') continue
         controller.stop(task.id)
       }
     }
@@ -200,7 +201,9 @@ export function createGameAgentRuntime(libraryGameId = gameRoomId()) {
   const manualTakeover = () => {
     companion.invalidateControl()
     for (const task of controller.list()) {
-      if (task.capability === 'play' && ['running', 'waiting_user', 'waiting_service'].includes(task.state)) controller.stop(task.id)
+      if (task.capability === 'play' && task.lifetime !== 'until_stopped' && ['running', 'waiting_user', 'waiting_service'].includes(task.state)) {
+        controller.stop(task.id)
+      }
     }
   }
   window.addEventListener(AGENT_MANUAL_INPUT_EVENT, manualTakeover)
@@ -565,6 +568,7 @@ export function createGameAgentRuntime(libraryGameId = gameRoomId()) {
     runtimeInstanceId: runtime.identity.runtimeInstanceId,
     controller,
     complete: completeCompanion,
+    readConfig,
   })
   const companion = createCompanionHost({
     facts,
@@ -573,23 +577,38 @@ export function createGameAgentRuntime(libraryGameId = gameRoomId()) {
     complete: completeCompanion,
     getBattleContext: () => battleHost.chatContext(),
     beginBattleIntent: (sourceId, prompt) => battleHost.beginIntent(sourceId, prompt),
+    getCustodyRuntime: () => storyHost.getActiveRuntime(),
     onMemoryChanged: () => memory.synchronize(),
-    stopExternalControl: () => controller.interruptAll(),
-    startControl: async (input, remote, signal) => {
+    stopExternalControl: () => {
+      for (const task of controller.list()) {
+        if (['running', 'waiting_user', 'waiting_service'].includes(task.state)) {
+          controller.stop(task.id)
+        }
+      }
+    },
+    startControl: async (input, _remote, signal) => {
       assertControlStartLive(signal)
+      const isCustody = input.action === 'custody' || input.action === 'story'
+      if (isCustody) {
+        for (const task of controller.list()) {
+          if (!['completed', 'stopped', 'failed', 'interrupted'].includes(task.state)) {
+            controller.stop(task.id)
+          }
+        }
+      }
       return dispatch(
         {
           ...input,
           type: 'agent.task.start',
-          deadlineAt: Date.now() + 60_000,
+          deadlineAt: Date.now() + (isCustody ? 24 * 60 * 60 * 1000 : 60_000),
           taskId: crypto.randomUUID(),
           gameId: libraryGameId,
           capability: 'play',
           surface: 'companion',
         },
-        remote,
+        false,
         signal,
-        input.action === 'custody' || input.action === 'story'
+        isCustody
           ? storyHost.execute
           : input.action === 'battle' && input.shape === 'open'
             ? battleHost.execute
@@ -665,7 +684,7 @@ ${PLAY_INTENT_SYSTEM}`,
             retryable: false,
           })
         }
-        if (remote && message.capability === 'play') {
+        if (remote && message.capability === 'play' && message.surface !== 'companion') {
           await gate.authorize(message.deadlineAt, tracked ?? undefined)
         }
         assertControlStartLive(tracked ?? undefined, message.deadlineAt, gate.epoch)
@@ -764,7 +783,11 @@ ${PLAY_INTENT_SYSTEM}`,
         .close()
         .then(() => memory.close())
         .catch((error) => log.warn(`Gameplay memory shutdown degraded: ${String(error)}`))
-      controller.interruptAll()
+      for (const task of controller.list()) {
+        if (['running', 'waiting_user', 'waiting_service'].includes(task.state)) {
+          controller.stop(task.id)
+        }
+      }
       arbiter.revokeCurrent('user_stop')
       uninstallControl()
     },

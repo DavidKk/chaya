@@ -2262,7 +2262,7 @@ export const cht: MessageTree = {
     chestAccept: '好呀',
     chestDecline: '不用了',
     chestGoal: '帮我去拿宝箱（{x}, {y}）',
-    autopilotPlaceholder: '托管中，可在工具栏停止托管',
+    autopilotPlaceholder: '託管推進中，可隨時交流或給出建議…',
     autopilotStop: '停止托管',
     cardYes: '好的',
     cardNo: '不用了',

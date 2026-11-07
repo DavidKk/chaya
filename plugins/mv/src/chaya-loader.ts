@@ -14,7 +14,9 @@ const LOAD_ORDER = [PLUGIN_RUNTIME_NAME, PLUGIN_TRANS_NAME, PLUGIN_BOOST_NAME, P
 
 type LoadFail = { name: string; reason: string }
 
-function syncGet(url: string): string | null {
+const appliedPlugins = new Map<string, string>()
+
+function syncGet(url: string): { code: string; etag: string | null } | null {
   try {
     const xhr = new XMLHttpRequest()
     xhr.open('GET', url, false)
@@ -22,7 +24,14 @@ function syncGet(url: string): string | null {
     const ok = xhr.status === 0 || (xhr.status >= 200 && xhr.status < 300)
     if (!ok) return null
     const text = String(xhr.responseText || '')
-    return text ? text : null
+    if (!text) return null
+    let etag: string | null = null
+    try {
+      etag = xhr.getResponseHeader('ETag')
+    } catch {
+      /* */
+    }
+    return { code: text, etag }
   } catch {
     return null
   }
@@ -263,19 +272,22 @@ function loadOne(name: (typeof LOAD_ORDER)[number]): LoadFail | null {
       continue
     }
     if (/^https?:/i.test(url)) continue
-    const code = syncGet(url)
-    if (!code) {
+    const res = syncGet(url)
+    if (!res) {
       errors.push(`xhr(${url}): empty response`)
       continue
     }
-    const err = tryRunCode(name, code, url)
-    if (!err) return null
+    const err = tryRunCode(name, res.code, url)
+    if (!err) {
+      if (res.etag) appliedPlugins.set(name, res.etag)
+      return null
+    }
     errors.push(`xhr(${url}): ${err}`)
   }
 
   for (const url of apiUrls(name)) {
-    const code = syncGet(url)
-    if (!code) {
+    const res = syncGet(url)
+    if (!res) {
       try {
         const u = new URL(url)
         unreachableBases.add(u.origin)
@@ -285,10 +297,11 @@ function loadOne(name: (typeof LOAD_ORDER)[number]): LoadFail | null {
       errors.push(`api(${url}): unreachable`)
       continue
     }
-    const err = tryRunCode(name, code, url)
+    const err = tryRunCode(name, res.code, url)
     if (!err) {
       // 远程拉取成功：后续心跳 / 翻译跟这个 origin（域名或局域网 IP）
       pinApiBaseFromUrl(url)
+      if (res.etag) appliedPlugins.set(name, res.etag)
       return null
     }
     errors.push(`api(${url}): ${err}`)
@@ -307,7 +320,7 @@ function startHotReload() {
   if (g.__chayaLoaderHot || typeof EventSource === 'undefined') return
   g.__chayaLoaderHot = true
   const order = new Set<string>(LOAD_ORDER)
-  const applied = new Map<string, string>()
+  const applied = appliedPlugins
   const pending = new Map<string, string>()
   const lifetime = new AbortController()
   let es: EventSource | null = null

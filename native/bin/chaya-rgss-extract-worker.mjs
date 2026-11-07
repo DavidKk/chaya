@@ -1084,16 +1084,17 @@ function pruneFiles(logDir) {
 function writeBatch(file, batch) {
   const logDir = path4.dirname(file);
   return withDirectoryLock(logDir, () => {
-    pruneFiles(logDir);
     const { maxFileBytes } = filePolicy(logDir);
     let size = fs5.existsSync(file) ? fs5.statSync(file).size : 0;
     let lines = [];
     let bytes = 0;
+    let rotated = false;
     const append = () => {
       if (!lines.length) return;
       if (size && size + bytes > maxFileBytes) {
         fs5.renameSync(file, path4.join(logDir, `${path4.basename(file, ".ndjson")}.${Date.now()}-${randomUUID()}.ndjson`));
         size = 0;
+        rotated = true;
       }
       fs5.appendFileSync(file, lines.join(""), "utf8");
       size += bytes;
@@ -1107,7 +1108,9 @@ function writeBatch(file, batch) {
       bytes += length;
     }
     append();
-    pruneFiles(logDir);
+    if (rotated) {
+      pruneFiles(logDir);
+    }
   });
 }
 function scheduleFlush() {

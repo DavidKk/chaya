@@ -67,6 +67,7 @@ export type CompanionChatHostDeps = {
   currentFacts: () => FactView
   getPreferences: () => UserPreference[]
   getBattleContext?: () => unknown
+  getCustodyContext?: () => { active: boolean; phase?: string; summary?: string; guidance?: string } | null
 }
 
 function conversationKeyOf(selection: CompanionSelection, conversationId: string, runtimeInstanceId: string): string {
@@ -83,6 +84,7 @@ function buildChatMessages(input: {
   history: Array<{ role: 'user' | 'assistant'; content: string }>
   preferences: UserPreference[]
   battle?: unknown
+  custody?: { active: boolean; phase?: string; summary?: string; guidance?: string } | null
 }): { messages: RuntimeMessage[]; episodes: MemoryEpisode[]; experiences: HpExperience[] } {
   const advice = buildAdviceContext({ facts: input.facts, episodes: input.episodes, experiences: input.experiences })
   const guardAvailable = hasGuardAction(advice.legalActions)
@@ -102,6 +104,7 @@ function buildChatMessages(input: {
         `guardAvailable=${guardAvailable}; disarmKnownUseful=${disarm}.`,
         guardAvailable ? conditionalDefenseText(input.selection.locale) : '',
         disarm ? conditionalDisarmText(input.selection.locale) : '',
+        input.custody?.active ? `Custody is currently running (action: ${input.custody.summary || input.custody.phase}). Acknowledge player guidance warmly and converse in character.` : '',
         'Pure social chat may be plain text without JSON. Mentions of memories/skills require JSON blocks.',
       ]
         .filter(Boolean)
@@ -148,6 +151,7 @@ function buildChatMessages(input: {
         recentHistory: input.history.slice(-8),
         gaps: advice.knownGaps.slice(0, 8),
         battle: input.battle,
+        custody: input.custody ?? undefined,
       }),
     },
   ]
@@ -358,6 +362,7 @@ export class CompanionChatSlot {
         history,
         preferences: this.deps.getPreferences(),
         battle: this.deps.getBattleContext?.(),
+        custody: this.deps.getCustodyContext?.(),
       })
       const { messages, episodes } = supplied
       const contextMs = performance.now() - contextStarted

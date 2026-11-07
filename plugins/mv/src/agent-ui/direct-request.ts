@@ -64,6 +64,10 @@ function taskStream(call: TaskCall, taskId: string, sessionId: string, signal?: 
               task: AgentTask
               events: AgentTaskEvent[]
             }
+            if (!result.task) {
+              emit({ type: "turn.stopped" })
+              return
+            }
             if (result.gap) emit({ type: 'history.gap', fromSeq: seq + 1 })
             for (const event of result.events || []) {
               seq = Math.max(seq, event.seq)
