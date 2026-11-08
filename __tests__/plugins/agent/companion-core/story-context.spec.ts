@@ -1,15 +1,70 @@
+import { STORY_BENCHMARK_GAME_ID } from '@/plugins/mv/src/agent/runtime/companion-core/story-benchmark'
 import { StoryContextStore } from '@/plugins/mv/src/agent/runtime/companion-core/story-context'
 import { StoryExplorationPlanner } from '@/plugins/mv/src/agent/runtime/companion-core/story-exploration'
-import { ensureSafeSceneManagerPop } from '@/plugins/mv/src/agent/runtime/companion-core/story-runtime'
+import { createAgentRuntimeIdentity } from '@/plugins/mv/src/agent/runtime/identity'
 
 describe('StoryContextStore & StoryExplorationPlanner', () => {
+  let previousDataMap: unknown
+  let previousMapInfos: unknown
+
   beforeEach(() => {
+    createAgentRuntimeIdentity(STORY_BENCHMARK_GAME_ID)
     const g = globalThis as any
+    previousDataMap = g.$dataMap
+    previousMapInfos = g.$dataMapInfos
+    g.$dataMap = {}
+    delete g.$dataMapInfos
     delete g.__CHAYA_STORY_QUEST_CONTEXT__
     delete g.$gameMap
     delete g.$gameVariables
     delete g.$gameSwitches
     delete g.$gameParty
+  })
+
+  afterEach(() => {
+    const engine = globalThis as any
+    if (previousDataMap === undefined) delete engine.$dataMap
+    else engine.$dataMap = previousDataMap
+    if (previousMapInfos === undefined) delete engine.$dataMapInfos
+    else engine.$dataMapInfos = previousMapInfos
+  })
+
+  test.each([null, undefined])('records transitions and derives context while map data is %s', (dataMap) => {
+    createAgentRuntimeIdentity('another-game')
+    const engine = globalThis as any
+    engine.$dataMap = dataMap
+    engine.$dataMapInfos = [null, { name: 'Guild' }]
+    const displayName = jest.fn(() => engine.$dataMap.displayName)
+    engine.$gameMap = { mapId: () => 1, displayName }
+
+    StoryContextStore.recordTransition({ fromMapId: 6, toMapId: 1, timestamp: Date.now() })
+
+    expect(StoryContextStore.getRecentGlobalHistory()[0]).toMatchObject({ mapId: 1, mapName: 'Guild', kind: 'transfer' })
+    expect(StoryContextStore.get(1).mapName).toBe('Guild')
+    expect(displayName).not.toHaveBeenCalled()
+  })
+
+  test('uses a map ID fallback during transitions when map metadata is unavailable', () => {
+    const engine = globalThis as any
+    engine.$dataMap = null
+    engine.$gameMap = { mapId: () => 99, displayName: () => engine.$dataMap.displayName }
+
+    StoryContextStore.recordGlobalAction(99, 'Explored')
+
+    expect(StoryContextStore.getRecentGlobalHistory()[0].mapName).toBe('地图 99')
+    expect(StoryContextStore.get(99).mapName).toBe('地图 99')
+  })
+
+  test.each([1, 4, 5, 6])('keeps map %s context generic in unrelated games', (mapId) => {
+    createAgentRuntimeIdentity('another-game')
+    const engine = globalThis as any
+    engine.$gameMap = { mapId: () => mapId, displayName: () => 'Unrelated map' }
+    engine.$gameVariables = { value: () => 3 }
+    engine.$gameSwitches = { value: () => true }
+    const context = StoryContextStore.get(mapId)
+    expect(context.phase).toBe('exploration')
+    expect(context.chestsTotal).toBe(0)
+    expect(context.activeObjective).not.toMatch(/试炼|拉维尔娜|匕首/)
   })
 
   test('derives Map 6 benchmark quest context with 3 trial chests', () => {
@@ -50,7 +105,25 @@ describe('StoryContextStore & StoryExplorationPlanner', () => {
     const promptSummary = StoryContextStore.formatSummaryForPrompt(6)
     expect(promptSummary).toContain('已开启 2/3')
     expect(promptSummary).toContain('试炼宝箱 7(14, 7)')
+    expect(ctxB.remainingChestPositions.map((chest) => chest.id)).toEqual([7])
     expect(promptSummary).toContain('【历史行动与已完成事项（之前做过了什么）】')
+  })
+
+  test('keeps prior map facts isolated after a transfer', () => {
+    const engine = globalThis as any
+    engine.$dataMapInfos = { 6: { name: 'Trial' }, 5: { name: 'Sewer' } }
+    engine.$gameMap = { mapId: () => 6, displayName: () => 'Trial', event: () => null }
+    StoryContextStore.get(6)
+    const event = jest.fn(() => ({ _pageIndex: 1 }))
+    engine.$gameMap = { mapId: () => 5, displayName: () => 'Sewer', event }
+
+    StoryContextStore.recordGlobalAction(6, 'Left trial')
+    const context = StoryContextStore.get(6)
+
+    expect(context.chestsOpened).toEqual([])
+    expect(context.remainingChestPositions.map((chest) => chest.id)).toEqual([7, 8, 6])
+    expect(StoryContextStore.getRecentGlobalHistory().at(-1)?.mapName).toBe('Trial')
+    expect(event).not.toHaveBeenCalled()
   })
 
   test('tracks map transitions and identifies backtrack portals', () => {
@@ -92,7 +165,7 @@ describe('StoryContextStore & StoryExplorationPlanner', () => {
   test('guides player to Laverna Statue on Map 6 when s27 is set (not Map 5 stairway)', () => {
     const g = globalThis as any
     g.$gameSwitches = { value: (id: number) => id === 27 || id === 32 }
-    g.$gameVariables = { value: () => 3 }
+    g.$gameVariables = { value: (id: number) => (id === 7 ? 4 : 3) }
     g.$gameParty = { leader: () => null }
     g.$gameMap = { mapId: () => 6, displayName: () => '试炼迷宫深处' }
 
@@ -107,6 +180,15 @@ describe('StoryContextStore & StoryExplorationPlanner', () => {
     expect(target!.eventId).toBe(58)
     expect(target!.hint).toContain('拉维尔娜神坛')
     expect(target!.eventId).not.toBe(12)
+  })
+
+  test('keeps the offering objective active until all four offerings are collected', () => {
+    const engine = globalThis as any
+    engine.$gameMap = { mapId: () => 6 }
+    engine.$gameSwitches = { value: (id: number) => id === 27 }
+    engine.$gameVariables = { value: (id: number) => (id === 7 ? 2 : 3) }
+
+    expect(StoryContextStore.get(6)).toMatchObject({ phase: 'gather_offerings', activeObjective: expect.stringContaining('2/4') })
   })
 
   test('tracks and clears unreachable event filtering', () => {
@@ -125,34 +207,27 @@ describe('StoryContextStore & StoryExplorationPlanner', () => {
     expect(StoryContextStore.isUnreachable(6, 26)).toBe(false)
   })
 
-  test('ensureSafeSceneManagerPop prevents game exit on empty scene stack', () => {
-    const g = globalThis as any
-    let exitCalled = false
-    let gotoTarget: any = null
-    const dummySceneMap = { name: 'Scene_Map' }
-    g.Scene_Map = dummySceneMap
+  test('records and queries lock prerequisites by level threshold', () => {
+    StoryContextStore.recordLockPrerequisite(6, 52, 'chest', 16, 13)
+    StoryContextStore.recordLockPrerequisite(6, 20, 'chest', 14, 13)
+    StoryContextStore.recordLockPrerequisite(6, 24, 'trap', 15, 13)
 
-    g.SceneManager = {
-      _stack: [],
-      exit: () => {
-        exitCalled = true
-      },
-      goto: (scene: any) => {
-        gotoTarget = scene
-      },
-      pop: function (this: any) {
-        if (this._stack.length > 0) {
-          this.goto(this._stack.pop())
-        } else {
-          this.exit()
-        }
-      },
-    }
+    const p52 = StoryContextStore.getLockPrerequisite(6, 52)
+    expect(p52).toMatchObject({ mapId: 6, eventId: 52, kind: 'chest', requiredLevel: 16, lastAttemptLevel: 13 })
+    expect(StoryContextStore.formatSummaryForPrompt(6)).toContain('宝箱需要开锁等级 16')
 
-    ensureSafeSceneManagerPop()
-    g.SceneManager.pop()
+    // At level 13: none unlocked
+    expect(StoryContextStore.getEligibleUnlockedTargets(6, 13)).toEqual([])
 
-    expect(exitCalled).toBe(false)
-    expect(gotoTarget).toBe(dummySceneMap)
+    // At level 14: event 20 unlocked
+    const at14 = StoryContextStore.getEligibleUnlockedTargets(6, 14)
+    expect(at14.map((p) => p.eventId)).toEqual([20])
+
+    // At level 16: all three unlocked
+    const at16 = StoryContextStore.getEligibleUnlockedTargets(6, 16)
+    expect(at16.map((p) => p.eventId).sort()).toEqual([20, 24, 52])
+
+    StoryContextStore.clearLockPrerequisite(6, 52)
+    expect(StoryContextStore.getLockPrerequisite(6, 52)).toBeUndefined()
   })
 })

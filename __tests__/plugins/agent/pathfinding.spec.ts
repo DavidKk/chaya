@@ -72,6 +72,46 @@ test('allows the target touch event as the final tile', () => {
   expect(route.path.at(-1)).toEqual({ x: 2, y: 0 })
 })
 
+test('does not walk through the target chest to reach its other side', () => {
+  const route = planRoute({
+    start: { x: 0, y: 0 },
+    target: { x: 2, y: 0 },
+    bounds: { minX: 0, minY: 0, maxX: 3, maxY: 0 },
+    passable: blocked(),
+    targetEventId: 7,
+    events: [{ id: 7, x: 2, y: 0 }],
+    interactionPositions: [{ x: 3, y: 0 }],
+  })
+  expect(route.status).toBe('event_boundary')
+  expect(route.eventBoundaryIds).toEqual([7])
+})
+
+test('keeps an interaction event blocked while moving to an adjacent tile', () => {
+  const route = planRoute({
+    start: { x: 0, y: 0 },
+    target: { x: 3, y: 0 },
+    bounds: { minX: 0, minY: 0, maxX: 3, maxY: 0 },
+    passable: blocked(),
+    targetEventId: 7,
+    events: [{ id: 7, x: 2, y: 0 }],
+  })
+  expect(route.status).toBe('event_boundary')
+})
+
+test('reports blocking events in walking order rather than event id order', () => {
+  const route = planRoute({
+    start: { x: 0, y: 0 },
+    target: { x: 4, y: 0 },
+    bounds: { minX: 0, minY: 0, maxX: 4, maxY: 0 },
+    passable: blocked(),
+    events: [
+      { id: 2, x: 3, y: 0 },
+      { id: 99, x: 1, y: 0 },
+    ],
+  })
+  expect(route.eventBoundaryIds).toEqual([99, 2])
+})
+
 test('never searches beyond the visible bounds', () => {
   const route = planRoute({ start: { x: 0, y: 0 }, target: { x: 7, y: 0 }, bounds, passable: blocked() })
   expect(route.status).toBe('outside_visible_area')

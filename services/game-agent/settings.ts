@@ -3,6 +3,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 import { DATA_DIR, GAME_AGENT_DIR } from '@/constants/paths'
+import { normalizeEnabledModels } from '@/lib/game-agent/profile-models'
 import { type GameAgentProvider, isCliProvider, isGameAgentProvider, isOpenApiProvider, PROVIDER_META } from '@/lib/game-agent/providers'
 import { type AgentProxyProtocols, normalizeAgentProxy, normalizeAgentProxyHeaders, normalizeAgentProxyProtocols } from '@/lib/game-agent/proxy'
 import {
@@ -30,6 +31,8 @@ export type GameAgentProfile = AgentTimeoutSettings & {
   endpoint: string
   modelsEndpoint?: string
   defaultModel: string
+  /** When set, companion / status only offer these model ids. Missing means all discovered models. */
+  enabledModels?: string[]
   temperature: number
   keepAlive: string
   /**
@@ -137,6 +140,8 @@ export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fall
   const proxyProtocols = normalizeAgentProxyProtocols(proxy, value.proxyProtocols)
   const proxyHeaders = normalizeAgentProxyHeaders(value.proxyHeaders)
   const modelsEndpoint = typeof value.modelsEndpoint === 'string' ? value.modelsEndpoint.trim() : ''
+  const enabledModels = normalizeEnabledModels(value.enabledModels)
+  const enabled = enabledModels ? { enabledModels } : {}
   if (isCliProvider(provider)) {
     // HTTP-only fields keep fixed values so sync records stay comparable; CLI runs ignore them.
     return {
@@ -146,6 +151,7 @@ export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fall
       endpoint: '',
       modelsEndpoint: '',
       defaultModel: typeof value.defaultModel === 'string' ? value.defaultModel.trim() : '',
+      ...enabled,
       temperature: 0.2,
       keepAlive: '10m',
       proxy,
@@ -166,6 +172,7 @@ export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fall
       endpoint: normalizeGameAgentEndpoint(value.endpoint || PROVIDER_META[provider].defaultEndpoint || ''),
       modelsEndpoint,
       defaultModel: typeof value.defaultModel === 'string' ? value.defaultModel.trim() : '',
+      ...enabled,
       temperature,
       keepAlive,
       proxy,
@@ -181,6 +188,7 @@ export function normalizeGameAgentProfile(value: Partial<GameAgentProfile>, fall
     endpoint: normalizeGameAgentEndpoint(value.endpoint),
     modelsEndpoint: '',
     defaultModel: typeof value.defaultModel === 'string' ? value.defaultModel.trim() : '',
+    ...enabled,
     temperature,
     keepAlive,
     proxy,

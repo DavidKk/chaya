@@ -33,6 +33,8 @@
   --ok-glow: rgb(62 233 168 / 0.55);
   --ok-ink: #041510;
   --warn: #ffd60a;
+  /* 实心警告钮底色：比 --warn 更深，近白字可读；标签/描边仍用 --warn */
+  --warn-fill: #eab308;
   --fail: #ff6b7a;
   --fail-ink: #1a0608;
   --info: #5ce1ff;

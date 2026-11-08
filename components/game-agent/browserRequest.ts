@@ -1,5 +1,6 @@
 import type { WebMcpToolDefinition } from '@/initializer/webmcp/model-context'
 import { browserAgentTraceArchive, setBrowserAgentTraceArchive } from '@/lib/browser/agent-trace-store'
+import { resolveAgentProfileModels } from '@/lib/game-agent/profile-models'
 import { gameAgentProfileToolSpecs } from '@/lib/game-agent/profile-tool-specs'
 import { isCliProvider } from '@/lib/game-agent/providers'
 import type { AgentTask, AgentTaskEvent } from '@/lib/game-agent/runtime'
@@ -8,7 +9,7 @@ import { cacheToolSettings, normalizeToolSettings, readCachedToolSettings } from
 import type { CompanionHostRequest } from '@/lib/runtime/companion-protocol'
 import { isCompanionHostRequest } from '@/lib/runtime/companion-validation'
 import { functionToolDefinition } from '@/lib/webmcp/mcp-mirror'
-import { pickAvailableModel, streamOllamaChat, uniqueOllamaModels } from '@/services/game-agent/ollama-client'
+import { streamOllamaChat, uniqueOllamaModels } from '@/services/game-agent/ollama-client'
 
 import { createBrowserAgentRuntime } from './browserTurn'
 import type { GameAgentRequest } from './GameAgentWorkspace'
@@ -19,6 +20,7 @@ export type BrowserAgentProfile = AgentTimeoutSettings & {
   provider: 'ollama'
   endpoint: string
   defaultModel: string
+  enabledModels?: string[]
   temperature: number
   keepAlive: string
 }
@@ -498,15 +500,17 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
         ok: true,
         available: Object.values(models).some((items) => items.length > 0),
         gameOnline: input.connected,
-        profiles: current.profiles.map((profile) => ({
-          id: profile.id,
-          label: profile.label,
-          provider: profile.provider,
-          online: Boolean(models[profile.id]?.length),
-          models: models[profile.id] || [],
-          defaultModel: pickAvailableModel(models[profile.id] || [], profile.defaultModel),
-          reason: models[profile.id]?.length ? null : '未读取到可用模型，请检查服务地址',
-        })),
+        profiles: current.profiles.map((profile) => {
+          const resolved = resolveAgentProfileModels(profile, models[profile.id] || [])
+          return {
+            id: profile.id,
+            label: profile.label,
+            provider: profile.provider,
+            online: resolved.models.length > 0,
+            ...resolved,
+            reason: resolved.models.length ? null : '未读取到可用模型，请检查服务地址',
+          }
+        }),
         defaultProfileId: current.profiles[0]?.id || '',
         session: active
           ? {
@@ -520,7 +524,7 @@ export function createBrowserGameAgentRequest(input: { connected: boolean; agent
             : runtime.latestSession()
               ? { id: runtime.latestSession()!.id, profileId: '', activeTurnId: null }
               : null,
-        reason: Object.values(models).some((items) => items.length > 0) ? null : '未读取到可用模型，请检查服务地址',
+        reason: current.profiles.some((profile) => resolveAgentProfileModels(profile, models[profile.id] || []).models.length > 0) ? null : '未读取到可用模型，请检查服务地址',
       })
     }
 

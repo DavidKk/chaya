@@ -1,5 +1,6 @@
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
-import { cliModelChoices, isCliProvider } from '@/lib/game-agent/providers'
+import { resolveAgentProfileModels } from '@/lib/game-agent/profile-models'
+import { isCliProvider } from '@/lib/game-agent/providers'
 import type { AgentRoutine, AgentTask, AgentTaskEvent } from '@/lib/game-agent/runtime'
 import type { AgentSyncSettings } from '@/lib/game-agent/settings-sync'
 import type { CompanionHostRequest } from '@/lib/runtime/companion-protocol'
@@ -65,7 +66,7 @@ function taskStream(call: TaskCall, taskId: string, sessionId: string, signal?: 
               events: AgentTaskEvent[]
             }
             if (!result.task) {
-              emit({ type: "turn.stopped" })
+              emit({ type: 'turn.stopped' })
               return
             }
             if (result.gap) emit({ type: 'history.gap', fromSeq: seq + 1 })
@@ -102,19 +103,14 @@ function taskStream(call: TaskCall, taskId: string, sessionId: string, signal?: 
 
 function profileStatus(settings: AgentSyncSettings | null, cached: AgentModels = {}) {
   return (settings?.profiles || []).map((profile) => {
-    if (isCliProvider(profile.provider)) {
-      return { id: profile.id, label: profile.label, provider: profile.provider, online: true, ...cliModelChoices(profile.defaultModel, cached[profile.id]), reason: null }
-    }
-    const models = cached[profile.id]?.length ? cached[profile.id] : profile.defaultModel ? [{ name: profile.defaultModel }] : []
-    const defaultModel = models.some((model) => model.name === profile.defaultModel) ? profile.defaultModel : models[0]?.name || ''
+    const resolved = resolveAgentProfileModels(profile, cached[profile.id] || [])
     return {
       id: profile.id,
       label: profile.label,
       provider: profile.provider,
-      online: models.length > 0,
-      models,
-      defaultModel,
-      reason: models.length ? null : '尚未读取到可用模型',
+      online: resolved.models.length > 0 || isCliProvider(profile.provider),
+      ...resolved,
+      reason: resolved.models.length || isCliProvider(profile.provider) ? null : '尚未读取到可用模型',
     }
   })
 }
@@ -178,28 +174,27 @@ async function startTask(call: TaskCall, body: TurnBody, signal?: AbortSignal | 
 export function createDirectGameAgentRequest(readSettings: () => AgentSyncSettings | null, readModels: () => AgentModels = () => ({})): GameAgentRequest {
   return async (path, init) => {
     const call = taskCall()
-    if (!call) return json({ error: { code: 'AGENT_RUNTIME_UNAVAILABLE', message: '游戏内 Agent 任务宿主未就绪' } }, 503)
     const url = new URL(path, location.origin)
     const method = (init?.method || 'GET').toUpperCase()
 
-    if (url.pathname === '/api/game-agent/companion' && method === 'POST') {
-      const body = JSON.parse(String(init?.body || '{}')) as { message?: CompanionHostRequest }
-      if (!isCompanionHostRequest(body.message)) return json({ error: { code: 'INVALID_COMPANION_REQUEST', message: '无效的旅伴请求' } }, 400)
-      try {
-        const result = await call(body.message, init?.signal || undefined)
-        return json({ result })
-      } catch (error) {
-        const failure = error as Error & { code?: string }
-        return json({ error: { code: failure.code || 'COMPANION_REQUEST_FAILED', message: failure.message || String(error) } }, 409)
-      }
-    }
-
+    // Status can answer from local settings before the task host boots; other routes need the host.
     if (url.pathname === '/api/game-agent/status') {
+      const settings = readSettings()
+      const profiles = profileStatus(settings, readModels())
+      if (!call) {
+        return json({
+          ok: true,
+          available: false,
+          gameOnline: false,
+          profiles,
+          defaultProfileId: settings?.defaultProfileId || profiles[0]?.id || '',
+          session: null,
+          reason: null,
+        })
+      }
       const tasks = (await call({ type: 'agent.task.status', requestId: crypto.randomUUID() }, init?.signal || undefined)) as AgentTask[]
       const latest = tasks.at(-1)
       const active = [...tasks].reverse().find((task) => !terminal(task.state))
-      const settings = readSettings()
-      const profiles = profileStatus(settings, readModels())
       const available = profiles.some((profile) => profile.online)
       return json({
         ok: true,
@@ -220,6 +215,20 @@ export function createDirectGameAgentRequest(readSettings: () => AgentSyncSettin
             : null,
         reason: available ? null : '请先配置 Agent 并选择模型',
       })
+    }
+
+    if (!call) return json({ error: { code: 'AGENT_RUNTIME_UNAVAILABLE', message: '游戏内 Agent 任务宿主未就绪' } }, 503)
+
+    if (url.pathname === '/api/game-agent/companion' && method === 'POST') {
+      const body = JSON.parse(String(init?.body || '{}')) as { message?: CompanionHostRequest }
+      if (!isCompanionHostRequest(body.message)) return json({ error: { code: 'INVALID_COMPANION_REQUEST', message: '无效的旅伴请求' } }, 400)
+      try {
+        const result = await call(body.message, init?.signal || undefined)
+        return json({ result })
+      } catch (error) {
+        const failure = error as Error & { code?: string }
+        return json({ error: { code: failure.code || 'COMPANION_REQUEST_FAILED', message: failure.message || String(error) } }, 409)
+      }
     }
 
     if (url.pathname === '/api/game-agent/activity' && method === 'GET') {

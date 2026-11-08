@@ -70,6 +70,41 @@ describe('agent task controller', () => {
     expect(controller.get(task.id)?.state).toBe('stopped')
   })
 
+  it.each(['reject', 'return'] as const)('releases custody ownership when its executor unexpectedly exits via %s', async (exit) => {
+    const owners: Array<string | null> = []
+    const controller = new AgentTaskController(store(), { setInputOwner: (owner) => owners.push(owner) })
+    let executionSignal: AbortSignal | undefined
+    const task = await controller.start({
+      ...input(async (_task, signal) => {
+        executionSignal = signal
+        if (exit === 'reject') throw new Error('Model unavailable')
+      }),
+      lifetime: 'until_stopped',
+    })
+    await Promise.resolve()
+    expect(controller.get(task.id)).toMatchObject({ state: 'failed', error: exit === 'reject' ? 'Model unavailable' : expect.any(String) })
+    expect(owners).toEqual(['t1', null])
+    expect(executionSignal?.aborted).toBe(true)
+    await expect(controller.start({ ...input(async () => new Promise<void>(() => undefined)), requestId: 'r2', taskId: 't2', lifetime: 'until_stopped' })).resolves.toMatchObject({
+      id: 't2',
+      state: 'running',
+    })
+    controller.stop('t2')
+  })
+
+  it('keeps custody stopped when the executor rejects after cancellation', async () => {
+    let rejectExecution = (_error: Error) => {}
+    const controller = new AgentTaskController(store())
+    const task = await controller.start({
+      ...input(() => new Promise<void>((_resolve, reject) => (rejectExecution = reject))),
+      lifetime: 'until_stopped',
+    })
+    controller.stop(task.id)
+    rejectExecution(new Error('Late model failure'))
+    await Promise.resolve()
+    expect(controller.get(task.id)?.state).toBe('stopped')
+  })
+
   it('reports event gaps and restores running tasks as interrupted', async () => {
     const saved = { ...(await new AgentTaskController(store()).start(input(async () => undefined))), state: 'waiting_service' as const }
     const persistence = store()

@@ -1,5 +1,5 @@
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
-import { CLI_PROVIDERS_FEATURE } from '@/lib/game-agent/providers'
+import { CLI_PROVIDERS_FEATURE, OPENAPI_PROVIDERS_FEATURE } from '@/lib/game-agent/providers'
 import {
   agentSettingsFromSyncDocument,
   type AgentSyncDocument,
@@ -139,7 +139,7 @@ export function createPluginGameAgentRequest(remote: GameAgentRequest = chayaFet
         const response = await remote('/api/integration/game-agent', {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sync: candidate, features: [CLI_PROVIDERS_FEATURE] }),
+          body: JSON.stringify({ sync: candidate, features: [CLI_PROVIDERS_FEATURE, OPENAPI_PROVIDERS_FEATURE] }),
           signal: AbortSignal.timeout(3_000),
         })
         body = (await response.json().catch(() => null)) as { sync?: AgentSyncDocument; models?: AgentModels }

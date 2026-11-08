@@ -1,7 +1,7 @@
 import { interactEvent } from '@/plugins/mv/src/agent/interact'
 
 jest.mock('@/plugins/mv/src/agent/game-control', () => ({
-  planVisibleRoute: (_target: unknown, _eventId: unknown, candidates: Array<{ x: number; y: number }>) => ({
+  planMapRoute: (_target: unknown, _eventId: unknown, candidates: Array<{ x: number; y: number }>) => ({
     interactionPosition: candidates.at(-1),
   }),
   movePlayer: jest.fn(async ({ x, y }: { x: number; y: number }) => {
@@ -49,6 +49,27 @@ function setup({ normalPriority = true, lines = ['Hello'], choices = null as str
 }
 
 describe('interactEvent', () => {
+  it('keeps a partial walk pending instead of declaring the event unreachable', async () => {
+    const game = setup()
+    const { movePlayer } = jest.requireMock('@/plugins/mv/src/agent/game-control') as { movePlayer: jest.Mock }
+    movePlayer.mockImplementationOnce(async () => {
+      game.player.x = 1
+      return { arrived: false, blocked: true, blockedReason: 'timeout', position: { x: 1, y: 3 } }
+    })
+    const result = await interactEvent({ eventId: 5 }, { press: game.press, readState: game.readState, interrupted: () => false })
+    expect(result).toMatchObject({ outcome: 'approaching', position: { x: 1, y: 3 } })
+    expect(game.press).not.toHaveBeenCalled()
+  })
+
+  it('distinguishes a physically blocked click from a partial walk', async () => {
+    const game = setup()
+    const { movePlayer } = jest.requireMock('@/plugins/mv/src/agent/game-control') as { movePlayer: jest.Mock }
+    movePlayer.mockImplementationOnce(async () => ({ arrived: false, blocked: true, blockedReason: 'movement_blocked', position: { x: 0, y: 3 } }))
+    const result = await interactEvent({ eventId: 5 }, { press: game.press, readState: game.readState, interrupted: () => false })
+    expect(result).toMatchObject({ outcome: 'movement_blocked' })
+    expect(game.press).not.toHaveBeenCalled()
+  })
+
   it('walks beside a blocking event, faces it and reads its dialogue', async () => {
     const game = setup({ lines: ['Hello', 'Take this'] })
     const result = await interactEvent({ eventId: 5 }, { press: game.press, readState: game.readState, interrupted: () => false })

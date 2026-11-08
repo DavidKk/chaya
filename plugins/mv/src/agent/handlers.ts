@@ -12,7 +12,7 @@ import { nativeSavefileId } from '../cheat/runtime/cheats'
 import { findPluginTool, listPluginToolMetas } from '../helpers/plugin-tools'
 import { isGameWrite, withAgentControl } from './control'
 import { chestEventOpened, eventFacts, eventHint, eventLook } from './event-facts'
-import { currentVisibleBounds, movePlayer, planVisibleRoute, quitGame, snapScreen, tapScreen } from './game-control'
+import { currentVisibleBounds, movePlayer, planMapRoute, quitGame, snapScreen, tapScreen } from './game-control'
 import { battleProgress, originalMessageText, readHistory } from './history'
 import { interactEvent } from './interact'
 import { armReaction, currentReactionCue, reactionAvailable, reactionOutcome, reactionResult, startReactionMonitor, stopReaction } from './reaction'
@@ -209,7 +209,7 @@ export function readAgentGameState() {
             { x: x + 1, y },
             { x, y: y - 1 },
           ]
-      const route = Number.isFinite(x + y) && id > 0 ? planVisibleRoute({ x, y }, id, interactionPositions) : null
+      const route = Number.isFinite(x + y) && id > 0 ? planMapRoute({ x, y }, id, interactionPositions) : null
       return {
         id: id || null,
         name: name || null,

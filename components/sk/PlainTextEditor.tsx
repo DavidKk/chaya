@@ -23,6 +23,8 @@ export type PlainTextEditorProps = {
   value: string
   onChange?: (value: string) => void
   disabled?: boolean
+  /** Monaco language id；默认 plaintext。JSON / headers 等可传 `json` 以便着色。 */
+  language?: string
   /** false：只在 `\\n` 处分行并横向滚动；true：软折行。 */
   softWrap?: boolean
   /** Minimum visible rows (default {@link PLAIN_TEXT_EDITOR_MIN_LINES}). */
@@ -60,6 +62,7 @@ export function PlainTextEditor({
   value,
   onChange,
   disabled,
+  language = 'plaintext',
   softWrap = true,
   minLines = PLAIN_TEXT_EDITOR_MIN_LINES,
   fill,
@@ -153,7 +156,7 @@ export function PlainTextEditor({
       style={fill ? undefined : { height }}
     >
       <MonacoEditor
-        language="plaintext"
+        language={language}
         theme={CHAYA_MONACO_THEME}
         height={height}
         value={value}

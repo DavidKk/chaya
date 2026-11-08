@@ -5,7 +5,6 @@ import { useCallback, useEffect, useState } from 'react'
 
 import { ConfirmProvider } from '@/components/confirm/ConfirmProvider'
 import { FloatingToolPanel } from '@/components/game-tools/FloatingToolPanel'
-import { MiniPanelNotice } from '@/components/game-tools/MiniPanelParts'
 import { useToolPanelVisibility } from '@/components/game-tools/tool-panels'
 import { useToolSettings } from '@/components/game-tools/useToolSettings'
 import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
@@ -129,10 +128,14 @@ function CompanionPanelBody({ gameId, open, observe: _observe, request }: Props)
           <Button
             size="mini"
             variant="plain"
-            className={cn(TOUCH_TARGET, session.controlBusy && 'bg-[color-mix(in_oklab,var(--accent)_18%,transparent)] text-accent hover:enabled:bg-[color-mix(in_oklab,var(--accent)_24%,transparent)] hover:enabled:text-accent')}
-            aria-label={session.controlBusy ? (locale.startsWith('zh') ? '停止托管' : 'Stop Custody') : (locale.startsWith('zh') ? '开启托管' : 'Start Custody')}
+            className={cn(
+              TOUCH_TARGET,
+              session.controlBusy &&
+                'bg-[color-mix(in_oklab,var(--accent)_18%,transparent)] text-accent hover:enabled:bg-[color-mix(in_oklab,var(--accent)_24%,transparent)] hover:enabled:text-accent'
+            )}
+            aria-label={session.controlBusy ? (locale.startsWith('zh') ? '停止托管' : 'Stop Custody') : locale.startsWith('zh') ? '开启托管' : 'Start Custody'}
             aria-pressed={session.controlBusy}
-            tooltip={session.controlBusy ? (locale.startsWith('zh') ? '停止托管' : 'Stop Custody') : (locale.startsWith('zh') ? '开启托管' : 'Start Custody')}
+            tooltip={session.controlBusy ? (locale.startsWith('zh') ? '停止托管' : 'Stop Custody') : locale.startsWith('zh') ? '开启托管' : 'Start Custody'}
             onClick={() => {
               if (session.controlBusy) {
                 void session.stopControl()
@@ -178,6 +181,7 @@ function CompanionPanelBody({ gameId, open, observe: _observe, request }: Props)
           locale={locale}
           agentAvailable={session.agentStatus ? session.agentStatus.available : null}
           agentReason={session.agentStatus?.reason || null}
+          gameOnline={session.agentStatus?.gameOnline}
           hostStatus={session.hostStatus}
           gap={session.gap}
           hostMissing={session.hostMissing}
@@ -221,13 +225,12 @@ function CompanionPanelBody({ gameId, open, observe: _observe, request }: Props)
             ) : (
               <div role="status" className="m-0 flex min-h-0 flex-1 items-center justify-center px-3 py-6 text-center text-[0.7rem] leading-4 text-ink-soft">
                 <div className="flex flex-col items-center gap-2">
-                  <span>{locale.startsWith('zh') || locale === 'cht' ? '跟旅伴聊聊天，或直接交代游戏里的事。' : 'Chat with your companion, or ask them to handle something in the game.'}</span>
-                  <Button
-                    size="mini"
-                    variant="accent"
-                    className="mt-1"
-                    onClick={() => void session.sendPrompt('开启托管')}
-                  >
+                  <span>
+                    {locale.startsWith('zh') || locale === 'cht'
+                      ? '跟旅伴聊聊天，或直接交代游戏里的事。'
+                      : 'Chat with your companion, or ask them to handle something in the game.'}
+                  </span>
+                  <Button size="mini" variant="accent" className="mt-1" onClick={() => void session.sendPrompt('开启托管')}>
                     <Compass size={12} className="mr-1" aria-hidden />
                     {locale.startsWith('zh') || locale === 'cht' ? '开启托管' : 'Start Custody'}
                   </Button>
@@ -258,61 +261,75 @@ function CompanionPanelBody({ gameId, open, observe: _observe, request }: Props)
             </button>
           ) : null}
         </div>
-        {session.controlBusy ? (
-          <div className="flex flex-col shrink-0 border-t border-line bg-[color-mix(in_oklab,var(--accent)_12%,var(--panel-2))]">
-            <div className="flex shrink-0 items-center justify-between px-2.5 py-1 text-xs">
-              <div className="flex min-w-0 items-center gap-1.5 truncate">
-                <span className="h-1.5 w-1.5 shrink-0 animate-ping rounded-full bg-accent" />
-                <span className="truncate font-medium text-ink">
-                  {session.controlProgress || (locale.startsWith('zh') || locale === 'cht' ? '托管推进中…' : 'Custody in progress…')}
-                </span>
-              </div>
-              <Button
-                size="mini"
-                variant="fail"
-                className="h-5 w-5 p-0 shrink-0"
-                aria-label={locale.startsWith('zh') || locale === 'cht' ? '停止托管' : 'Stop Custody'}
-                tooltip={locale.startsWith('zh') || locale === 'cht' ? '停止托管' : 'Stop Custody'}
-                onClick={() => void session.stopControl()}
-              >
-                <Square size={10} fill="currentColor" aria-hidden />
-              </Button>
-            </div>
-            {session.latestThought ? (
-              <details className="group border-t border-line/50 px-2.5 py-1 text-xs" open={false}>
-                <summary className="flex cursor-pointer select-none items-center justify-between text-ink-soft hover:text-ink list-none">
-                  <div className="flex items-center gap-1.5 truncate">
-                    <span className="text-[11px]" aria-hidden>🧠</span>
-                    <span className="font-medium text-ink">思考过程</span>
-                    <span className="text-[10px] opacity-75">
-                      ({session.latestThought.durationMs}ms · {session.latestThought.model || 'model'})
-                    </span>
+        {session.controlBusy
+          ? (() => {
+              const text = session.controlProgress || ''
+              const isDanger = text.includes('🚨') || text.includes('⚠️')
+              const isBattle = text.includes('⚔️')
+              const barClass = isDanger
+                ? 'bg-[color-mix(in_oklab,#ef4444_22%,var(--panel-2))] border-rose-500/50'
+                : isBattle
+                  ? 'bg-[color-mix(in_oklab,#f59e0b_18%,var(--panel-2))] border-amber-500/40'
+                  : 'bg-[color-mix(in_oklab,var(--accent)_12%,var(--panel-2))] border-line'
+              const pingColor = isDanger ? 'bg-rose-500' : isBattle ? 'bg-amber-500' : 'bg-accent'
+              const textClass = isDanger ? 'font-semibold text-rose-300' : isBattle ? 'font-medium text-amber-200' : 'font-medium text-ink'
+              return (
+                <div className={cn('flex flex-col shrink-0 border-t transition-colors', barClass)}>
+                  <div className="flex shrink-0 items-center justify-between px-2.5 py-1 text-xs">
+                    <div className="flex min-w-0 items-center gap-1.5 truncate">
+                      <span className={cn('h-1.5 w-1.5 shrink-0 animate-ping rounded-full', pingColor)} />
+                      <span className={cn('truncate', textClass)}>{text || (locale.startsWith('zh') || locale === 'cht' ? '托管推进中…' : 'Custody in progress…')}</span>
+                    </div>
+                    <Button
+                      size="mini"
+                      variant="fail"
+                      className="h-5 w-5 p-0 shrink-0"
+                      aria-label={locale.startsWith('zh') || locale === 'cht' ? '停止托管' : 'Stop Custody'}
+                      tooltip={locale.startsWith('zh') || locale === 'cht' ? '停止托管' : 'Stop Custody'}
+                      onClick={() => void session.stopControl()}
+                    >
+                      <Square size={10} fill="currentColor" aria-hidden />
+                    </Button>
                   </div>
-                  <ChevronRight size={12} className="shrink-0 opacity-70 transition-transform group-open:rotate-90" aria-hidden />
-                </summary>
-                <div className="mt-1.5 space-y-1 font-mono text-[11px] leading-relaxed pb-0.5">
-                  {session.latestThought.promptSummary ? (
-                    <div className="text-ink-soft">
-                      <span className="font-semibold text-ink">分析目标：</span>
-                      {session.latestThought.promptSummary}
-                    </div>
-                  ) : null}
-                  {session.latestThought.thought ? (
-                    <div className="max-h-36 overflow-y-auto whitespace-pre-wrap rounded border border-line/40 bg-surface-subtle p-2 text-ink">
-                      {session.latestThought.thought}
-                    </div>
-                  ) : null}
-                  {session.latestThought.decision ? (
-                    <div className="text-ink-soft">
-                      <span className="font-semibold text-ink">推理结论：</span>
-                      <span className="font-medium text-accent">{session.latestThought.decision}</span>
-                    </div>
+                  {session.latestThought ? (
+                    <details className="group border-t border-line/50 px-2.5 py-1 text-xs" open={false}>
+                      <summary className="flex cursor-pointer select-none items-center justify-between text-ink-soft hover:text-ink list-none">
+                        <div className="flex items-center gap-1.5 truncate">
+                          <span className="text-[11px]" aria-hidden>
+                            🧠
+                          </span>
+                          <span className="font-medium text-ink">思考过程</span>
+                          <span className="text-[10px] opacity-75">
+                            ({session.latestThought.durationMs}ms · {session.latestThought.model || 'model'})
+                          </span>
+                        </div>
+                        <ChevronRight size={12} className="shrink-0 opacity-70 transition-transform group-open:rotate-90" aria-hidden />
+                      </summary>
+                      <div className="mt-1.5 space-y-1 font-mono text-[11px] leading-relaxed pb-0.5">
+                        {session.latestThought.promptSummary ? (
+                          <div className="text-ink-soft">
+                            <span className="font-semibold text-ink">分析目标：</span>
+                            {session.latestThought.promptSummary}
+                          </div>
+                        ) : null}
+                        {session.latestThought.thought ? (
+                          <div className="max-h-36 overflow-y-auto whitespace-pre-wrap rounded border border-line/40 bg-surface-subtle p-2 text-ink">
+                            {session.latestThought.thought}
+                          </div>
+                        ) : null}
+                        {session.latestThought.decision ? (
+                          <div className="text-ink-soft">
+                            <span className="font-semibold text-ink">推理结论：</span>
+                            <span className="font-medium text-accent">{session.latestThought.decision}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                    </details>
                   ) : null}
                 </div>
-              </details>
-            ) : null}
-          </div>
-        ) : null}
+              )
+            })()
+          : null}
         <CompanionComposer
           locale={locale}
           question={session.question}

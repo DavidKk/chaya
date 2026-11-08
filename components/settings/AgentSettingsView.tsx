@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { IoAdd, IoArrowBack, IoInfinite, IoTrashOutline } from 'react-icons/io5'
+import { IoAdd, IoArrowBack, IoInfinite, IoOptionsOutline, IoTrashOutline } from 'react-icons/io5'
 import { TbPencilCog } from 'react-icons/tb'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
@@ -13,6 +13,7 @@ import {
   formControlInlineStart,
   formDesc,
   formDescInline,
+  formField,
   formFieldInlineWideLabel,
   formTitle,
   formTitleInline,
@@ -20,9 +21,25 @@ import {
   settingsCardWide,
 } from '@/components/layoutClasses'
 import { useNotification } from '@/components/notification/useNotification'
-import { ApiKeyInput, Button, DurationInput, EmptyState, NumberSliderInput, resolveApiKeySaveAction, Select, TextInput, Tooltip, TruncateText } from '@/components/sk'
+import {
+  AffixedTextInput,
+  ApiKeyInput,
+  Button,
+  Combobox,
+  DurationInput,
+  EmptyState,
+  NumberSliderInput,
+  PlainTextEditor,
+  resolveApiKeySaveAction,
+  Select,
+  SwitchToggle,
+  TextInput,
+  Tooltip,
+  TruncateText,
+} from '@/components/sk'
 import { ScrollArea } from '@/components/sk/ScrollArea'
 import { keepAliveToMs, msToKeepAlive } from '@/lib/game-agent/keep-alive'
+import { isModelEnabled } from '@/lib/game-agent/profile-models'
 import {
   type AgentProviderAvailability,
   CLI_PROVIDERS_FEATURE,
@@ -36,8 +53,10 @@ import {
   OPENAPI_PROVIDERS_FEATURE,
 } from '@/lib/game-agent/providers'
 import {
-  AGENT_PROXY_PROTOCOLS,
+  AGENT_PROXY_PROTOCOL_FIELDS,
   type AgentProxyProtocol,
+  type AgentProxyProtocolField,
+  defaultAgentProxyUrlScheme,
   normalizeAgentProxy,
   normalizeAgentProxyHeaders,
   normalizeAgentProxyProtocols,
@@ -48,6 +67,7 @@ import { cn } from '@/lib/utils'
 
 import { type AgentModel, type AgentProfile, type AgentSettings, type AgentSettingsRequest, createAgentProfile, proxyHeadersText, withAgentProvider } from './agent-types'
 import { AgentAuthSection } from './AgentAuthSection'
+import { AgentProxyUrlInput } from './AgentProxyUrlInput'
 import { AgentDetailSkeleton, AgentListSkeleton } from './AgentSettingsSkeleton'
 
 const API = '/api/integration/game-agent'
@@ -96,8 +116,10 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   /** After save, locked to a fixed mask until the user clicks to clear and re-enter. */
   const [apiKeyUnlocked, setApiKeyUnlocked] = useState(false)
   const [proxyHeadersDraft, setProxyHeadersDraft] = useState('')
+  /** Expands per-protocol override rows under the default proxy field. */
   const [proxyProtocolsOpen, setProxyProtocolsOpen] = useState(false)
-  const [manualModelInput, setManualModelInput] = useState(false)
+  /** Explicit inherit toggles; opening the panel defaults to editable (not inherit). */
+  const [protocolInherit, setProtocolInherit] = useState<Partial<Record<AgentProxyProtocolField, boolean>>>({})
   /** CLI agent types need the local service; Cloud and browser runtimes answer LOCAL_ONLY. */
   const [cliAvailable, setCliAvailable] = useState(true)
   /** Types whose sign-in Chaya does not support yet, or whose CLI is not installed, cannot be picked. */
@@ -121,6 +143,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
       draft.label !== saved.label ||
       draft.provider !== saved.provider ||
       draft.defaultModel !== saved.defaultModel ||
+      JSON.stringify(draft.enabledModels ?? null) !== JSON.stringify(saved.enabledModels ?? null) ||
       draft.endpoint !== saved.endpoint ||
       (draft.modelsEndpoint || '') !== (saved.modelsEndpoint || '') ||
       (draft.proxy || '') !== (saved.proxy || '') ||
@@ -165,6 +188,8 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
           setHasToken(false)
           setApiKeyUnlocked(false)
           setProxyHeadersDraft('')
+          setProxyProtocolsOpen(false)
+          setProtocolInherit({})
           setModels([])
         } else if (agentId) {
           const profile = body.settings.profiles.find((item) => item.id === agentId)
@@ -185,6 +210,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
           setApiKeyUnlocked(false)
           setProxyHeadersDraft(proxyHeadersText(profile.proxyHeaders))
           setProxyProtocolsOpen(Boolean(profile.proxyProtocols && Object.keys(profile.proxyProtocols).length))
+          setProtocolInherit({})
           setModels(body.models?.[profile.id] || [])
         } else setDraft(null)
       } catch (error) {
@@ -268,7 +294,12 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
     }
     setBusy('save')
     try {
-      const nextDraft = { ...draft, modelsEndpoint: (draft.modelsEndpoint || '').trim(), proxyHeaders, proxyProtocols }
+      const nextDraft = {
+        ...draft,
+        modelsEndpoint: (draft.modelsEndpoint || '').trim(),
+        proxyHeaders,
+        proxyProtocols,
+      }
       const profiles = creating ? [...settings.profiles, nextDraft] : settings.profiles.map((item) => (item.id === draft.id ? nextDraft : item))
       const saved = await saveSettings({ ...settings, profiles })
       const savedProfile = (saved.profiles.find((item) => item.id === draft.id) || nextDraft) as AgentProfileView
@@ -293,6 +324,8 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
       setHasToken(tokenPresent)
       setDraft({ ...savedProfile, proxyHeaders: savedProfile.proxyHeaders || {}, hasToken: tokenPresent })
       setProxyHeadersDraft(proxyHeadersText(savedProfile.proxyHeaders))
+      setProxyProtocolsOpen(Boolean(savedProfile.proxyProtocols && Object.keys(savedProfile.proxyProtocols).length))
+      setProtocolInherit({})
       notify.success(t('integration.agentSaved'))
       onSaved?.()
       if (creating) onNavigate(draft.id)
@@ -326,7 +359,14 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
         setDraft((current) => {
           if (!current || current.id !== profile.id || current.endpoint !== profile.endpoint) return current
           const selectedStillExists = nextModels.some((model) => model.name === current.defaultModel)
-          return selectedStillExists || !body.defaultModel ? current : { ...current, defaultModel: body.defaultModel }
+          const defaultModel = selectedStillExists || !body.defaultModel ? current.defaultModel : body.defaultModel
+          if (current.enabledModels?.length) {
+            const known = new Set(nextModels.map((model) => model.name))
+            // Keep the user's allowlist; drop ids that disappeared from the catalog.
+            const pruned = current.enabledModels.filter((name) => known.has(name) || name === defaultModel)
+            return { ...current, defaultModel, enabledModels: pruned.length ? pruned : current.enabledModels }
+          }
+          return { ...current, defaultModel }
         })
         if (feedback === 'test')
           notify.success(
@@ -395,9 +435,26 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   const providerLabel = (provider: GameAgentProvider) => t(PROVIDER_LABEL_KEYS[provider])
   const modelLabels = new Map(models.map((item) => [item.name, item.label || item.name]))
   if (draft?.defaultModel && !modelLabels.has(draft.defaultModel)) modelLabels.set(draft.defaultModel, draft.defaultModel)
+  for (const name of draft?.enabledModels || []) {
+    if (!modelLabels.has(name)) modelLabels.set(name, name)
+  }
+  const catalogNames = models.map((item) => item.name)
+  const listedModelNames = [...catalogNames, ...[...modelLabels.keys()].filter((name) => !catalogNames.includes(name))]
+  const enabledNames = draft ? (draft.enabledModels ? draft.enabledModels : catalogNames.length ? catalogNames : draft.defaultModel ? [draft.defaultModel] : []) : []
+  const enabledCount = listedModelNames.filter((name) => isModelEnabled(name, draft?.enabledModels)).length
+  const allEnabled = listedModelNames.length > 0 && enabledCount === listedModelNames.length
+  const setEnabledNames = (next: string[] | undefined) => {
+    if (!draft) return
+    // Keep an explicit allowlist once the user toggles models; undefined only means "not customized yet".
+    const enabledModels = next ? [...new Set(next.filter(Boolean))] : undefined
+    const defaultModel = isModelEnabled(draft.defaultModel, enabledModels)
+      ? draft.defaultModel
+      : enabledModels?.[0] || (enabledModels === undefined ? catalogNames[0] || draft.defaultModel || '' : '')
+    update({ enabledModels, defaultModel })
+  }
   const modelOptions = [
     ...(draft && isCliProvider(draft.provider) ? [{ value: '', label: t('agentAuth.defaultModelAuto') }] : []),
-    ...[...modelLabels].map(([name, label]) => ({ value: name, label })),
+    ...enabledNames.map((name) => ({ value: name, label: modelLabels.get(name) || name })),
   ]
 
   if (busy === 'load') return editing ? <AgentDetailSkeleton label={t('integration.agentEditTitle')} /> : <AgentListSkeleton label={t('integration.agentProfiles')} />
@@ -512,6 +569,7 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
     else next[key] = value
     update({ proxyProtocols: next })
   }
+  const hasProxyOverrides = Boolean(draft.proxyProtocols && Object.keys(draft.proxyProtocols).length)
   const providerOptions = GAME_AGENT_PROVIDERS.map((value) => {
     const reason = !isCliProvider(value)
       ? null
@@ -633,47 +691,91 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                 ) : null}
               </>
             )}
-            <div className={formFieldInlineWideLabel}>
+            {!isCliProvider(draft.provider) ? (
+              <div className="relative !px-0 !py-0 before:!inset-x-0">
+                <div className="flex items-start justify-between gap-3 px-4 py-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex min-w-0 flex-wrap items-center gap-2">
+                      <div className={formTitle}>{t('integration.agentEnabledModels')}</div>
+                      {listedModelNames.length ? (
+                        <span className="shrink-0 rounded-full bg-[color-mix(in_oklab,var(--ok)_16%,transparent)] px-2 py-0.5 text-[0.7rem] font-medium text-ok">
+                          {t('integration.agentEnabledModelsBadge', { enabled: enabledCount, total: listedModelNames.length })}
+                        </span>
+                      ) : null}
+                    </div>
+                    <p className={cn(formDesc, 'm-0 mt-1')}>{t('integration.agentEnabledModelsDesc')}</p>
+                  </div>
+                  <SwitchToggle
+                    size="sm"
+                    className="mt-0.5"
+                    checked={allEnabled ? true : enabledCount > 0 ? 'mixed' : false}
+                    disabled={busy === 'save' || modelsBusy || !listedModelNames.length}
+                    tooltip={allEnabled ? t('integration.agentEnabledModelsNone') : t('integration.agentEnabledModelsAll')}
+                    onCheckedChange={(next) => setEnabledNames(next ? (catalogNames.length ? catalogNames : listedModelNames) : [])}
+                  />
+                </div>
+                <div className="max-h-64 overflow-y-auto">
+                  {listedModelNames.length ? (
+                    <ul className="m-0 flex list-none flex-col p-0">
+                      {listedModelNames.map((name) => {
+                        const label = modelLabels.get(name) || name
+                        const checked = isModelEnabled(name, draft.enabledModels)
+                        return (
+                          <li key={name} className="mx-4 flex items-center justify-between gap-3 border-t border-line py-2.5">
+                            <div className="min-w-0 flex-1">
+                              <div className="truncate text-[0.8125rem] font-medium text-ink">{label}</div>
+                              {label !== name ? <div className="mt-0.5 truncate text-[0.7rem] text-ink-soft">{name}</div> : null}
+                            </div>
+                            <SwitchToggle
+                              size="sm"
+                              checked={checked}
+                              disabled={busy === 'save' || modelsBusy}
+                              tooltip={label}
+                              onCheckedChange={(next) => {
+                                const current = draft.enabledModels ?? catalogNames
+                                setEnabledNames(next ? [...current, name] : current.filter((item) => item !== name))
+                              }}
+                            />
+                          </li>
+                        )
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="m-0 mx-4 border-t border-line px-0 py-4 text-center text-xs text-ink-soft">
+                      {modelsBusy ? t('integration.agentTesting') : t('integration.agentEnabledModelsEmpty')}
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : null}
+            <div className={cn(formFieldInlineWideLabel, !isCliProvider(draft.provider) && 'before:!inset-x-0')}>
               <span className={formTitleInline}>{t('integration.agentDefaultModel')}</span>
               <span className={formDescInline}>{t('integration.agentDefaultModelDesc')}</span>
               <div className={formControlInlineStart}>
-                {manualModelInput ? (
-                  <div className="flex w-full flex-col gap-1.5">
-                    <TextInput
-                      className="w-full"
-                      value={draft.defaultModel}
-                      placeholder="如 antigravity/gemini-3.8-flash 或 codex/gpt-6.1-sol"
-                      onChange={(event) => update({ defaultModel: event.target.value })}
-                      spellCheck={false}
-                    />
-                    <button
-                      type="button"
-                      className="self-start text-xs text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                      onClick={() => setManualModelInput(false)}
-                    >
-                      {t('integration.agentModelSelectFromList')}
-                    </button>
-                  </div>
-                ) : (
-                  <div className="flex w-full flex-col gap-1.5">
-                    <Select
-                      className="w-full"
-                      value={draft.defaultModel}
-                      options={modelOptions}
-                      placeholder={t('integration.agentNoModels')}
-                      loading={modelsBusy}
-                      onOpen={loadModelsOnOpen}
-                      onChange={(defaultModel) => update({ defaultModel })}
-                    />
-                    <button
-                      type="button"
-                      className="self-start text-xs text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                      onClick={() => setManualModelInput(true)}
-                    >
-                      {t('integration.agentModelManualInput')}
-                    </button>
-                  </div>
-                )}
+                <Combobox
+                  className="w-full"
+                  value={draft.defaultModel}
+                  options={modelOptions}
+                  placeholder={t('integration.agentNoModels')}
+                  emptyLabel={t('integration.agentModelComboboxEmpty')}
+                  loading={modelsBusy}
+                  onOpen={loadModelsOnOpen}
+                  onChange={(defaultModel) => {
+                    const trimmed = defaultModel.trim()
+                    const known = trimmed && modelOptions.some((option) => option.value === trimmed)
+                    update({
+                      defaultModel,
+                      ...(known && draft.enabledModels && !draft.enabledModels.includes(trimmed) ? { enabledModels: [...draft.enabledModels, trimmed] } : {}),
+                    })
+                  }}
+                  onSelectOption={(defaultModel) => {
+                    const trimmed = defaultModel.trim()
+                    update({
+                      defaultModel,
+                      ...(trimmed && draft.enabledModels && !draft.enabledModels.includes(trimmed) ? { enabledModels: [...draft.enabledModels, trimmed] } : {}),
+                    })
+                  }}
+                />
               </div>
             </div>
             {httpModel ? (
@@ -757,71 +859,100 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
                 <DurationInput className="w-full" value={draft.gameCallTimeoutMs} min={1_000} max={600_000} onValueChange={(gameCallTimeoutMs) => update({ gameCallTimeoutMs })} />
               </div>
             </label>
-            <div className={cn(formFieldInlineWideLabel, 'items-start')}>
-              <div className="col-start-1 row-start-1 flex min-w-0 flex-col gap-1">
-                <span className={formTitle}>{t('integration.agentProxy')}</span>
-                <span className={cn(formDesc, draftProxy === null && 'text-fail')}>{t(draftProxy === null ? 'integration.agentProxyInvalid' : 'integration.agentProxyDesc')}</span>
-              </div>
-              <div className={cn(formControlInlineStart, 'row-span-1 items-stretch self-start flex-col gap-2')}>
-                <TextInput
+            <div className={formFieldInlineWideLabel}>
+              <span className={formTitleInline}>{t('integration.agentProxy')}</span>
+              <span className={cn(formDescInline, draftProxy === null && 'text-fail')}>
+                {t(draftProxy === null ? 'integration.agentProxyInvalid' : 'integration.agentProxyDesc')}
+              </span>
+              <div className={cn(formControlInlineStart, 'flex-col items-stretch gap-1.5')}>
+                <AffixedTextInput
                   className="w-full"
                   value={draft.proxy}
-                  placeholder="127.0.0.1:7890"
+                  placeholder="http://127.0.0.1:7890"
                   spellCheck={false}
-                  aria-invalid={draftProxy === null || undefined}
+                  invalid={draftProxy === null}
+                  aria-label={t('integration.agentProxy')}
+                  endAction={
+                    <Tooltip content={t('integration.agentProxyProtocolsShow')}>
+                      <button
+                        type="button"
+                        className={cn(
+                          lockIconBtn,
+                          (proxyProtocolsOpen || hasProxyOverrides) && 'text-accent hover:enabled:bg-[color-mix(in_oklab,var(--accent)_14%,transparent)] hover:enabled:text-accent'
+                        )}
+                        aria-label={t('integration.agentProxyProtocolsShow')}
+                        aria-expanded={proxyProtocolsOpen}
+                        aria-pressed={proxyProtocolsOpen}
+                        onClick={() => {
+                          setProxyProtocolsOpen((open) => {
+                            if (!open) setProtocolInherit({})
+                            return !open
+                          })
+                        }}
+                      >
+                        <IoOptionsOutline size={15} aria-hidden />
+                      </button>
+                    </Tooltip>
+                  }
                   onChange={(event) => update({ proxy: event.target.value })}
                 />
                 {draftProxySlots && draftProxy ? (
-                  <p className="m-0 text-xs text-ink-soft">
+                  <p className="m-0 text-[0.7rem] leading-[1.35] text-ink-soft">
                     {t('integration.agentProxyAppliesTo', {
                       value: draftProxy,
-                      slots: 'HTTP / HTTPS / SOCKS5 / ALL / FTP',
+                      slots: 'HTTP / HTTPS / SOCKS5 / ALL',
                     })}
                   </p>
                 ) : null}
-                <button
-                  type="button"
-                  className="self-start text-xs text-accent underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
-                  aria-expanded={proxyProtocolsOpen}
-                  onClick={() => setProxyProtocolsOpen((open) => !open)}
-                >
-                  {t(proxyProtocolsOpen ? 'integration.agentProxyProtocolsHide' : 'integration.agentProxyProtocolsShow')}
-                </button>
-                {proxyProtocolsOpen ? (
-                  <div className="flex flex-col gap-2 rounded-md border border-line bg-panel p-2">
-                    <p className="m-0 text-xs text-ink-soft">{t('integration.agentProxyProtocolsHint')}</p>
-                    {AGENT_PROXY_PROTOCOLS.map((key) => (
-                      <label key={key} className="flex min-w-0 items-center gap-2">
-                        <span className="w-14 shrink-0 font-mono text-xs uppercase text-ink-soft">{key}</span>
-                        <TextInput
-                          className="min-w-0 flex-1"
-                          value={draft.proxyProtocols?.[key] || ''}
-                          placeholder={t('integration.agentProxyProtocolInherit')}
-                          spellCheck={false}
-                          onChange={(event) => setProxyProtocol(key, event.target.value)}
-                        />
-                      </label>
-                    ))}
-                  </div>
-                ) : null}
               </div>
             </div>
-            <label className={formFieldInlineWideLabel}>
-              <span className={formTitleInline}>{t('integration.agentProxyHeaders')}</span>
-              <span className={cn(formDescInline, draftProxyHeaders === null && 'text-fail')}>
-                {t(draftProxyHeaders === null ? 'integration.agentProxyHeadersInvalid' : 'integration.agentProxyHeadersDesc')}
-              </span>
-              <div className={formControlInlineStart}>
-                <textarea
-                  className="min-h-20 w-full resize-y rounded-md border border-line bg-inset px-2.5 py-1.5 font-mono text-[0.8125rem] text-ink outline-none focus-visible:border-accent"
-                  value={proxyHeadersDraft}
-                  placeholder={'X-Proxy-Token: ***\nUser-Agent: chaya\n\n或\n{"X-Proxy-Token":"***","User-Agent":"chaya"}'}
-                  spellCheck={false}
-                  aria-invalid={draftProxyHeaders === null || undefined}
-                  onChange={(event) => setProxyHeadersDraft(event.target.value)}
-                />
+            {proxyProtocolsOpen
+              ? AGENT_PROXY_PROTOCOL_FIELDS.map((key) => {
+                  // Opened panel defaults to editable fill; inherit only after explicit icon toggle.
+                  const inherit = protocolInherit[key] === true
+                  return (
+                    <div key={key} className={formFieldInlineWideLabel}>
+                      <span className={formTitleInline}>{key.toUpperCase()}</span>
+                      <span className={formDescInline}>{inherit ? t('integration.agentProxyProtocolInherit') : t('integration.agentProxyProtocolOverride')}</span>
+                      <div className={formControlInlineStart}>
+                        <AgentProxyUrlInput
+                          value={draft.proxyProtocols?.[key] || ''}
+                          defaultValue={draftProxy || draft.proxy}
+                          defaultScheme={defaultAgentProxyUrlScheme(key)}
+                          inherit={inherit}
+                          aria-label={key.toUpperCase()}
+                          onChange={(next) => {
+                            if (next.trim()) setProtocolInherit((prev) => ({ ...prev, [key]: false }))
+                            setProxyProtocol(key, next)
+                          }}
+                          onInheritChange={(nextInherit) => {
+                            setProtocolInherit((prev) => ({ ...prev, [key]: nextInherit }))
+                            if (nextInherit) setProxyProtocol(key, '')
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })
+              : null}
+            <div className={cn(formField, 'gap-2')}>
+              <div className="min-w-0">
+                <div className={formTitle}>{t('integration.agentProxyHeaders')}</div>
+                <p className={cn(formDesc, 'm-0 mt-1', draftProxyHeaders === null && 'text-fail')}>
+                  {t(draftProxyHeaders === null ? 'integration.agentProxyHeadersInvalid' : 'integration.agentProxyHeadersDesc')}
+                </p>
               </div>
-            </label>
+              <PlainTextEditor
+                language={proxyHeadersDraft.trimStart().startsWith('{') ? 'json' : 'ini'}
+                value={proxyHeadersDraft}
+                minLines={6}
+                heightPx={160}
+                softWrap
+                aria-label={t('integration.agentProxyHeaders')}
+                className={cn(draftProxyHeaders === null && 'border-fail')}
+                onChange={setProxyHeadersDraft}
+              />
+            </div>
             <div className="flex min-w-0 items-center justify-between gap-3" data-agent-detail-toolbar>
               <div className="flex min-w-0 items-center justify-start gap-2">
                 <Button variant="ghost" onClick={() => void handleNavigate()}>

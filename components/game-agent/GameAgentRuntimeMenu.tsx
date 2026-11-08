@@ -15,7 +15,7 @@ type Profile = {
   id: string
   label: string
   online: boolean
-  models: { name: string }[]
+  models: { name: string; label?: string }[]
   defaultModel: string
 }
 
@@ -234,7 +234,9 @@ export function GameAgentRuntimeMenu({
                   <ScrollArea className="max-h-56" scrollClassName="max-h-56" reserveGutter={false}>
                     <div className="py-1">
                       {visibleModels.length ? (
-                        visibleModels.map((item) => <MenuOption key={item.name} label={item.name} selected={item.name === model} onClick={() => chooseModel(item.name)} />)
+                        visibleModels.map((item) => (
+                          <MenuOption key={item.name} label={item.label || item.name} selected={item.name === model} onClick={() => chooseModel(item.name)} />
+                        ))
                       ) : (
                         <p className="m-0 px-3 py-2 text-xs text-ink-soft">{copy.empty}</p>
                       )}

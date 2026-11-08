@@ -1,11 +1,15 @@
 import {
   agentProxyKind,
+  defaultAgentProxyUrlScheme,
   isLoopbackHost,
   isSocksProxy,
+  joinAgentProxyUrl,
   normalizeAgentProxy,
   normalizeAgentProxyHeaders,
   normalizeAgentProxyProtocols,
   resolveAgentProxySlots,
+  runtimeAgentProxyUrl,
+  splitAgentProxyUrl,
 } from '@/lib/game-agent/proxy'
 
 test('normalizes supported proxy URLs and bare host:port as http default', () => {
@@ -16,6 +20,8 @@ test('normalizes supported proxy URLs and bare host:port as http default', () =>
   expect(normalizeAgentProxy('https://proxy.example:8443')).toBe('https://proxy.example:8443')
   expect(normalizeAgentProxy('socks5h://user:p%40ss@proxy.example:1080')).toBe('socks5://user:p%40ss@proxy.example:1080')
   expect(normalizeAgentProxy('socks://127.0.0.1:1080')).toBe('socks5://127.0.0.1:1080')
+  expect(normalizeAgentProxy('ws://127.0.0.1:7890')).toBe('ws://127.0.0.1:7890')
+  expect(normalizeAgentProxy('wss://proxy.example:8443')).toBe('wss://proxy.example:8443')
 })
 
 test('rejects other schemes and URLs with paths', () => {
@@ -52,6 +58,25 @@ test('per-protocol overrides win while empty slots keep inheriting the default',
   expect(normalizeAgentProxyProtocols('http://127.0.0.1:7890', { https: 'socks5://127.0.0.1:1080', http: 'http://127.0.0.1:7890' })).toEqual({
     https: 'socks5://127.0.0.1:1080',
   })
+})
+
+test('splits and joins proxy URL scheme + endpoint for the settings form', () => {
+  expect(splitAgentProxyUrl('')).toEqual({ scheme: 'http:', endpoint: '' })
+  expect(splitAgentProxyUrl('', 'socks5:')).toEqual({ scheme: 'socks5:', endpoint: '' })
+  expect(splitAgentProxyUrl('127.0.0.1:7890')).toEqual({ scheme: 'http:', endpoint: '127.0.0.1:7890' })
+  expect(splitAgentProxyUrl('127.0.0.1:7890', 'socks5:')).toEqual({ scheme: 'socks5:', endpoint: '127.0.0.1:7890' })
+  expect(splitAgentProxyUrl('socks5://127.0.0.1:1080')).toEqual({ scheme: 'socks5:', endpoint: '127.0.0.1:1080' })
+  expect(joinAgentProxyUrl('https:', 'proxy.example:8443')).toBe('https://proxy.example:8443')
+  expect(joinAgentProxyUrl('ws:', '')).toBe('')
+  expect(runtimeAgentProxyUrl('ws://127.0.0.1:7890')).toBe('http://127.0.0.1:7890')
+  expect(runtimeAgentProxyUrl('wss://proxy.example:8443')).toBe('https://proxy.example:8443')
+})
+
+test('picks slot-specific default URL schemes for empty override rows', () => {
+  expect(defaultAgentProxyUrlScheme('http')).toBe('http:')
+  expect(defaultAgentProxyUrlScheme('https')).toBe('http:')
+  expect(defaultAgentProxyUrlScheme('all')).toBe('http:')
+  expect(defaultAgentProxyUrlScheme('socks5')).toBe('socks5:')
 })
 
 test('normalizes proxy headers from lines, JSON text, or maps', () => {

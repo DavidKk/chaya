@@ -1,6 +1,8 @@
+export { AffixedTextInput, type AffixedTextInputProps } from '@/components/sk/AffixedTextInput'
 export { API_KEY_SEALED_MASK, ApiKeyInput, type ApiKeyInputProps, type ApiKeySaveAction, resolveApiKeySaveAction } from '@/components/sk/ApiKeyInput'
 export { Badge, type BadgeProps, type BadgeTone } from '@/components/sk/Badge'
 export { Button, type ButtonProps, type ButtonSize, type ButtonVariant } from '@/components/sk/Button'
+export { Combobox, type ComboboxProps } from '@/components/sk/Combobox'
 export { CopyField, type CopyFieldProps } from '@/components/sk/CopyField'
 export { DataList, type DataListColumn, type DataListProps, type DataListSortState } from '@/components/sk/DataList'
 export { DataTable, type DataTableColumn, type DataTableProps, type DataTableSortState } from '@/components/sk/DataTable'

@@ -1,4 +1,4 @@
-const PROXY_SCHEMES = new Set(['http:', 'https:', 'socks:', 'socks5:', 'socks5h:'])
+const PROXY_SCHEMES = new Set(['http:', 'https:', 'socks:', 'socks5:', 'socks5h:', 'ws:', 'wss:'])
 const MAX_PROXY_HEADERS = 20
 const MAX_HEADER_NAME = 64
 const MAX_HEADER_VALUE = 512
@@ -7,15 +7,65 @@ const HEADER_NAME = /^[A-Za-z0-9!#$%&'*+.^_`|~-]+$/
 /**
  * Application / env proxy slots (ZeroOmega-style).
  * The URL scheme is how to reach the proxy server; slots are which traffic uses it.
+ * `ftp` stays for env compatibility but is not edited in the settings UI.
  */
 export const AGENT_PROXY_PROTOCOLS = ['http', 'https', 'socks5', 'all', 'ftp'] as const
+/** Traffic slots shown in the agent settings form (no FTP). */
+export const AGENT_PROXY_PROTOCOL_FIELDS = ['http', 'https', 'socks5', 'all'] as const
 export type AgentProxyProtocol = (typeof AGENT_PROXY_PROTOCOLS)[number]
+export type AgentProxyProtocolField = (typeof AGENT_PROXY_PROTOCOL_FIELDS)[number]
 export type AgentProxyProtocols = Partial<Record<AgentProxyProtocol, string>>
 
 /** How the proxy server itself is reached (URL scheme of a proxy value). */
 export type AgentProxyKind = 'http' | 'https' | 'socks5'
 
+/** Selectable URL prefixes for the proxy server address. */
+export const AGENT_PROXY_URL_SCHEMES = ['http:', 'https:', 'socks5:', 'ws:', 'wss:'] as const
+export type AgentProxyUrlScheme = (typeof AGENT_PROXY_URL_SCHEMES)[number]
+
 const BARE_HOST_PORT = /^(?:\[[^\]]+\]|[^:/?#]+)(?::\d+)?$/
+
+/** Empty override row: SOCKS5 traffic defaults to a socks proxy; other slots default to http. */
+export function defaultAgentProxyUrlScheme(slot: AgentProxyProtocolField | AgentProxyProtocol): AgentProxyUrlScheme {
+  return slot === 'socks5' ? 'socks5:' : 'http:'
+}
+
+function canonicalizeProxyProtocol(protocol: string): AgentProxyUrlScheme {
+  if (protocol === 'socks:' || protocol === 'socks5h:') return 'socks5:'
+  if ((AGENT_PROXY_URL_SCHEMES as readonly string[]).includes(protocol)) return protocol as AgentProxyUrlScheme
+  return 'http:'
+}
+
+/** Split a stored proxy URL into scheme select value + host[:port][/auth@] endpoint. */
+export function splitAgentProxyUrl(value: string | undefined, emptyScheme: AgentProxyUrlScheme = 'http:'): { scheme: AgentProxyUrlScheme; endpoint: string } {
+  const raw = typeof value === 'string' ? value.trim() : ''
+  if (!raw) return { scheme: emptyScheme, endpoint: '' }
+  if (!/^[a-z][a-z0-9+.-]*:/i.test(raw)) return { scheme: emptyScheme, endpoint: raw }
+  try {
+    const url = new URL(raw.includes('://') ? raw : `http://${raw}`)
+    const scheme = canonicalizeProxyProtocol(url.protocol)
+    const auth = url.username ? `${url.username}${url.password ? `:${url.password}` : ''}@` : ''
+    return { scheme, endpoint: `${auth}${url.host}` }
+  } catch {
+    return { scheme: 'http:', endpoint: raw }
+  }
+}
+
+/** Join scheme + endpoint for storage / normalize. Empty endpoint clears the value. */
+export function joinAgentProxyUrl(scheme: AgentProxyUrlScheme, endpoint: string): string {
+  const host = endpoint.trim()
+  if (!host) return ''
+  // Full URL already typed into the host field — keep as-is. Bare host:port must not match.
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(host)) return host
+  return `${scheme}//${host}`
+}
+
+/** Runtime fetch / env agents only speak http(s)/socks — map ws(s) at the edge. */
+export function runtimeAgentProxyUrl(proxy: string): string {
+  if (/^wss:/i.test(proxy)) return proxy.replace(/^wss:/i, 'https:')
+  if (/^ws:/i.test(proxy)) return proxy.replace(/^ws:/i, 'http:')
+  return proxy
+}
 
 /** `''` means no per-agent proxy (Chaya's own environment applies). Throws a player-facing message when invalid. */
 export function normalizeAgentProxy(value: unknown): string {
@@ -32,11 +82,11 @@ export function normalizeAgentProxy(value: unknown): string {
   } catch {
     throw new Error('Invalid proxy endpoint format, e.g. 127.0.0.1:7890, http://127.0.0.1:7890, or socks5://127.0.0.1:7890')
   }
-  if (!PROXY_SCHEMES.has(url.protocol)) throw new Error('Proxy server only supports http, https, socks5')
+  if (!PROXY_SCHEMES.has(url.protocol)) throw new Error('Proxy server only supports http, https, socks5, ws, wss')
   if (!url.hostname) throw new Error('Proxy endpoint missing hostname')
   if ((url.pathname && url.pathname !== '/') || url.search || url.hash) throw new Error('Proxy endpoint only requires protocol, host, and port; paths are not supported')
   const auth = url.username ? `${url.username}${url.password ? `:${url.password}` : ''}@` : ''
-  const protocol = url.protocol === 'socks:' || url.protocol === 'socks5h:' ? 'socks5:' : url.protocol
+  const protocol = canonicalizeProxyProtocol(url.protocol)
   return `${protocol}//${auth}${url.host}`
 }
 
@@ -153,7 +203,7 @@ export function agentProxyHeadersKey(headers: Record<string, string> | undefined
 
 export function agentProxyKind(proxy: string): AgentProxyKind {
   if (/^socks/i.test(proxy)) return 'socks5'
-  if (/^https:/i.test(proxy)) return 'https'
+  if (/^https:/i.test(proxy) || /^wss:/i.test(proxy)) return 'https'
   return 'http'
 }
 

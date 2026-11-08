@@ -21,16 +21,22 @@ import { clearCompanionTranscript, isPersistedCompanionActivity, loadCompanionTr
 import type { ChatLine } from './CompanionChatLine'
 import type { GameAgentRequest } from './GameAgentWorkspace'
 import { readTurnEvents, type TurnEvent } from './turnStream'
-import { isCapabilityUnsupported, isCompanionAbortError, toCompanionClientError, useCompanionClient } from './useCompanionClient'
+import {
+  isAgentRuntimeUnavailable,
+  isAgentRuntimeUnavailableReason,
+  isCapabilityUnsupported,
+  isCompanionAbortError,
+  toCompanionClientError,
+  useCompanionClient,
+} from './useCompanionClient'
 import { useCompanionTranscriptPersistence } from './useCompanionTranscriptPersistence'
 
-const EVENTS_MS = 180
-const STATUS_MS = 2_000
 const MAX_MESSAGES = 200
 
 type AgentProfile = { id: string; label: string; online: boolean; models: { name: string }[]; defaultModel: string }
 type AgentStatus = {
   available: boolean
+  gameOnline?: boolean
   profiles: AgentProfile[]
   defaultProfileId: string
   session: {
@@ -201,18 +207,25 @@ export function useCompanionSession(input: {
       if (isCompanionAbortError(error)) return
       if (isCapabilityUnsupported(error)) setHostMissing(true)
       setHostStatus(null)
-      setAgentStatus((current) => current || { available: false, profiles: [], defaultProfileId: '', session: null, reason: formatCompanionError(error) })
+      // Booting the map installs the task host; treat that gap as quiet waiting, not a panel error.
+      if (isAgentRuntimeUnavailable(error)) return
+      setAgentStatus((current) => current || { available: false, gameOnline: false, profiles: [], defaultProfileId: '', session: null, reason: formatCompanionError(error) })
     }
   }, [call])
 
   const refreshAgentStatus = useCallback(async () => {
     try {
       const response = await request(`/api/game-agent/status?gameId=${encodeURIComponent(gameId)}`)
-      const body = (await response.json()) as AgentStatus
+      const body = (await response.json()) as AgentStatus & { gameOnline?: boolean }
       if (!response.ok) throw toCompanionClientError(body, `HTTP ${response.status}`, response.status)
-      setAgentStatus(body)
-      onProfiles?.(body)
-      const active = body.session?.activeTurn
+      const next = {
+        ...body,
+        gameOnline: body.gameOnline,
+        reason: isAgentRuntimeUnavailableReason(body.reason) ? null : body.reason,
+      }
+      setAgentStatus(next)
+      onProfiles?.(next)
+      const active = next.session?.activeTurn
       if (active && (active.capability === 'play' || active.capability === 'companion')) {
         setControlTaskId((current) => current || active.id)
         setControlProgress((current) => current || active.phase || '托管推进中…')
@@ -222,7 +235,15 @@ export function useCompanionSession(input: {
       }
     } catch (error) {
       if (isCompanionAbortError(error)) return
-      setAgentStatus({ available: false, profiles: [], defaultProfileId: '', session: null, reason: formatCompanionError(error) })
+      if (isAgentRuntimeUnavailable(error)) {
+        setAgentStatus((current) =>
+          current
+            ? { ...current, gameOnline: false, reason: isAgentRuntimeUnavailableReason(current.reason) ? null : current.reason }
+            : { available: false, gameOnline: false, profiles: [], defaultProfileId: '', session: null, reason: null }
+        )
+        return
+      }
+      setAgentStatus({ available: false, gameOnline: false, profiles: [], defaultProfileId: '', session: null, reason: formatCompanionError(error) })
     }
   }, [gameId, onProfiles, request])
 
@@ -307,7 +328,7 @@ export function useCompanionSession(input: {
     } catch (error) {
       if (!isCompanionAbortError(error)) {
         const formatted = formatCompanionError(error)
-        if (!formatted.includes("Task not found") && !formatted.includes("AGENT_TURN_NOT_FOUND")) {
+        if (!formatted.includes('Task not found') && !formatted.includes('AGENT_TURN_NOT_FOUND')) {
           append({ id: crypto.randomUUID(), role: 'error', text: formatted })
         }
       }
@@ -362,11 +383,11 @@ export function useCompanionSession(input: {
       } catch (error) {
         if (!isCompanionAbortError(error)) {
           const formatted = formatCompanionError(error)
-          if (!formatted.includes("Task not found")) {
+          if (!formatted.includes('Task not found')) {
             append({ id: crypto.randomUUID(), role: 'error', text: formatted })
           } else {
-            setControlTaskId("")
-            setControlProgress("")
+            setControlTaskId('')
+            setControlProgress('')
           }
         }
       } finally {
@@ -392,12 +413,7 @@ export function useCompanionSession(input: {
       const abort = new AbortController()
       chatAbortRef.current = abort
       setChatBusy(true)
-      const isCustodyPrompt = /^(开启|开始|启动|帮我|请帮我)?\s*(托管|全托管|全剧情托管|剧情全托管|全托管剧情|托管剧情|剧情托管|自律推进|继续剧情|自动过剧情|自动剧情|过剧情|代打剧情)(\s*(剧情|探索|模式|游玩))?$/i.test(text.trim())
-      if (isCustodyPrompt) {
-        setControlStarting(true)
-        setControlProgress('托管启动中…')
-      }
-      setChatProgress(isCustodyPrompt ? '托管启动中…' : '路由中…')
+      setChatProgress('路由中…')
       chatRequestIdRef.current = routeRequestId
       try {
         const routed = await call<CompanionRouteResult>(
@@ -412,10 +428,6 @@ export function useCompanionSession(input: {
         )
         if (generation !== generationRef.current || abort.signal.aborted) return
         if (routed.kind === 'clarification') {
-          if (isCustodyPrompt) {
-            setControlStarting(false)
-            setControlProgress('')
-          }
           chatRequestIdRef.current = ''
           setChatBusy(false)
           setChatProgress('')
@@ -444,17 +456,13 @@ export function useCompanionSession(input: {
             if (isCapabilityUnsupported(error)) setHostMissing(true)
             setControlProgress('')
             const formatted = formatCompanionError(error)
-            if (!formatted.includes("Task not found") && !formatted.includes("AGENT_TURN_NOT_FOUND")) {
+            if (!formatted.includes('Task not found') && !formatted.includes('AGENT_TURN_NOT_FOUND')) {
               append({ id: crypto.randomUUID(), role: 'error', text: formatted })
             }
           } finally {
             if (generation === generationRef.current) setControlStarting(false)
           }
           return
-        }
-        if (isCustodyPrompt) {
-          setControlStarting(false)
-          setControlProgress('')
         }
         const stamp = routed.stamp || hostStatus?.stamp || emptyStamp(gameId)
         chatRequestIdRef.current = chatRequestId
@@ -477,10 +485,6 @@ export function useCompanionSession(input: {
           append({ id: ack.messageId, role: 'chaya', text: '', character })
         }
       } catch (error) {
-        if (isCustodyPrompt && generation === generationRef.current) {
-          setControlStarting(false)
-          setControlProgress('')
-        }
         if (isCompanionAbortError(error) || generation !== generationRef.current) return
         if (isCapabilityUnsupported(error)) setHostMissing(true)
         chatRequestIdRef.current = ''

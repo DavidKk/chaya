@@ -1,5 +1,5 @@
 /** @jest-environment jsdom */
-import { currentVisibleBounds, movePlayer, quitGame, tapScreen } from '@/plugins/mv/src/agent/game-control'
+import { currentVisibleBounds, movePlayer, planMapRoute, planVisibleRoute, quitGame, tapScreen } from '@/plugins/mv/src/agent/game-control'
 
 type Globals = Record<string, unknown>
 
@@ -107,6 +107,19 @@ async function run<T>(promise: Promise<T>, polls = 200): Promise<T> {
 }
 
 describe('movePlayer', () => {
+  it('plans a detour outside the current viewport without declaring the target unreachable', () => {
+    g.$gameMap = {
+      ...map,
+      width: () => 5,
+      height: () => 6,
+      screenTileX: () => 3,
+      screenTileY: () => 2,
+      isPassable: (x: number, y: number) => x !== 1 || y === 5,
+    }
+    expect(planVisibleRoute({ x: 2, y: 0 })?.status).toBe('terrain_blocked')
+    expect(planMapRoute({ x: 2, y: 0 })).toMatchObject({ status: 'reachable', distance: 12 })
+  })
+
   it('walks to the target and reports arrival', async () => {
     step = () => {
       if (temp._destinationX != null && player.x < temp._destinationX) player.x += 1
@@ -130,12 +143,11 @@ describe('movePlayer', () => {
   })
 
   it('gives up at the timeout and clears the destination', async () => {
-    const move = jest.spyOn(player, 'moveStraight').mockImplementation(() => {})
+    step = () => {}
     const result = await run(movePlayer({ x: 5, y: 5, timeoutMs: 1000 }))
     expect(result).toMatchObject({ arrived: false, position: { x: 0, y: 0 } })
     expect(result).not.toHaveProperty('transferred')
     expect(temp).toMatchObject({ _destinationX: null, _destinationY: null })
-    move.mockRestore()
   })
 
   it('only works on the map scene', async () => {
@@ -208,7 +220,9 @@ describe('movePlayer', () => {
   })
 
   it('stops and clears queued movement when dialogue opens during the walk', async () => {
+    const original = step
     step = () => {
+      original()
       if (player.x === 1) g.$gameMessage = { isBusy: () => true }
     }
     expect(await run(movePlayer({ x: 5, y: 0 }))).toMatchObject({ interrupted: true, position: { x: 1, y: 0 } })
@@ -258,18 +272,15 @@ describe('movePlayer', () => {
   })
 
   it('stops before the next step if an event starts during the walk', async () => {
-    const move = jest.spyOn(player, 'moveStraight')
-    const original = move.getMockImplementation()!
-    move.mockImplementation((direction) => {
-      original(direction)
+    const original = step
+    step = () => {
+      original()
+      if (player.x === 0) return
       g.$gameMap = { ...map, isEventRunning: () => true }
-    })
-    try {
-      expect(await run(movePlayer({ x: 5, y: 0 }))).toMatchObject({ interrupted: true, position: { x: 1, y: 0 } })
-      expect(move).toHaveBeenCalledTimes(1)
-    } finally {
-      move.mockRestore()
     }
+    const click = jest.spyOn(g.TouchInput as any, '_onMouseDown')
+    expect(await run(movePlayer({ x: 5, y: 0 }))).toMatchObject({ interrupted: true, position: { x: 1, y: 0 } })
+    expect(click).toHaveBeenCalledTimes(1)
   })
 
   it('does not change player coordinates when the engine stops producing frames', async () => {
@@ -287,11 +298,13 @@ describe('movePlayer', () => {
     g.SceneManager = { _scene: new Scene_Map(), _stopped: true }
     expect(await run(movePlayer({ x: 5, y: 0 }))).toMatchObject({ interrupted: true, blockedReason: 'game_paused', position: { x: 0, y: 0 } })
   })
-  it('uses guarded engine steps after the player movement lock is checked', async () => {
+  it('clicks the next map tile after checking the player movement lock', async () => {
     const move = jest.spyOn(player, 'moveStraight')
+    const click = jest.spyOn(g.TouchInput as any, '_onMouseDown')
     try {
-      expect(await run(movePlayer({ x: 1, y: 0, stepwise: true }))).toMatchObject({ arrived: true })
-      expect(move).toHaveBeenCalledWith(6)
+      expect(await run(movePlayer({ x: 1, y: 0, stepwise: true }))).toMatchObject({ arrived: true, inputMethod: 'guarded_map_click' })
+      expect(click).toHaveBeenCalledTimes(1)
+      expect(move).not.toHaveBeenCalled()
     } finally {
       move.mockRestore()
     }

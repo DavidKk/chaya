@@ -6,7 +6,7 @@
 
 import { AGENT_INTERACT_MAX_MS, type AgentParams } from '@/lib/runtime/agent-protocol'
 
-import { movePlayer, planVisibleRoute } from './game-control'
+import { movePlayer, planMapRoute } from './game-control'
 import { readHistory } from './history'
 
 type MapEvent = {
@@ -178,6 +178,7 @@ type NavigationAttempt = {
   transferred: boolean
   interrupted: boolean
   blocked: boolean
+  blockedReason?: unknown
   finalPosition?: unknown
 }
 type NavigationTrace = {
@@ -201,10 +202,14 @@ function opensByTouch(state: StateView, eventId: number) {
 
 type Tile = ReturnType<typeof standTiles>[number]
 
-async function approach(run: Run, event: MapEvent, eventId: number): Promise<{ tiles: Tile[]; stand?: Tile; triggered?: boolean; transferred?: boolean; interrupted?: boolean }> {
+async function approach(
+  run: Run,
+  event: MapEvent,
+  eventId: number
+): Promise<{ tiles: Tile[]; stand?: Tile; triggered?: boolean; transferred?: boolean; interrupted?: boolean; progressing?: boolean; blockedReason?: unknown }> {
   const player = rm().$gamePlayer!
   const candidates = standTiles(event)
-  const plan = planVisibleRoute({ x: event._x, y: event._y }, eventId, candidates)
+  const plan = planMapRoute({ x: event._x, y: event._y }, eventId, candidates)
   const chosen = plan?.interactionPosition
   const tiles = chosen ? [...candidates].sort((a, b) => (a.x === chosen.x && a.y === chosen.y ? -1 : b.x === chosen.x && b.y === chosen.y ? 1 : 0)) : candidates
   run.navigation.candidates = tiles
@@ -227,6 +232,7 @@ async function approach(run: Run, event: MapEvent, eventId: number): Promise<{ t
       transferred: walkResult.transferred === true,
       interrupted: walkResult.interrupted === true,
       blocked: walkResult.blocked === true || walkResult.blockedEventId != null,
+      blockedReason: walkResult.blockedReason,
       finalPosition: walkResult.position,
     })
     if ('transferred' in walk && walk.transferred) return { transferred: true, tiles }
@@ -236,6 +242,8 @@ async function approach(run: Run, event: MapEvent, eventId: number): Promise<{ t
       run.navigation.chosenStand = tile
       return { stand: tile, tiles }
     }
+    if (walkResult.blockedReason === 'timeout' && (walk.position.x !== run.navigation.start.x || walk.position.y !== run.navigation.start.y)) return { tiles, progressing: true }
+    if (walkResult.blockedReason === 'movement_blocked' || walkResult.blockedReason === 'target_off_screen') return { tiles, blockedReason: walkResult.blockedReason }
   }
   return { tiles }
 }
@@ -248,6 +256,8 @@ async function trigger(run: Run, eventId: number, openDoors: boolean): Promise<O
   const startPage = event._pageIndex
   const before = run.io.readState()
   let reached = await approach(run, event, eventId)
+  if (reached.progressing) return { outcome: 'approaching' }
+  if (reached.blockedReason) return { outcome: 'movement_blocked', reason: reached.blockedReason }
   if (reached.interrupted) return { outcome: 'interrupted' }
   if (reached.transferred) return { outcome: 'transferred_on_the_way' }
   if (!reached.stand && !reached.triggered) {
@@ -264,6 +274,8 @@ async function trigger(run: Run, eventId: number, openDoors: boolean): Promise<O
       if (opened.outcome !== 'done') return { outcome: 'no_path', blockedBy, openFailed: { eventId: item.eventId, ...opened } }
     }
     reached = await approach(run, event, eventId)
+    if (reached.progressing) return { outcome: 'approaching' }
+    if (reached.blockedReason) return { outcome: 'movement_blocked', reason: reached.blockedReason }
     if (reached.interrupted) return { outcome: 'interrupted' }
     if (reached.transferred) return { outcome: 'transferred_on_the_way' }
     if (!reached.stand && !reached.triggered) return { outcome: 'no_path', openedOnTheWay: blockedBy }

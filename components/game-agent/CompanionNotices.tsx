@@ -3,6 +3,8 @@
 import { MiniPanelAlert } from '@/components/game-tools/MiniPanelParts'
 import type { CompanionHostStatus } from '@/lib/runtime/companion-protocol'
 
+import { isAgentRuntimeUnavailableReason } from './useCompanionClient'
+
 const COPY = {
   zh: {
     unavailable: 'Agent 暂不可用',
@@ -28,6 +30,7 @@ type Props = {
   locale: string
   agentReason: string | null
   agentAvailable: boolean | null
+  gameOnline?: boolean | null
   hostStatus: CompanionHostStatus | null
   gap: boolean
   linkLost?: boolean
@@ -35,7 +38,7 @@ type Props = {
   hostMissing?: boolean
 }
 
-export function CompanionNotices({ locale, agentReason, agentAvailable, hostStatus, gap, linkLost, cancelUnknown, hostMissing }: Props) {
+export function CompanionNotices({ locale, agentReason, agentAvailable, gameOnline, hostStatus, gap, linkLost, cancelUnknown, hostMissing }: Props) {
   const copy = locale.startsWith('zh') || locale === 'cht' ? COPY.zh : COPY.en
   const unsupported = hostStatus
     ? Object.entries(hostStatus.capabilities || {})
@@ -44,10 +47,12 @@ export function CompanionNotices({ locale, agentReason, agentAvailable, hostStat
     : []
   const companionUnsupported = unsupported.filter((key) => /chat|route|events|control|companion/i.test(key))
   const missingCore = hostMissing || companionUnsupported.length > 0
+  // Title / boot screens have no task host yet; that is expected, not a red error.
+  const waitingForGame = gameOnline === false || isAgentRuntimeUnavailableReason(agentReason)
   const lines = [
     linkLost ? copy.linkLost : null,
     cancelUnknown ? copy.cancelUnknown : null,
-    agentAvailable === false ? agentReason || copy.unavailable : null,
+    !waitingForGame && agentAvailable === false ? agentReason || copy.unavailable : null,
     gap ? copy.gap : null,
     missingCore ? (companionUnsupported.length ? `${copy.unsupported}：${companionUnsupported.join(', ')}` : copy.unsupported) : null,
     hostStatus?.memory.persistence === 'degraded' ? (hostStatus.memory.error ? `${copy.memoryDegraded}：${hostStatus.memory.error}` : copy.memoryDegraded) : null,

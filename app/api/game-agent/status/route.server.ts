@@ -1,11 +1,15 @@
 import { defineApiRoute } from '@/initializer/controller'
 import { apiError, apiOk } from '@/initializer/response'
-import { cliModelChoices, isCliProvider } from '@/lib/game-agent/providers'
+import { resolveAgentProfileModels } from '@/lib/game-agent/profile-models'
+import { isCliProvider, isOpenApiProvider } from '@/lib/game-agent/providers'
 import { canUseDisk } from '@/lib/service-mode/mode'
+import { listAnthropicModels, usesAnthropicApi } from '@/services/game-agent/anthropic-client'
 import { cliProfileStatus, cliUnavailableReason } from '@/services/game-agent/cli/status.server'
 import { listExtTasks } from '@/services/game-agent/ext-task.server'
-import { loadAgentModelCache } from '@/services/game-agent/model-cache'
-import { listOllamaModels, pickAvailableModel } from '@/services/game-agent/ollama-client'
+import { listGeminiModels, usesGeminiOpenAiCompat } from '@/services/game-agent/gemini-client'
+import { loadAgentModelCache, saveAgentModelCache } from '@/services/game-agent/model-cache'
+import { listOllamaModels } from '@/services/game-agent/ollama-client'
+import { listOpenAiModels, openApiGatewayRequestHeaders } from '@/services/game-agent/openai-client'
 import { ollamaFetch } from '@/services/game-agent/proxy/agent-proxy'
 import { readGameAgentToken } from '@/services/game-agent/secrets'
 import { getSessionForGame, getTurn } from '@/services/game-agent/session-store'
@@ -29,9 +33,10 @@ export const GET = defineApiRoute('get:/api/game-agent/status', async ({ request
   const modelCache = loadAgentModelCache(settings.profiles)
   const profiles = await Promise.all(
     settings.profiles.map(async (profile) => {
+      const preferred = session?.profileId === profile.id ? session.model : profile.defaultModel
       if (isCliProvider(profile.provider)) {
         const status = await cliProfileStatus({ id: profile.id, provider: profile.provider, proxy: profile.proxy })
-        const choices = cliModelChoices(session?.profileId === profile.id ? session.model : profile.defaultModel, modelCache[profile.id])
+        const choices = resolveAgentProfileModels({ ...profile, defaultModel: preferred || profile.defaultModel }, modelCache[profile.id] || [])
         return {
           id: profile.id,
           label: profile.label,
@@ -42,26 +47,67 @@ export const GET = defineApiRoute('get:/api/game-agent/status', async ({ request
           ...status,
         }
       }
+      if (isOpenApiProvider(profile.provider)) {
+        try {
+          const token = readGameAgentToken(profile.id) || (profile as any).apiKey
+          const fetcher = ollamaFetch(profile)
+          const signal = AbortSignal.timeout(5_000)
+          const catalog =
+            profile.provider === 'cc' && usesAnthropicApi(profile.endpoint)
+              ? await listAnthropicModels(profile.endpoint, fetcher, signal, token)
+              : profile.provider === 'gemini-api' && !usesGeminiOpenAiCompat(profile.endpoint)
+                ? await listGeminiModels(profile.endpoint, fetcher, signal, token, profile.proxyHeaders)
+                : await listOpenAiModels(
+                    profile.endpoint,
+                    fetcher,
+                    signal,
+                    token,
+                    openApiGatewayRequestHeaders(profile.provider, profile.endpoint, profile.proxyHeaders),
+                    profile.modelsEndpoint
+                  )
+          saveAgentModelCache(profile, catalog)
+          const resolved = resolveAgentProfileModels({ ...profile, defaultModel: preferred || profile.defaultModel }, catalog)
+          return {
+            id: profile.id,
+            label: profile.label,
+            provider: profile.provider,
+            online: resolved.models.length > 0,
+            ...resolved,
+            reason: resolved.models.length ? null : '没有已安装模型',
+          }
+        } catch (error) {
+          const resolved = resolveAgentProfileModels({ ...profile, defaultModel: preferred || profile.defaultModel }, modelCache[profile.id] || [])
+          return {
+            id: profile.id,
+            label: profile.label,
+            provider: profile.provider,
+            online: resolved.models.length > 0,
+            ...resolved,
+            reason: resolved.models.length ? null : error instanceof Error ? error.message : String(error),
+          }
+        }
+      }
       try {
-        const models = await listOllamaModels(profile.endpoint, ollamaFetch(profile), AbortSignal.timeout(3_000), readGameAgentToken(profile.id))
+        const catalog = await listOllamaModels(profile.endpoint, ollamaFetch(profile), AbortSignal.timeout(3_000), readGameAgentToken(profile.id))
+        saveAgentModelCache(profile, catalog)
+        const resolved = resolveAgentProfileModels({ ...profile, defaultModel: preferred || profile.defaultModel }, catalog)
         return {
           id: profile.id,
           label: profile.label,
           provider: profile.provider,
-          online: true,
-          models,
-          defaultModel: pickAvailableModel(models, session?.profileId === profile.id ? session.model : profile.defaultModel),
-          reason: models.length ? null : '没有已安装模型',
+          online: resolved.models.length > 0,
+          ...resolved,
+          reason: resolved.models.length ? null : '没有已安装模型',
         }
       } catch (error) {
+        const resolved = resolveAgentProfileModels({ ...profile, defaultModel: preferred || profile.defaultModel }, modelCache[profile.id] || [])
         return {
           id: profile.id,
           label: profile.label,
           provider: profile.provider,
-          online: false,
-          models: [],
-          defaultModel: '',
-          reason: error instanceof Error ? error.message : String(error),
+          online: resolved.models.length > 0,
+          ...resolved,
+          reason: resolved.models.length ? null : error instanceof Error ? error.message : String(error),
         }
       }
     })

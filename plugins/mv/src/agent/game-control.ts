@@ -52,13 +52,13 @@ type RmGlobals = {
     isMoving: () => boolean
     isTransferring?: () => boolean
     canMove?: () => boolean
-    moveStraight?: (direction: number) => void
   }
   $gameSystem?: { isTouchMoveEnabled?: () => boolean }
   $gameMessage?: { isBusy?: () => boolean }
   $gameTemp?: {
     isCommonEventReserved?: () => boolean
     clearDestination?: () => void
+    setDestination?: (x: number, y: number) => void
     _destinationX: number | null
     _destinationY: number | null
     isDestinationValid: () => boolean
@@ -125,9 +125,9 @@ function directionBetween(from: Point, to: Point): 2 | 4 | 6 | 8 | 0 {
   return dx === 0 && dy === 1 ? 2 : dx === -1 && dy === 0 ? 4 : dx === 1 && dy === 0 ? 6 : dx === 0 && dy === -1 ? 8 : 0
 }
 
-export function planVisibleRoute(target: Point, targetEventId?: number, interactionPositions?: Point[]) {
+export function planVisibleRoute(target: Point, targetEventId?: number, interactionPositions?: Point[], routeBounds?: VisibleBounds) {
   const { $gameMap: map, $gamePlayer: player } = rm()
-  const bounds = currentVisibleBounds()
+  const bounds = routeBounds ?? currentVisibleBounds()
   if (!map || !player || !bounds) return null
   const events = (map.events?.() ?? [])
     .filter((event) => !event._erased && ((event.isNormalPriority?.() !== false && !event.isThrough?.()) || event._trigger === 1 || event._trigger === 2))
@@ -152,6 +152,13 @@ export function planVisibleRoute(target: Point, targetEventId?: number, interact
       }
     },
   })
+}
+
+export function planMapRoute(target: Point, targetEventId?: number, interactionPositions?: Point[]) {
+  const map = rm().$gameMap
+  const size = map && mapTileSize(map)
+  const bounds = size && size.width * size.height <= 40_000 ? { minX: 0, minY: 0, maxX: size.width - 1, maxY: size.height - 1 } : undefined
+  return planVisibleRoute(target, targetEventId, interactionPositions, bounds)
 }
 
 export function snapScreen({ maxWidth }: AgentParams<'game.snap'>) {
@@ -288,7 +295,7 @@ export async function movePlayer(params: AgentParams<'player.moveTo'>, interrupt
   const frameStarted = rm().Graphics?.frameCount
   const deadline = Date.now() + timeout
   const actualPath = [{ x: player.x, y: player.y }]
-  let navigation = planVisibleRoute(target, targetEventId)
+  let navigation = planMapRoute(target, targetEventId)
   const plannedPath = navigation?.path ?? []
   let stopped = false
   let blockedReason: string | undefined
@@ -337,15 +344,23 @@ export async function movePlayer(params: AgentParams<'player.moveTo'>, interrupt
         blockedReason = 'no_path'
         break
       }
-      if (!player.moveStraight) throw new Error('游戏行走入口未就绪')
-      // Do not issue a step after an event or dialogue has taken control.
       if (interrupted() || movementBlocked()) {
         stopped = true
         break
       }
-      player.moveStraight(direction)
-      await wait(16)
-      while (Date.now() < deadline && map.mapId() === startMap && !interrupted() && !movementBlocked() && player.isMoving()) await wait(16)
+      const tileWidth = map.tileWidth?.() ?? 48
+      const tileHeight = map.tileHeight?.() ?? 48
+      const screenX = (next.x - (map.displayX?.() ?? 0) + 0.5) * tileWidth
+      const screenY = (next.y - (map.displayY?.() ?? 0) + 0.5) * tileHeight
+      const graphics = rm().Graphics
+      if (!graphics || screenX < 0 || screenY < 0 || screenX >= graphics.width || screenY >= graphics.height) {
+        blockedReason = 'target_off_screen'
+        break
+      }
+      await clickCanvas(screenX, screenY, 50, {})
+      const stepDeadline = Math.min(deadline, Date.now() + 1_500)
+      while (Date.now() < stepDeadline && map.mapId() === startMap && !interrupted() && !movementBlocked() && (player.isMoving() || (player.x === from.x && player.y === from.y)))
+        await wait(16)
       clearDestination()
       const moved = from.x !== player.x || from.y !== player.y
       if (moved && map.mapId() === startMap) actualPath.push({ x: player.x, y: player.y })
@@ -357,7 +372,7 @@ export async function movePlayer(params: AgentParams<'player.moveTo'>, interrupt
         blockedReason = 'movement_blocked'
         break
       }
-      if (navigation) navigation = planVisibleRoute(target, targetEventId)
+      if (navigation) navigation = planMapRoute(target, targetEventId)
     }
   } finally {
     clearDestination()
@@ -367,7 +382,7 @@ export async function movePlayer(params: AgentParams<'player.moveTo'>, interrupt
   const arrived = !transferred && !stopped && player.x === target.x && player.y === target.y && !player.isMoving()
   return {
     arrived,
-    inputMethod: 'guarded_engine_step',
+    inputMethod: 'guarded_map_click',
     runtime: {
       frames: frameStarted != null && rm().Graphics?.frameCount != null ? rm().Graphics!.frameCount! - frameStarted : undefined,
       moving: player.isMoving(),

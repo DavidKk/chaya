@@ -149,6 +149,22 @@ test('rejects unknown provider values', () => {
   expect(parseAgentSyncDocument(document)).toBeNull()
 })
 
+test('persists enabledModels allowlist through settings diffs', () => {
+  const baseline = agentSyncDocumentFromSettings(settings, 'service', 10)
+  const next = applySettingsDiffToAgentSyncDocument(baseline, settings, {
+    ...settings,
+    profiles: [{ ...settings.profiles[0], enabledModels: ['qwen3', 'gemma3'] }],
+  })
+  expect(agentSettingsFromSyncDocument(next).profiles[0].enabledModels).toEqual(['qwen3', 'gemma3'])
+  expect(next.agents[0].fieldStamps.enabledModels.counter).toBeGreaterThan(0)
+
+  const cleared = applySettingsDiffToAgentSyncDocument(next, agentSettingsFromSyncDocument(next), {
+    ...settings,
+    profiles: [{ ...settings.profiles[0], enabledModels: ['qwen3'] }],
+  })
+  expect(agentSettingsFromSyncDocument(cleared).profiles[0].enabledModels).toEqual(['qwen3'])
+})
+
 test('readers without the CLI feature see only Ollama agents', () => {
   const document = agentSyncDocumentFromSettings({ ...settings, profiles: [...settings.profiles, cliProfile('codex')] }, 'service')
   const legacy = agentSyncDocumentForReader(document)

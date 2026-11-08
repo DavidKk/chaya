@@ -63,6 +63,10 @@ export type IntegrationMessages = {
   agentProxyProtocolsHide: string
   agentProxyProtocolsHint: string
   agentProxyProtocolInherit: string
+  agentProxyProtocolInheritAction: string
+  agentProxyProtocolInheritOn: string
+  agentProxyProtocolInheritOff: string
+  agentProxyProtocolOverride: string
   agentProxyHeaders: string
   agentProxyHeadersDesc: string
   agentProxyHeadersInvalid: string
@@ -87,6 +91,16 @@ export type IntegrationMessages = {
   agentModelsEndpointDesc: string
   agentModelManualInput: string
   agentModelSelectFromList: string
+  agentModelComboboxEmpty: string
+  agentEnabledModels: string
+  agentEnabledModelsDesc: string
+  agentEnabledModelsAll: string
+  agentEnabledModelsNone: string
+  agentEnabledModelsSelectAll: string
+  agentEnabledModelsOn: string
+  agentEnabledModelsBadge: string
+  agentEnabledModelsDiscovered: string
+  agentEnabledModelsEmpty: string
   agentDefaultModel: string
   agentDefaultModelDesc: string
   agentTemperature: string

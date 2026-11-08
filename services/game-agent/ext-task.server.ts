@@ -56,13 +56,9 @@ export async function startExtPlayTurn(
     turn.abort.signal,
     0,
     (event) => {
-      if (isCustody) {
-        if (event.type === 'turn.stopped') finishTurn(turn, 'stopped')
-      } else {
-        if (event.type === 'turn.completed') finishTurn(turn, 'completed')
-        else if (event.type === 'turn.stopped') finishTurn(turn, 'stopped')
-        else if (event.type === 'turn.failed') finishTurn(turn, 'failed')
-      }
+      if (event.type === 'turn.completed') finishTurn(turn, 'completed')
+      else if (event.type === 'turn.stopped') finishTurn(turn, 'stopped')
+      else if (event.type === 'turn.failed') finishTurn(turn, 'failed')
       emit(event)
     },
     gameCallTimeoutMs,
@@ -154,31 +150,31 @@ export async function pumpExtTask(
     }
     try {
       result = (await callExtTask(gameId, { type: 'agent.task.events', requestId: randomUUID(), taskId, afterSeq: seq }, gameCallTimeoutMs)) as any
-      consecutiveErrors = 0
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err)
       if (isCustody) {
         consecutiveErrors++
         if (consecutiveErrors < 10 && !signal.aborted) {
-          await new Promise<void>((resolve) => setTimeout(resolve, 1000))
+          await waitForTaskPoll(signal, 1000)
           continue
         }
       }
-      if (msg.includes("Task not found")) {
-        emit({ type: "turn.stopped" })
+      if (msg.includes('Task not found')) {
+        emit({ type: 'turn.stopped' })
         return
       }
       throw err
     }
+    signal.throwIfAborted()
     if (!result?.task) {
       if (isCustody) {
         consecutiveErrors++
         if (consecutiveErrors < 10 && !signal.aborted) {
-          await new Promise<void>((resolve) => setTimeout(resolve, 1000))
+          await waitForTaskPoll(signal, 1000)
           continue
         }
       }
-      emit({ type: "turn.stopped" })
+      emit({ type: 'turn.stopped' })
       return
     }
     if (result.gap) emit({ type: 'history.gap', fromSeq: seq + 1 })
@@ -188,10 +184,6 @@ export async function pumpExtTask(
       if (event) emit(event, item.seq)
     }
     if (result.task.state === 'completed') {
-      if (isCustody) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 1000))
-        continue
-      }
       emit({ type: 'turn.completed', text: '', reason: 'verified' })
       return
     }
@@ -200,13 +192,6 @@ export async function pumpExtTask(
       return
     }
     if (result.task.state === 'failed' || result.task.state === 'interrupted') {
-      if (isCustody) {
-        consecutiveErrors++
-        if (consecutiveErrors < 10 && !signal.aborted) {
-          await new Promise<void>((resolve) => setTimeout(resolve, 1000))
-          continue
-        }
-      }
       emit({
         type: 'turn.failed',
         code: result.task.state === 'interrupted' ? 'AGENT_TASK_INTERRUPTED' : 'AGENT_TURN_FAILED',
@@ -214,17 +199,25 @@ export async function pumpExtTask(
       })
       return
     }
-    await new Promise<void>((resolve) => {
-      const timer = setTimeout(resolve, 500)
-      signal.addEventListener(
-        'abort',
-        () => {
-          clearTimeout(timer)
-          resolve()
-        },
-        { once: true }
-      )
-    })
+    consecutiveErrors = 0
+    await waitForTaskPoll(signal, 500)
   }
   throw signal.reason ?? new DOMException('Stopped', 'AbortError')
+}
+
+function waitForTaskPoll(signal: AbortSignal, delay: number): Promise<void> {
+  signal.throwIfAborted()
+  return new Promise((resolve, reject) => {
+    const done = () => {
+      signal.removeEventListener('abort', abort)
+      resolve()
+    }
+    const timer = setTimeout(done, delay)
+    const abort = () => {
+      clearTimeout(timer)
+      signal.removeEventListener('abort', abort)
+      reject(signal.reason ?? new DOMException('Stopped', 'AbortError'))
+    }
+    signal.addEventListener('abort', abort, { once: true })
+  })
 }

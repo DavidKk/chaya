@@ -1,5 +1,6 @@
-import { StoryContextStore } from "./story-context"
 import type { CompanionComplete } from '../companion-chat'
+import { StoryContextStore } from './story-context'
+import { positiveStoryGuidance } from './story-guidance'
 
 export type PuzzleContext = {
   mapId: number
@@ -42,13 +43,16 @@ export type PuzzleSolverDeps = {
 export class StoryPuzzleSolver {
   constructor(private readonly deps: PuzzleSolverDeps = {}) {}
 
-  public async diagnoseNextStep(ctx: PuzzleContext): Promise<PuzzleDiagnosis> {
+  public async diagnoseNextStep(ctx: PuzzleContext, signal = this.deps.signal): Promise<PuzzleDiagnosis> {
+    signal?.throwIfAborted()
     // 1. Try remote model reasoning if configured
     if (this.deps.complete && this.deps.profileId && this.deps.model) {
       try {
-        const diagnosis = await this.askModel(ctx)
+        const diagnosis = await this.askModel(ctx, signal)
+        signal?.throwIfAborted()
         if (diagnosis) return diagnosis
       } catch {
+        signal?.throwIfAborted()
         // Fall through to heuristic
       }
     }
@@ -57,7 +61,7 @@ export class StoryPuzzleSolver {
     return this.heuristicFallback(ctx)
   }
 
-  private async askModel(ctx: PuzzleContext): Promise<PuzzleDiagnosis | null> {
+  private async askModel(ctx: PuzzleContext, signal?: AbortSignal): Promise<PuzzleDiagnosis | null> {
     const questSection = ctx.questContextSummary ? `${ctx.questContextSummary}\n\n` : ''
     const prompt = `当前地图：${ctx.mapName || '未知区域'} (ID: ${ctx.mapId})，坐标 (${ctx.playerPos.x}, ${ctx.playerPos.y})
 近期对话要点：
@@ -66,11 +70,21 @@ ${ctx.recentDialogue.slice(-5).join('\n') || '（无近期台词）'}
 背包关键道具：${ctx.inventorySummary.join('、') || '（无关键道具）'}
 
 地图可见事件：
-${ctx.visibleEvents.map((e) => `- ID ${e.id}: "${e.name}" at (${e.x}, ${e.y}) [类型: ${e.kind || "未知"}, 可达: ${e.reachable !== false ? '是' : '否'}]`).join('\n')}
+${ctx.visibleEvents.map((e) => `- ID ${e.id}: "${e.name}" at (${e.x}, ${e.y}) [类型: ${e.kind || '未知'}, 可达: ${e.reachable !== false ? '是' : '否'}]`).join('\n')}
 ${questSection}
-${ctx.unreachableTarget ? `当前阻碍/无法抵达的目标：ID ${ctx.unreachableTarget.id} "${ctx.unreachableTarget.name}" at (${ctx.unreachableTarget.x}, ${ctx.unreachableTarget.y})
-` : ''}${ctx.playerGuidance ? `玩家给你的建议或指示：“${ctx.playerGuidance}”
-` : ''}
+${
+  ctx.unreachableTarget
+    ? `当前阻碍/无法抵达的目标：ID ${ctx.unreachableTarget.id} "${ctx.unreachableTarget.name}" at (${ctx.unreachableTarget.x}, ${ctx.unreachableTarget.y})
+`
+    : ''
+}${
+      ctx.playerGuidance
+        ? `玩家目标与后续指示（按时间顺序，冲突时最新指示优先，禁止违反路线限制）：
+${ctx.playerGuidance}
+`
+        : ''
+    }
+优先完成本层可处理目标，不能仅因存在楼梯或传送点就离开。只能选择以上候选事件 ID，无可行目标时返回 null。
 请分析下一步应该前往调查或互动的目标，输出 JSON：
 {"targetEventId": 目标事件ID数字或null, "reason": "分析原因", "hint": "简短伴游提示"}
 `
@@ -82,8 +96,7 @@ ${ctx.unreachableTarget ? `当前阻碍/无法抵达的目标：ID ${ctx.unreach
       [
         {
           role: 'system',
-          content:
-            '你是一个RPG游戏伴游解谜专家。根据剧情上下文与地图事件，分析脱困推进的目标。只返回纯 JSON，不要输出额外解释或 markdown 标记。',
+          content: '你是一个RPG游戏伴游解谜专家。根据剧情上下文与地图事件，分析脱困推进的目标。只返回纯 JSON，不要输出额外解释或 markdown 标记。',
         },
         { role: 'user', content: prompt },
       ],
@@ -91,9 +104,10 @@ ${ctx.unreachableTarget ? `当前阻碍/无法抵达的目标：ID ${ctx.unreach
         profileId: this.deps.profileId!,
         model: this.deps.model!,
         purpose: 'route',
-        signal: this.deps.signal ?? new AbortController().signal,
+        signal: signal ?? new AbortController().signal,
       }
     )
+    signal?.throwIfAborted()
 
     const durationMs = Date.now() - startedAt
     const thought = reply.thought || (reply as any).reasoning_content || undefined
@@ -131,58 +145,58 @@ ${ctx.unreachableTarget ? `当前阻碍/无法抵达的目标：ID ${ctx.unreach
   private heuristicFallback(ctx: PuzzleContext): PuzzleDiagnosis {
     // Priority 0: Player explicit guidance
     if (ctx.playerGuidance) {
-      const lower = ctx.playerGuidance.toLowerCase()
-      const match = ctx.visibleEvents.find((e) => lower.includes(e.name.toLowerCase()) || (e.kind && lower.includes(e.kind)))
+      const lower = positiveStoryGuidance(ctx.playerGuidance).toLowerCase()
+      const match = ctx.visibleEvents.find((e) => (e.name && lower.includes(e.name.toLowerCase())) || (e.kind && lower.includes(e.kind)))
       if (match) {
         return {
           targetEventId: match.id,
           targetPos: { x: match.x, y: match.y },
-          reason: "遵循玩家建议目标",
-          suggestedAction: "interact",
+          reason: '遵循玩家建议目标',
+          suggestedAction: 'interact',
           hint: `根据建议调查 ${match.name} (${match.x}, ${match.y})`,
         }
       }
     }
 
     // Priority 1: Check for any lever, switch, or button events
-    const lever = ctx.visibleEvents.find((e) => e.kind === "lever" || /(рычаг|lever|switch|кнопка|机关|开关)/i.test(e.name))
+    const lever = ctx.visibleEvents.find((e) => e.kind === 'lever' || /(рычаг|lever|switch|кнопка|机关|开关)/i.test(e.name))
     if (lever) {
       return {
         targetEventId: lever.id,
         targetPos: { x: lever.x, y: lever.y },
-        reason: "优先触发未交互的机关拉杆",
-        suggestedAction: "interact",
+        reason: '优先触发未交互的机关拉杆',
+        suggestedAction: 'interact',
         hint: `尝试拉动机关 ${lever.name} (${lever.x}, ${lever.y})`,
       }
     }
 
     // Priority 2: Check for uncollected chests or loot in current chamber
-    const chest = ctx.visibleEvents.find((e) => e.kind === "chest" || /(сундук|chest|宝箱|箱)/i.test(e.name))
+    const chest = ctx.visibleEvents.find((e) => e.kind === 'chest' || /(сундук|chest|宝箱|箱)/i.test(e.name))
     if (chest) {
       return {
         targetEventId: chest.id,
         targetPos: { x: chest.x, y: chest.y },
-        reason: "调查尚未开启的宝箱",
-        suggestedAction: "interact",
+        reason: '调查尚未开启的宝箱',
+        suggestedAction: 'interact',
         hint: `开启宝箱 ${chest.name}`,
       }
     }
 
     // Priority 3: Check for NPC to ask for directions/clues
-    const npc = ctx.visibleEvents.find((e) => e.kind === "npc" || /(магистр|старейшина|npc|elder|guide|会长|人)/i.test(e.name))
+    const npc = ctx.visibleEvents.find((e) => e.kind === 'npc' || /(магистр|старейшина|npc|elder|guide|会长|人)/i.test(e.name))
     if (npc) {
       return {
         targetEventId: npc.id,
         targetPos: { x: npc.x, y: npc.y },
-        reason: "与附近 NPC 交谈获取最新进展线索",
-        suggestedAction: "interact",
+        reason: '与附近 NPC 交谈获取最新进展线索',
+        suggestedAction: 'interact',
         hint: `与 ${npc.name} 对话获取线索`,
       }
     }
 
     // Priority 4: Forward portal / door (skipping entry/backtrack portal)
     const portal = ctx.visibleEvents.find((e) => {
-      const isPortal = e.kind === "transfer" || /(door|дверь|portal|stairs|выход|门|梯)/i.test(e.name)
+      const isPortal = e.kind === 'transfer' || /(door|дверь|portal|stairs|выход|门|梯)/i.test(e.name)
       if (!isPortal) return false
       return !StoryContextStore.isBacktrackPortal(ctx.mapId, e.id)
     })
@@ -190,8 +204,8 @@ ${ctx.unreachableTarget ? `当前阻碍/无法抵达的目标：ID ${ctx.unreach
       return {
         targetEventId: portal.id,
         targetPos: { x: portal.x, y: portal.y },
-        reason: "当前房间交互已探明，前往通道门扉探索新区域",
-        suggestedAction: "interact",
+        reason: '当前房间交互已探明，前往通道门扉探索新区域',
+        suggestedAction: 'interact',
         hint: `前往通道门 ${portal.name}`,
       }
     }
@@ -202,16 +216,16 @@ ${ctx.unreachableTarget ? `当前阻碍/无法抵达的目标：ID ${ctx.unreach
       return {
         targetEventId: first.id,
         targetPos: { x: first.x, y: first.y },
-        reason: "巡回调查当前区域未完全探明的事件",
-        suggestedAction: "interact",
+        reason: '巡回调查当前区域未完全探明的事件',
+        suggestedAction: 'interact',
         hint: `调查 ${first.name} (${first.x}, ${first.y})`,
       }
     }
 
     return {
-      reason: "未发现明显可疑机关，建议巡查周围网格",
-      suggestedAction: "explore",
-      hint: "在当前房间周围四处调查看看",
+      reason: '未发现明显可疑机关，建议巡查周围网格',
+      suggestedAction: 'explore',
+      hint: '在当前房间周围四处调查看看',
     }
   }
 }

@@ -10,6 +10,7 @@ export type AgentProfile = AgentTimeoutSettings & {
   endpoint: string
   modelsEndpoint?: string
   defaultModel: string
+  enabledModels?: string[]
   temperature: number
   keepAlive: string
   proxy: string
@@ -35,7 +36,7 @@ export function withAgentProvider(profile: AgentProfile, provider: GameAgentProv
   const label = !profile.label.trim() || profile.label === previousLabel ? nextLabel : profile.label
   const proxyProtocols = profile.proxyProtocols || {}
   const proxyHeaders = profile.proxyHeaders || {}
-  if (provider === 'ollama') return { ...profile, ...OLLAMA_DEFAULTS, provider, label, defaultModel: '', proxyProtocols, proxyHeaders }
+  if (provider === 'ollama') return { ...profile, ...OLLAMA_DEFAULTS, provider, label, defaultModel: '', enabledModels: undefined, proxyProtocols, proxyHeaders }
   if (isOpenApiProvider(provider)) {
     return {
       ...profile,
@@ -44,6 +45,7 @@ export function withAgentProvider(profile: AgentProfile, provider: GameAgentProv
       endpoint: PROVIDER_META[provider].defaultEndpoint || '',
       modelsEndpoint: '',
       defaultModel: '',
+      enabledModels: undefined,
       temperature: OLLAMA_DEFAULTS.temperature,
       keepAlive: OLLAMA_DEFAULTS.keepAlive,
       proxyProtocols,
@@ -58,6 +60,7 @@ export function withAgentProvider(profile: AgentProfile, provider: GameAgentProv
       endpoint: '',
       modelsEndpoint: '',
       defaultModel: '',
+      enabledModels: undefined,
       temperature: OLLAMA_DEFAULTS.temperature,
       keepAlive: OLLAMA_DEFAULTS.keepAlive,
       proxyProtocols,
@@ -70,6 +73,7 @@ export function withAgentProvider(profile: AgentProfile, provider: GameAgentProv
     label,
     endpoint: '',
     defaultModel: '',
+    enabledModels: undefined,
     temperature: OLLAMA_DEFAULTS.temperature,
     keepAlive: OLLAMA_DEFAULTS.keepAlive,
     proxyProtocols,

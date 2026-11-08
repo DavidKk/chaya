@@ -117,6 +117,22 @@ test('a route invalidated during cold startup never proceeds to generation or co
   }
 })
 
+test('preserves the original custody goal and its travel restrictions through ticket execution', async () => {
+  const session = await setup()
+  const prompt = '全剧情托管，先处理当前这一层，不要上上一层'
+  try {
+    const route = (await session.dispatch({ type: 'agent.companion.route', requestId: 'custody', prompt, ...selection })) as CompanionRouteResult
+    expect(route.kind).toBe('control')
+    if (route.kind !== 'control') throw new Error('Expected custody ticket')
+    expect(route.goal).toBe(prompt)
+    expect(session.jobs).toHaveLength(0)
+    await session.dispatch({ type: 'agent.companion.control.start', requestId: 'start', ticketId: route.ticketId })
+    expect(session.startControl).toHaveBeenCalledWith(expect.objectContaining({ action: 'custody', goal: prompt }), false, undefined)
+  } finally {
+    await session.close()
+  }
+})
+
 test.each(['goal', 'until_stopped'] as const)('control ticket dispatches the trusted battle goal once with lifetime %s', async (lifetime) => {
   const s = await setup()
   try {

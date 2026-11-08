@@ -1,4 +1,7 @@
-import { chestEventOpened } from "../../event-facts"
+import { chestEventOpened } from '../../event-facts'
+import { isBenchmarkStoryGame } from './story-benchmark'
+import { StoryFailureMemory } from './story-failure-memory'
+import { storyTransfers } from './story-transfer'
 
 export type GlobalActionKind = 'milestone' | 'chest' | 'lever' | 'npc' | 'transfer' | 'battle' | 'guidance' | 'action'
 
@@ -17,6 +20,15 @@ export type MapTransition = {
   arrivalPos?: { x: number; y: number }
   portalEventId?: number
   timestamp: number
+}
+
+export type LockPrerequisite = {
+  mapId: number
+  eventId: number
+  kind: 'chest' | 'trap'
+  requiredLevel: number
+  lastAttemptLevel?: number
+  recordedAt: number
 }
 
 export type StoryQuestContext = {
@@ -41,31 +53,46 @@ type GlobalStore = {
   globalHistory: GlobalActionEntry[]
   lastTransition: MapTransition | null
   transitions: MapTransition[]
+  lockPrerequisites?: Record<string, LockPrerequisite>
 }
 
-const GLOBAL_CONTEXT_KEY = "__CHAYA_STORY_QUEST_CONTEXT__"
+const GLOBAL_CONTEXT_KEY = '__CHAYA_STORY_QUEST_CONTEXT__'
+let contextOwner: unknown
+
+function getMapName(mapId: number): string {
+  const g = globalThis as any
+  const map = g.$gameMap
+  const displayName = g.$dataMap && map?.mapId?.() === mapId && typeof map?.displayName === 'function' ? map.displayName() : ''
+  return displayName || g.$dataMapInfos?.[mapId]?.name || `地图 ${mapId}`
+}
 
 function getGlobalStorage(): GlobalStore {
   const g = globalThis as any
+  if (contextOwner !== g.$gameSystem) {
+    delete g[GLOBAL_CONTEXT_KEY]
+    contextOwner = g.$gameSystem
+  }
   if (!g[GLOBAL_CONTEXT_KEY]) {
     g[GLOBAL_CONTEXT_KEY] = {
       maps: {},
       globalHistory: [],
       lastTransition: null,
       transitions: [],
+      lockPrerequisites: {},
     }
   }
   const storage = g[GLOBAL_CONTEXT_KEY]
   if (!storage.maps) storage.maps = {}
   if (!Array.isArray(storage.globalHistory)) storage.globalHistory = []
   if (!Array.isArray(storage.transitions)) storage.transitions = []
+  if (!storage.lockPrerequisites) storage.lockPrerequisites = {}
   return storage
 }
 
 export class StoryContextStore {
   public static get(mapId?: number): StoryQuestContext {
     const g = globalThis as any
-    const currentMapId = mapId ?? (typeof g.$gameMap?.mapId === "function" ? g.$gameMap.mapId() : 0)
+    const currentMapId = mapId ?? (typeof g.$gameMap?.mapId === 'function' ? g.$gameMap.mapId() : 0)
     const storage = getGlobalStorage()
     if (!storage.maps[currentMapId]) {
       storage.maps[currentMapId] = this.deriveContext(currentMapId)
@@ -89,9 +116,7 @@ export class StoryContextStore {
 
   public static recordGlobalAction(mapId: number, action: string, kind: GlobalActionKind = 'action'): void {
     const storage = getGlobalStorage()
-    const g = globalThis as any
-    const map = g.$gameMap
-    const mapName = (map && typeof map.displayName === "function" ? map.displayName() : "") || `地图 ${mapId}`
+    const mapName = getMapName(mapId)
 
     const last = storage.globalHistory[storage.globalHistory.length - 1]
     if (last && last.mapId === mapId && last.action === action && Date.now() - last.timestamp < 3_000) {
@@ -122,11 +147,7 @@ export class StoryContextStore {
     if (storage.transitions.length > 20) {
       storage.transitions.shift()
     }
-    this.recordGlobalAction(
-      transition.toMapId,
-      `从地图 ${transition.fromMapId} 穿过暗门/传送门抵达地图 ${transition.toMapId}`,
-      'transfer'
-    )
+    this.recordGlobalAction(transition.toMapId, `从地图 ${transition.fromMapId} 穿过暗门/传送门抵达地图 ${transition.toMapId}`, 'transfer')
   }
 
   public static getLastTransition(): MapTransition | null {
@@ -136,30 +157,23 @@ export class StoryContextStore {
   public static isBacktrackPortal(mapId: number, eventId: number, destMapId?: number): boolean {
     const storage = getGlobalStorage()
     const last = storage.lastTransition
-    if (!last || last.toMapId !== mapId) return false
-    // Backtrack suppression window is 120 seconds
-    if (Date.now() - last.timestamp > 120_000) return false
-
-    if (typeof destMapId === "number" && destMapId === last.fromMapId) {
+    if (typeof destMapId === 'number' && last?.toMapId === mapId && destMapId === last.fromMapId) {
       return true
     }
+    if (typeof destMapId === 'number' && last?.toMapId === mapId) return false
 
     const g = globalThis as any
     const ev = g.$gameMap?.event?.(eventId)
-    if (ev) {
+    if (ev && last?.toMapId === mapId) {
+      const destinations = storyTransfers(ev)
+      if (destinations.some((transfer) => transfer.mapId === last.fromMapId)) return true
+      if (destinations.length && destinations.every((transfer) => transfer.mapId !== null)) return false
       const x = Number(ev._x)
       const y = Number(ev._y)
       if (last.arrivalPos) {
         const dist = Math.abs(x - last.arrivalPos.x) + Math.abs(y - last.arrivalPos.y)
         // If event is right next to the arrival point (within 3 tiles), it is the doorway just passed through
         if (dist <= 3) return true
-      }
-      const list = (typeof ev.list === "function" ? ev.list() : []) || []
-      for (const cmd of list) {
-        if (cmd?.code === 201 && Array.isArray(cmd.parameters)) {
-          const targetMap = cmd.parameters[1]
-          if (targetMap === last.fromMapId) return true
-        }
       }
     }
 
@@ -217,7 +231,7 @@ export class StoryContextStore {
 
   public static clearUnreachable(mapId?: number): void {
     const storage = getGlobalStorage()
-    if (typeof mapId === "number") {
+    if (typeof mapId === 'number') {
       const ctx = storage.maps[mapId]
       if (ctx) {
         ctx.unreachableEvents = []
@@ -227,6 +241,44 @@ export class StoryContextStore {
       for (const id of Object.keys(storage.maps)) {
         storage.maps[Number(id)].unreachableEvents = []
       }
+    }
+  }
+
+  public static recordLockPrerequisite(mapId: number, eventId: number, kind: 'chest' | 'trap', requiredLevel: number, currentLevel?: number): void {
+    const storage = getGlobalStorage()
+    if (!storage.lockPrerequisites) storage.lockPrerequisites = {}
+    const key = `${mapId}:${eventId}`
+    storage.lockPrerequisites[key] = {
+      mapId,
+      eventId,
+      kind,
+      requiredLevel,
+      lastAttemptLevel: currentLevel,
+      recordedAt: Date.now(),
+    }
+  }
+
+  public static getLockPrerequisite(mapId: number, eventId: number): LockPrerequisite | undefined {
+    const storage = getGlobalStorage()
+    return storage.lockPrerequisites?.[`${mapId}:${eventId}`]
+  }
+
+  public static getAllLockPrerequisites(mapId: number): LockPrerequisite[] {
+    const storage = getGlobalStorage()
+    if (!storage.lockPrerequisites) return []
+    return Object.values(storage.lockPrerequisites).filter((p) => p.mapId === mapId)
+  }
+
+  public static getEligibleUnlockedTargets(mapId: number, currentLevel: number): LockPrerequisite[] {
+    const storage = getGlobalStorage()
+    if (!storage.lockPrerequisites) return []
+    return Object.values(storage.lockPrerequisites).filter((p) => p.mapId === mapId && p.requiredLevel <= currentLevel)
+  }
+
+  public static clearLockPrerequisite(mapId: number, eventId: number): void {
+    const storage = getGlobalStorage()
+    if (storage.lockPrerequisites) {
+      delete storage.lockPrerequisites[`${mapId}:${eventId}`]
     }
   }
 
@@ -241,15 +293,13 @@ export class StoryContextStore {
   }
 
   public static deriveContext(mapId: number): StoryQuestContext {
-    const g = globalThis as any
-    const map = g.$gameMap
-    const mapName = (map && typeof map.displayName === "function" ? map.displayName() : "") || `地图 ${mapId}`
+    const mapName = getMapName(mapId)
 
     const initial: StoryQuestContext = {
       mapId,
       mapName,
-      activeObjective: "自由探索与剧情推进",
-      phase: "exploration",
+      activeObjective: '自由探索与剧情推进',
+      phase: 'exploration',
       chestsOpened: [],
       chestsTotal: 0,
       remainingChestPositions: [],
@@ -273,14 +323,14 @@ export class StoryContextStore {
     const switches = g.$gameSwitches
     const variables = g.$gameVariables
 
-    if (party && typeof party.items === "function") {
+    if (party && typeof party.items === 'function') {
       try {
         const rawItems = party.items() || []
         ctx.keyItems = rawItems
           .slice(0, 20)
           .map((item: any) => ({
             id: item?.id ?? 0,
-            name: item?.name ?? "",
+            name: item?.name ?? '',
             count: party.numItems ? party.numItems(item) : 1,
           }))
           .filter((i: any) => i.name)
@@ -289,8 +339,10 @@ export class StoryContextStore {
       }
     }
 
+    if (map?.mapId?.() !== ctx.mapId) return
+
     // Benchmark Game Domain Knowledge
-    if (ctx.mapId === 6) {
+    if (isBenchmarkStoryGame() && ctx.mapId === 6) {
       const v6 = variables ? variables.value(6) : 0
       const s32 = switches ? switches.value(32) : false
       const s27 = switches ? switches.value(27) : false
@@ -299,9 +351,9 @@ export class StoryContextStore {
       ctx.chestsTotal = 3
 
       const candidateChests = [
-        { id: 7, x: 14, y: 7, name: "试炼宝箱 7" },
-        { id: 8, x: 13, y: 11, name: "试炼宝箱 8" },
-        { id: 6, x: 8, y: 10, name: "试炼宝箱 6" },
+        { id: 7, x: 14, y: 7, name: '试炼宝箱 7' },
+        { id: 8, x: 13, y: 11, name: '试炼宝箱 8' },
+        { id: 6, x: 8, y: 10, name: '试炼宝箱 6' },
       ]
 
       const remaining: typeof ctx.remainingChestPositions = []
@@ -309,95 +361,97 @@ export class StoryContextStore {
         const ev = map?.event?.(c.id)
         if (ev && chestEventOpened(ev, ctx.mapId, c.id)) {
           if (!ctx.chestsOpened.includes(c.id)) ctx.chestsOpened.push(c.id)
-        } else {
+        } else if (!ctx.chestsOpened.includes(c.id)) {
           remaining.push(c)
         }
       }
       ctx.remainingChestPositions = remaining
 
       if (s30 || s683) {
-        ctx.activeObjective = "已获得拉维尔娜女神赐福！返回公会大厅开启后续篇章"
-        ctx.phase = "prologue_complete"
+        ctx.activeObjective = '已获得拉维尔娜女神赐福！返回公会大厅开启后续篇章'
+        ctx.phase = 'prologue_complete'
       } else if (s27) {
-        ctx.activeObjective = "前往拉维尔娜神坛 (3, 2) 接受女神赐福并通关序章"
-        ctx.phase = "laverna_blessing"
+        const offerings = variables?.value(7) ?? 0
+        ctx.activeObjective =
+          offerings < 4 ? `收集拉维尔娜赐礼 (${offerings}/4)，优先拆陷阱、开启力所能及的宝箱提升开锁等级，再挑战赐礼宝箱` : '前往拉维尔娜神坛 (3, 2) 接受女神赐福并通关序章'
+        ctx.phase = offerings < 4 ? 'gather_offerings' : 'laverna_blessing'
       } else if (s32) {
-        ctx.activeObjective = "调查会长身旁的闪光补给点 (13, 7) 获取试炼奖励"
-        ctx.phase = "claim_reward"
+        ctx.activeObjective = '调查会长身旁的闪光补给点 (13, 7) 获取试炼奖励'
+        ctx.phase = 'claim_reward'
       } else if (v6 < 3) {
-        const remainingNames = remaining.map((r) => `${r.name}(${r.x}, ${r.y})`).join("、")
-        ctx.activeObjective = `开锁试炼: 撬开 3 个宝箱 (已开 ${v6}/3，剩余目标: ${remainingNames || "周围宝箱"})`
-        ctx.phase = "chest_trial"
+        const remainingNames = remaining.map((r) => `${r.name}(${r.x}, ${r.y})`).join('、')
+        ctx.activeObjective = `开锁试炼: 撬开 3 个宝箱 (已开 ${v6}/3，剩余目标: ${remainingNames || '周围宝箱'})`
+        ctx.phase = 'chest_trial'
       } else {
-        ctx.activeObjective = "3个宝箱已全部开锁！向会长鲍里斯 (11, 7) 汇报任务"
-        ctx.phase = "report_trial"
+        ctx.activeObjective = '3个宝箱已全部开锁！向会长鲍里斯 (11, 7) 汇报任务'
+        ctx.phase = 'report_trial'
       }
       return
     }
 
-    if (ctx.mapId === 5) {
+    if (isBenchmarkStoryGame() && ctx.mapId === 5) {
       const s12 = switches ? switches.value(12) : false
       const s13 = switches ? switches.value(13) : false
       const s14 = switches ? switches.value(14) : false
       const s23 = switches ? switches.value(23) : false
 
       if (!s12) {
-        ctx.activeObjective = "听取鲍里斯会长的第二试炼简报 (4, 11)"
-        ctx.phase = "boris_briefing"
+        ctx.activeObjective = '听取鲍里斯会长的第二试炼简报 (4, 11)'
+        ctx.phase = 'boris_briefing'
       } else if (!s13) {
-        ctx.activeObjective = "推进试炼战斗，清理拦路鼠群 (6, 11)"
-        ctx.phase = "rat_encounter"
+        ctx.activeObjective = '推进试炼战斗，清理拦路鼠群 (6, 11)'
+        ctx.phase = 'rat_encounter'
       } else if (!s14) {
-        ctx.activeObjective = "穿过下水道走廊 (18, 15)，触发影之长者试炼 (5, 5)"
-        ctx.phase = "shadow_elder"
+        ctx.activeObjective = '穿过下水道走廊 (18, 15)，触发影之长者试炼 (5, 5)'
+        ctx.phase = 'shadow_elder'
       } else if (!s23) {
-        ctx.activeObjective = "拉动机关拉杆 (2, 3) 解除暗门封锁"
-        ctx.phase = "puzzle_levers"
+        ctx.activeObjective = '拉动机关拉杆 (2, 3) 解除暗门封锁'
+        ctx.phase = 'puzzle_levers'
       } else {
-        ctx.activeObjective = "暗门已解锁，穿过门扉前往序章终点深处 (21, 3)"
-        ctx.phase = "enter_deep_dungeon"
+        ctx.activeObjective = '暗门已解锁，穿过门扉前往序章终点深处 (21, 3)'
+        ctx.phase = 'enter_deep_dungeon'
       }
       return
     }
 
-    if (ctx.mapId === 4) {
+    if (isBenchmarkStoryGame() && ctx.mapId === 4) {
       const gold = party?.gold ? party.gold() : 0
       const questDone = switches ? switches.value(6) : false
       if (gold < 50 && !questDone) {
         ctx.activeObjective = `鲍里斯会长试炼: 筹集 50 金币 (当前拥有 ${gold} 金币，搜寻宝箱与坐垫下线索)`
-        ctx.phase = "gather_gold"
+        ctx.phase = 'gather_gold'
       } else if (!questDone) {
         ctx.activeObjective = `金币已筹齐 (${gold}G)，前往会长鲍里斯 (3, 4) 交付试炼`
-        ctx.phase = "report_gold"
+        ctx.phase = 'report_gold'
       } else {
-        ctx.activeObjective = "试炼已通过，穿过暗门 (1, 7) 进入试炼二区"
-        ctx.phase = "enter_zone_two"
+        ctx.activeObjective = '试炼已通过，穿过暗门 (1, 7) 进入试炼二区'
+        ctx.phase = 'enter_zone_two'
       }
       return
     }
 
-    if (ctx.mapId === 1) {
+    if (isBenchmarkStoryGame() && ctx.mapId === 1) {
       const leader = party?.leader ? party.leader() : null
       const hasDagger = leader && g.$dataWeapons ? leader.hasWeapon(g.$dataWeapons[5]) || leader.isEquipped(g.$dataWeapons[5]) : false
       if (!hasDagger) {
-        ctx.activeObjective = "开启武器箱 (8, 8) 拾取并装备盗贼匕首"
-        ctx.phase = "equip_weapon"
+        ctx.activeObjective = '开启武器箱 (8, 8) 拾取并装备盗贼匕首'
+        ctx.phase = 'equip_weapon'
       } else {
-        ctx.activeObjective = "前往秘密楼梯 (15, 11) 进入公会地下试炼场"
-        ctx.phase = "enter_dungeon"
+        ctx.activeObjective = '前往秘密楼梯 (15, 11) 进入公会地下试炼场'
+        ctx.phase = 'enter_dungeon'
       }
       return
     }
 
     // Generic RPG Maker map discovery
-    if (map && typeof map.events === "function") {
+    if (map && typeof map.events === 'function') {
       const events = map.events() || []
       const unopened: typeof ctx.remainingChestPositions = []
       for (const ev of events) {
         if (!ev || ev._erased) continue
         const id = ev.eventId ? ev.eventId() : ev._eventId
-        if (!id || typeof id !== "number") continue
-        const name = ev.event?.()?.name || ""
+        if (!id || typeof id !== 'number') continue
+        const name = ev.event?.()?.name || ''
         if (/(сундук|chest|宝箱|箱)/i.test(name)) {
           if (!chestEventOpened(ev, ctx.mapId, id)) {
             unopened.push({ id, x: Number(ev._x), y: Number(ev._y), name })
@@ -413,16 +467,11 @@ export class StoryContextStore {
 
   public static formatSummaryForPrompt(mapId: number): string {
     const ctx = this.get(mapId)
-    const lines: string[] = [
-      "【当前场景与任务目标】",
-      `- 场景：${ctx.mapName} (ID: ${ctx.mapId})`,
-      `- 当前明确目标：${ctx.activeObjective}`,
-      `- 当前阶段：${ctx.phase}`,
-    ]
+    const lines: string[] = ['【当前场景与任务目标】', `- 场景：${ctx.mapName} (ID: ${ctx.mapId})`, `- 当前明确目标：${ctx.activeObjective}`, `- 当前阶段：${ctx.phase}`]
 
     const recentActions = this.getRecentGlobalHistory(6)
     if (recentActions.length > 0) {
-      lines.push("【历史行动与已完成事项（之前做过了什么）】")
+      lines.push('【历史行动与已完成事项（之前做过了什么）】')
       recentActions.forEach((item, idx) => {
         lines.push(`${idx + 1}. [${item.mapName}] ${item.action}`)
       })
@@ -432,25 +481,41 @@ export class StoryContextStore {
       lines.push(
         `- 宝箱进度：已开启 ${ctx.chestsOpened.length}/${ctx.chestsTotal || ctx.chestsOpened.length + ctx.remainingChestPositions.length}` +
           (ctx.remainingChestPositions.length > 0
-            ? `，剩余目标：${ctx.remainingChestPositions.map((c) => `${c.name || `#${c.id}`}(${c.x}, ${c.y})`).join("、")}`
-            : "（当前阶段宝箱已全部开启）")
+            ? `，剩余目标：${ctx.remainingChestPositions.map((c) => `${c.name || `#${c.id}`}(${c.x}, ${c.y})`).join('、')}`
+            : '（当前阶段宝箱已全部开启）')
       )
     }
 
     if (ctx.keyItems.length > 0) {
-      const keyStr = ctx.keyItems.map((i) => `${i.name} x${i.count}`).join("、")
+      const keyStr = ctx.keyItems.map((i) => `${i.name} x${i.count}`).join('、')
       lines.push(`- 背包道具：${keyStr}`)
     }
 
     if (ctx.unreachableEvents.length > 0) {
-      lines.push(`- 确认不可达事件（已自动过滤）：[${ctx.unreachableEvents.map((id) => `ID ${id}`).join(", ")}]`)
+      lines.push(`- 确认不可达事件（已自动过滤）：[${ctx.unreachableEvents.map((id) => `ID ${id}`).join(', ')}]`)
+    }
+
+    const prerequisites = this.getAllLockPrerequisites(mapId)
+    if (prerequisites.length > 0) {
+      const level = (globalThis as any).$gameVariables?.value?.(3) ?? 0
+      lines.push(`- 当前开锁等级：${level}`)
+      for (const prerequisite of prerequisites) {
+        lines.push(
+          `- 事件 ID ${prerequisite.eventId}：${prerequisite.kind === 'trap' ? '陷阱' : '宝箱'}需要开锁等级 ${prerequisite.requiredLevel}，${level >= prerequisite.requiredLevel ? '已达到记录的最低等级，可重新评估' : '等级不足，先寻找其他可完成目标'}`
+        )
+      }
     }
 
     const lastTrans = this.getLastTransition()
+    const failures = StoryFailureMemory.history(mapId)
+    for (const eventId of new Set(failures.map((failure) => failure.eventId))) {
+      const failure = StoryFailureMemory.blocked(mapId, eventId)
+      if (failure) lines.push(`- 事件 ID ${eventId} 已禁止重复尝试：${failure.reason}；${failure.detail}。相关前提未变化，走远、切图或等待不能解除限制。`)
+    }
     if (lastTrans && lastTrans.toMapId === mapId && Date.now() - lastTrans.timestamp < 120_000) {
       lines.push(`- 探索纪律：刚从地图 ${lastTrans.fromMapId} 传送进入当前地图，禁止走回头路返回上一层，必须在当前场景探索推进！`)
     }
 
-    return lines.join("\n")
+    return lines.join('\n')
   }
 }

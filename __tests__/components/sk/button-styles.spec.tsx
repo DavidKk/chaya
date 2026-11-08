@@ -170,7 +170,7 @@ describe('Button styles and sizes', () => {
     expect(btnWarn?.getAttribute('data-size')).toBe('lg')
     expect(btnWarn?.getAttribute('data-sheen')).toBe('true')
     expect(btnWarn?.className).toContain('linear-gradient')
-    expect(btnWarn?.className).toContain('text-white')
+    expect(btnWarn?.className).toContain('text-[#fffbeb]')
 
     expect(btnFail?.getAttribute('data-size')).toBe('lg')
     expect(btnFail?.getAttribute('data-sheen')).toBe('true')

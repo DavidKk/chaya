@@ -1,4 +1,3 @@
-import type { CompanionStoryRuntime } from './companion-core/story-runtime'
 /**
  * Companion host orchestration (T5). Parent wires createCompanionHost into the game host.
  */
@@ -26,6 +25,8 @@ import { isCompanionHostRequest } from '@/lib/runtime/companion-validation'
 import { buildCandidateMessages, CompanionCandidateCache, parseCandidatePayload, PREPARE_FORMAT, renderCandidateTemplate } from './companion-candidates'
 import { type CompanionChatHostDeps, CompanionChatSlot, type CompanionComplete, type CompanionControlStart } from './companion-chat'
 import { BATTLE_INTENT_FORMAT, BATTLE_INTENT_SYSTEM, type BattleIntentReceipt } from './companion-core/battle-intents'
+import { isStoryCustodyRequest } from './companion-core/story-guidance'
+import type { CompanionStoryRuntime } from './companion-core/story-runtime'
 import { CompanionRequestLedger, CONTROL_TICKET_TTL_MS, type ControlTicket } from './companion-requests'
 import { battleOutcomeOf, eventKindFromDomain, mapMemoryEpisodes, memoryOriginOf, toSpeechEpisodes } from './companion-speech-context'
 
@@ -408,13 +409,13 @@ export function createCompanionHost(deps: CompanionHostDependencies): CompanionH
       return { kind: 'clarification', text: '当前没有在托管中哦。有什么想聊的或者需要我帮忙的吗？', stamp }
     }
 
-    if (/^(开启|开始|启动|帮我|请帮我)?\s*(托管|全托管|全剧情托管|剧情全托管|全托管剧情|托管剧情|剧情托管|自律推进|继续剧情|自动过剧情|自动剧情|过剧情|代打剧情)(\s*(剧情|探索|模式|游玩))?$/i.test(prompt)) {
+    if (isStoryCustodyRequest(prompt)) {
       const ticketId = `ticket-${message.requestId}`
       const ticket: ControlTicket = {
         ticketId,
         requestId: message.requestId,
         prompt,
-        goal: '托管推进与地图探索',
+        goal: prompt,
         action: 'custody',
         shape: 'open',
         lifetime: 'until_stopped',

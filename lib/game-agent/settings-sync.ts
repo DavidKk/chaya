@@ -1,3 +1,4 @@
+import { normalizeEnabledModels } from '@/lib/game-agent/profile-models'
 import { CLI_PROVIDERS_FEATURE, type GameAgentProvider, isCliProvider, isGameAgentProvider, isOpenApiProvider, OPENAPI_PROVIDERS_FEATURE } from '@/lib/game-agent/providers'
 import { AGENT_PROXY_PROTOCOLS, type AgentProxyProtocols } from '@/lib/game-agent/proxy'
 import { normalizeAgentTimeouts } from '@/lib/game-agent/timeouts'
@@ -16,6 +17,8 @@ export type AgentSyncProfile = {
   endpoint: string
   modelsEndpoint?: string
   defaultModel: string
+  /** When set, only these model ids are offered in companion / status UIs. */
+  enabledModels?: string[]
   temperature: number
   keepAlive: string
   modelRequestTimeoutMs: number
@@ -38,6 +41,7 @@ export const AGENT_SYNC_FIELDS = [
   'endpoint',
   'modelsEndpoint',
   'defaultModel',
+  'enabledModels',
   'temperature',
   'keepAlive',
   'modelRequestTimeoutMs',
@@ -48,6 +52,13 @@ export const AGENT_SYNC_FIELDS = [
   'proxyHeaders',
 ] as const
 export type AgentSyncField = (typeof AGENT_SYNC_FIELDS)[number]
+
+function agentSyncFieldChanged(left: AgentSyncProfile, right: AgentSyncProfile, field: AgentSyncField): boolean {
+  if (field === 'enabledModels' || field === 'proxyHeaders' || field === 'proxyProtocols') {
+    return JSON.stringify(left[field] ?? null) !== JSON.stringify(right[field] ?? null)
+  }
+  return left[field] !== right[field]
+}
 
 export type AgentSyncRecord = {
   id: string
@@ -168,7 +179,7 @@ export function mergeAgentSyncDocuments(local: AgentSyncDocument, remote: AgentS
 }
 
 function profilesEqual(left: AgentSyncProfile, right: AgentSyncProfile) {
-  return AGENT_SYNC_FIELDS.every((field) => left[field] === right[field])
+  return AGENT_SYNC_FIELDS.every((field) => !agentSyncFieldChanged(left, right, field))
 }
 
 /** Converts a CRUD result into stamped mutations, including explicit tombstones. */
@@ -188,7 +199,7 @@ export function applySettingsToAgentSyncDocument(document: AgentSyncDocument, se
     const currentProfile = { id: current.id, ...current.values }
     if (profilesEqual(currentProfile, profile) && isAgentSyncRecordVisible(current)) continue
     for (const field of AGENT_SYNC_FIELDS) {
-      if (current.values[field] !== profile[field] || !isAgentSyncRecordVisible(current)) {
+      if (agentSyncFieldChanged(currentProfile, profile, field) || !isAgentSyncRecordVisible(current)) {
         ;(current.values[field] as AgentSyncProfile[typeof field]) = profile[field]
         current.fieldStamps[field] = stamp()
       }
@@ -223,7 +234,7 @@ export function applySettingsDiffToAgentSyncDocument(current: AgentSyncDocument,
     }
     const patched = { ...latest }
     for (const field of AGENT_SYNC_FIELDS) {
-      if (profile[field] !== base[field]) (patched[field] as AgentSyncProfile[typeof field]) = profile[field]
+      if (agentSyncFieldChanged(profile, base, field)) (patched[field] as AgentSyncProfile[typeof field]) = profile[field]
     }
     currentById.set(profile.id, patched)
   }
@@ -283,11 +294,13 @@ export function parseAgentSyncDocument(value: unknown): AgentSyncDocument | null
         if (typeof value === 'string' && value.trim()) proxyProtocols[key] = value
       }
     }
+    const enabledModels = normalizeEnabledModels(record.values.enabledModels)
     const values = {
       ...record.values,
       ...normalizeAgentTimeouts(record.values),
       proxy: typeof record.values.proxy === 'string' ? record.values.proxy : '',
       modelsEndpoint: typeof record.values.modelsEndpoint === 'string' ? record.values.modelsEndpoint : '',
+      ...(enabledModels ? { enabledModels } : { enabledModels: undefined }),
       proxyProtocols,
       proxyHeaders,
     }

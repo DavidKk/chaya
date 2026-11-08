@@ -22,12 +22,22 @@ function asTools(tools: RuntimeTool[]) {
 /** Upstream call without the shared companion/control resource queue. */
 export function rawCompleteAgentModel(
   profile: GameAgentProfile,
-  input: { model: string; messages: RuntimeMessage[]; tools: RuntimeTool[]; think?: boolean; format?: Record<string, unknown>; signal: AbortSignal }
+  input: {
+    model: string
+    messages: RuntimeMessage[]
+    tools: RuntimeTool[]
+    think?: boolean
+    format?: Record<string, unknown>
+    signal: AbortSignal
+    temperature?: number
+    maxTokens?: number
+    timeoutMs?: number
+  }
 ): Promise<RuntimeMessage> {
   if (isCliProvider(profile.provider)) {
     return completeWithCli(
       { id: profile.id, provider: profile.provider, proxy: profile.proxy, proxyProtocols: profile.proxyProtocols, proxyHeaders: profile.proxyHeaders },
-      { model: input.model, messages: input.messages, tools: input.tools, timeoutMs: profile.modelTimeoutMs, signal: input.signal }
+      { model: input.model, messages: input.messages, tools: input.tools, timeoutMs: input.timeoutMs ?? profile.modelTimeoutMs, signal: input.signal }
     )
   }
   if (isOpenApiProvider(profile.provider)) {
@@ -37,10 +47,12 @@ export function rawCompleteAgentModel(
       model: input.model,
       messages: input.messages as GameAgentMessage[],
       tools: asTools(input.tools),
-      temperature: profile.temperature,
-      timeoutMs: profile.modelTimeoutMs,
+      temperature: input.temperature ?? profile.temperature,
+      maxTokens: input.maxTokens,
+      timeoutMs: input.timeoutMs ?? profile.modelTimeoutMs,
       token,
       signal: input.signal,
+      format: input.format,
     }
     if (profile.provider === 'cc' && usesAnthropicApi(profile.endpoint)) return completeAnthropicChat(common, ollamaFetch(profile)) as Promise<RuntimeMessage>
     if (profile.provider === 'gemini-api' && !usesGeminiOpenAiCompat(profile.endpoint)) {
@@ -60,9 +72,10 @@ export function rawCompleteAgentModel(
       model: input.model,
       messages: input.messages as GameAgentMessage[],
       tools: asTools(input.tools),
-      temperature: profile.temperature,
+      temperature: input.temperature ?? profile.temperature,
+      maxTokens: input.maxTokens,
       keepAlive: profile.keepAlive,
-      timeoutMs: profile.modelTimeoutMs,
+      timeoutMs: input.timeoutMs ?? profile.modelTimeoutMs,
       think: input.think === true,
       ...(input.format ? { format: input.format } : {}),
       token: readGameAgentToken(profile.id),
@@ -90,6 +103,9 @@ export function completeAgentModel(
     format?: Record<string, unknown>
     signal: AbortSignal
     requestId?: string
+    temperature?: number
+    maxTokens?: number
+    timeoutMs?: number
   }
 ): Promise<RuntimeMessage> {
   const requestId = input.requestId || `managed:${profile.id}:${++managedRequestSeq}`
@@ -99,7 +115,7 @@ export function completeAgentModel(
     requestId,
     priority: 'control',
     signal: input.signal,
-    totalTimeoutMs: profile.modelTimeoutMs,
+    totalTimeoutMs: input.timeoutMs ?? profile.modelTimeoutMs,
     run: (slotSignal) =>
       rawCompleteAgentModel(profile, {
         model: input.model,
@@ -108,6 +124,9 @@ export function completeAgentModel(
         think: input.think,
         format: input.format,
         signal: slotSignal,
+        temperature: input.temperature,
+        maxTokens: input.maxTokens,
+        timeoutMs: input.timeoutMs,
       }),
   })
 }

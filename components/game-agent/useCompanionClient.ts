@@ -34,6 +34,14 @@ export function isCapabilityUnsupported(error: unknown) {
   return Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: unknown }).code === 'CAPABILITY_UNSUPPORTED')
 }
 
+export function isAgentRuntimeUnavailable(error: unknown) {
+  return Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: unknown }).code === 'AGENT_RUNTIME_UNAVAILABLE')
+}
+
+export function isAgentRuntimeUnavailableReason(reason?: string | null) {
+  return Boolean(reason && reason.includes('AGENT_RUNTIME_UNAVAILABLE'))
+}
+
 export function useCompanionClient(gameId: string, request: GameAgentRequest) {
   return useCallback(
     async <T>(message: CompanionHostRequest, signal?: AbortSignal): Promise<T> => {

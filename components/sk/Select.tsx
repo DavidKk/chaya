@@ -49,6 +49,11 @@ export type SelectProps = {
   onOpen?: () => void
   /** 选项加载中：面板顶部显示加载行 */
   loading?: boolean
+  /**
+   * Sit inside {@link AffixedTextInput} / NumberInput chrome: no own border or height shell.
+   * Keep a fixed width via `className` (e.g. `w-[5.75rem]`).
+   */
+  embedded?: boolean
 }
 
 export function Select({
@@ -66,6 +71,7 @@ export function Select({
   panelWidth = 'anchor',
   onOpen,
   loading = false,
+  embedded = false,
 }: SelectProps) {
   const t = useT()
   const resolvedPlaceholder = placeholder ?? t('common.selectPlaceholder')
@@ -306,15 +312,22 @@ export function Select({
         )
       : null
 
-  return (
-    <div ref={rootRef} className={cn('relative inline-block min-w-0', className)}>
-      <Tooltip content={tooltip} suppressed={open}>
-        <span className="inline-flex w-full">
-          <button
-            ref={triggerRef}
-            id={id}
-            type="button"
-            className={cn(
+  const triggerButton = (
+    <button
+      ref={triggerRef}
+      id={id}
+      type="button"
+      className={cn(
+        embedded
+          ? cn(
+              'inline-flex h-full w-full cursor-pointer items-center justify-between gap-0.5 border-none bg-transparent px-1.5',
+              'appearance-none rounded-none shadow-none',
+              size === 'mini' ? 'text-[0.7rem] leading-none' : 'text-[0.8125rem] leading-none',
+              'hover:enabled:text-accent',
+              'focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent',
+              controlDisabled
+            )
+          : cn(
               formControlChrome,
               formControlPadX,
               size === 'mini' ? 'h-6 px-1.5 text-[0.7rem] leading-none' : FORM_CONTROL_H,
@@ -323,24 +336,34 @@ export function Select({
               'focus-visible:border-accent',
               controlDisabled,
               open && 'border-accent'
-            )}
-            disabled={disabled}
-            aria-haspopup="listbox"
-            aria-expanded={open}
-            aria-controls={listboxId}
-            aria-label={ariaLabel}
-            onClick={() => (open ? close() : openPanel())}
-            onKeyDown={onTriggerKey}
-          >
-            {open ? (
-              <span className={cn('min-w-0 truncate whitespace-nowrap text-left', !selected && 'text-ink-soft')}>{label}</span>
-            ) : (
-              <TruncateText text={label} className={cn('whitespace-nowrap text-left', !selected && 'text-ink-soft')} />
-            )}
-            <IoChevronDown className="shrink-0 text-ink-soft" size={size === 'mini' ? 12 : 14} aria-hidden />
-          </button>
-        </span>
-      </Tooltip>
+            )
+      )}
+      disabled={disabled}
+      aria-haspopup="listbox"
+      aria-expanded={open}
+      aria-controls={listboxId}
+      aria-label={ariaLabel}
+      onClick={() => (open ? close() : openPanel())}
+      onKeyDown={onTriggerKey}
+    >
+      {embedded || open ? (
+        <span className={cn('min-w-0 truncate whitespace-nowrap text-left', !selected && 'text-ink-soft')}>{label}</span>
+      ) : (
+        <TruncateText text={label} className={cn('whitespace-nowrap text-left', !selected && 'text-ink-soft')} />
+      )}
+      <IoChevronDown className="shrink-0 text-ink-soft" size={size === 'mini' ? 12 : 14} aria-hidden />
+    </button>
+  )
+
+  return (
+    <div ref={rootRef} className={cn('relative inline-block min-w-0', embedded && 'h-full', className)}>
+      {tooltip ? (
+        <Tooltip content={tooltip} suppressed={open}>
+          <span className="inline-flex h-full w-full">{triggerButton}</span>
+        </Tooltip>
+      ) : (
+        <span className="inline-flex h-full w-full">{triggerButton}</span>
+      )}
       {panel}
     </div>
   )

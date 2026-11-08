@@ -178,17 +178,12 @@ export class AgentTaskController {
       void input.execute(task, controller.signal, this).then(
         () => {
           if (!terminal(task.state)) {
-            if (task.lifetime === 'until_stopped') return
-            this.finish(task.id, 'completed')
+            if (task.lifetime === 'until_stopped') this.finish(task.id, 'failed', '托管执行器已退出，请重新启动托管')
+            else this.finish(task.id, 'completed')
           }
         },
         (error) => {
           if (!terminal(task.state)) {
-            if (task.lifetime === 'until_stopped' && !controller.signal.aborted) {
-              console.warn('[task-controller] Custody task error suppressed from auto-closing:', error)
-              this.emit(task.id, 'progress.updated', { summary: '托管推进中…' })
-              return
-            }
             this.finish(task.id, controller.signal.aborted ? 'stopped' : 'failed', error instanceof Error ? error.message : String(error))
           }
         }

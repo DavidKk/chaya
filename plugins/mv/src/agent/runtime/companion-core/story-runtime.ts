@@ -1,24 +1,21 @@
-import { isBattleResultContext, setSkipBattleResult, trySkipBattleResult } from '../../../cheat/runtime/skip-battle-result'
+import { createLogger } from '../../../helpers/net/logger'
 import { AGENT_MANUAL_INPUT_EVENT, readAgentGameState } from '../../handlers'
 import type { InteractIo } from '../../interact'
 import type { CompanionComplete } from '../companion-chat'
 import { CompanionBanterEngine } from './story-banter'
+import { StoryBattleDriver } from './story-battle'
+import { isBenchmarkStoryGame } from './story-benchmark'
 import { StoryContextStore } from './story-context'
 import { StoryDriver } from './story-driver'
 import { type ExplorationTarget, StoryExplorationPlanner } from './story-exploration'
+import { StoryFailureMemory } from './story-failure-memory'
+import { isStoryMenuActive, tryMapMenuHealing } from './story-menu'
+import { StuckDetector } from './story-navigation'
 import { type ModelThoughtEvent, StoryPuzzleSolver } from './story-puzzle-solver'
 
-export type StoryRuntimePhase =
-  | 'title'
-  | 'dialogue'
-  | 'choice'
-  | 'exploring'
-  | 'battle'
-  | 'stuck_recovery'
-  | 'paused'
-  | 'idle'
-  | 'completed'
-  | 'thought'
+const log = createLogger('story-runtime')
+
+export type StoryRuntimePhase = 'title' | 'dialogue' | 'choice' | 'exploring' | 'battle' | 'stuck_recovery' | 'paused' | 'idle' | 'completed' | 'thought'
 
 export type StoryProgressUpdate = {
   phase: StoryRuntimePhase
@@ -32,34 +29,11 @@ export type StoryRuntimeDeps = {
   model?: string
   character?: string
   locale?: string
+  goal?: string
   signal: AbortSignal
   onProgress?: (update: StoryProgressUpdate) => void
   onThought?: (thought: ModelThoughtEvent) => void
-}
-
-class StuckDetector {
-  private lastPosition: { mapId: number; x: number; y: number } | null = null
-  private lastChangeTime = Date.now()
-  private readonly thresholdMs: number
-
-  constructor(thresholdMs = 25_000) {
-    this.thresholdMs = thresholdMs
-  }
-
-  public update(mapId: number, x: number, y: number): boolean {
-    const now = Date.now()
-    if (!this.lastPosition || this.lastPosition.mapId !== mapId || this.lastPosition.x !== x || this.lastPosition.y !== y) {
-      this.lastPosition = { mapId, x, y }
-      this.lastChangeTime = now
-      return false
-    }
-    return now - this.lastChangeTime > this.thresholdMs
-  }
-
-  public reset(): void {
-    this.lastPosition = null
-    this.lastChangeTime = Date.now()
-  }
+  onGameover?: () => void
 }
 
 export class CompanionStoryRuntime {
@@ -67,21 +41,29 @@ export class CompanionStoryRuntime {
   private readonly planner: StoryExplorationPlanner
   private readonly puzzleSolver: StoryPuzzleSolver
   private readonly banter: CompanionBanterEngine
+  private readonly battle: StoryBattleDriver
   private readonly stuckDetector = new StuckDetector(25_000)
   private pausedUntil = 0
   private active = false
   private inBattle = false
   private lastMapId: number | null = null
-  private bgTimer: ReturnType<typeof setInterval> | null = null
   private cleanups: Array<() => void> = []
   private lastPhase: StoryRuntimePhase | null = null
   private lastSummary = ''
   private prologueMilestoneAnnounced = false
-  private battleEndSteps = 0
+  private choiceAbort: AbortController | null = null
+  private controlRevision = 0
+  private runGeneration = 0
+  private puzzleTargetOverride: ExplorationTarget | null = null
   private eventRunningTicks = 0
-  private watchdogTimer: ReturnType<typeof setInterval> | null = null
+  private actionAbort: AbortController | null = null
+  private readonly playerGuidance: string[] = []
 
   constructor(private readonly deps: StoryRuntimeDeps) {
+    this.battle = new StoryBattleDriver(
+      (summary) => this.emit('battle', summary),
+      () => this.simulateKey('ok')
+    )
     const forwardThought = (thought: ModelThoughtEvent) => {
       this.deps.onThought?.(thought)
       this.emit('thought', `大模型完成推理：${thought.decision || ''}`, thought)
@@ -101,6 +83,8 @@ export class CompanionStoryRuntime {
       onThought: forwardThought,
     })
     this.planner = new StoryExplorationPlanner(this.puzzleSolver)
+    if (deps.goal?.trim()) this.playerGuidance.push(deps.goal.trim())
+    this.planner.setPlayerGuidance(this.getPlayerGuidance())
     this.banter = new CompanionBanterEngine({
       complete: deps.complete,
       profileId: deps.profileId,
@@ -129,14 +113,12 @@ export class CompanionStoryRuntime {
     return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
-  private playerGuidance: { text: string; receivedAt: number; consumed: boolean } | null = null
-
   public isActive(): boolean {
     return this.active
   }
 
   public getPhase(): StoryRuntimePhase {
-    return this.lastPhase ?? "idle"
+    return this.lastPhase ?? 'idle'
   }
 
   public getSummary(): string {
@@ -146,26 +128,26 @@ export class CompanionStoryRuntime {
   public applyPlayerGuidance(text: string): void {
     const clean = text.trim()
     if (!clean) return
-    this.playerGuidance = { text: clean, receivedAt: Date.now(), consumed: false }
+    this.playerGuidance.push(clean)
+    this.controlRevision++
+    this.choiceAbort?.abort(new DOMException('Player changed instructions', 'AbortError'))
+    this.actionAbort?.abort(new DOMException('Player changed instructions', 'AbortError'))
+    this.puzzleTargetOverride = null
+    this.stuckDetector.reset()
+    this.planner.setPlayerGuidance(this.getPlayerGuidance())
     const curMapId = (globalThis as any).$gameMap?.mapId?.() ?? 0
-    StoryContextStore.recordGlobalAction(curMapId, `收到玩家建议：“${clean}”`, "guidance")
-    this.emit("exploring", `收到你的建议：“${clean}”，正在调整探索决策…`)
-    this.planner.clearTargetAttempts()
+    StoryContextStore.recordGlobalAction(curMapId, `收到玩家建议：“${clean}”`, 'guidance')
+    this.emit('exploring', `收到你的建议：“${clean}”，正在调整探索决策…`)
   }
 
   public getPlayerGuidance(): string | null {
-    if (!this.playerGuidance || this.playerGuidance.consumed) return null
-    if (Date.now() - this.playerGuidance.receivedAt > 120_000) {
-      this.playerGuidance = null
-      return null
-    }
-    return this.playerGuidance.text
+    return this.playerGuidance.join('\n') || null
   }
 
   public getChatContext(): { active: boolean; phase: string; summary: string; guidance?: string } {
     return {
       active: this.active,
-      phase: this.lastPhase ?? "exploring",
+      phase: this.lastPhase ?? 'exploring',
       summary: this.lastSummary,
       guidance: this.getPlayerGuidance() ?? undefined,
     }
@@ -173,405 +155,391 @@ export class CompanionStoryRuntime {
 
   public start(): Promise<void> {
     if (this.active) return Promise.resolve()
+    this.deps.signal.throwIfAborted()
     this.active = true
-    setSkipBattleResult(true)
+    const generation = ++this.runGeneration
+    const runAbort = new AbortController()
+    this.actionAbort = runAbort
 
     // Preemption listener: manual player keys pause custody for 3s
     if (typeof window !== 'undefined') {
       const onManualInput = () => {
+        this.controlRevision++
+        this.choiceAbort?.abort(new DOMException('Player took control', 'AbortError'))
+        this.actionAbort?.abort(new DOMException('Player took control', 'AbortError'))
         this.pausedUntil = Date.now() + 3_000
         this.emit('paused', '检测到玩家手动操作，托管暂停 3 秒…')
       }
       window.addEventListener(AGENT_MANUAL_INPUT_EVENT, onManualInput)
       this.cleanups.push(() => window.removeEventListener(AGENT_MANUAL_INPUT_EVENT, onManualInput))
-
-      // Background pump for SceneManager when window is not focused
-      this.bgTimer = setInterval(() => {
-        const g = globalThis as any
-        if (typeof document !== 'undefined' && document.hidden && g.SceneManager && !g.SceneManager._stopped && typeof g.SceneManager.update === 'function') {
-          g.SceneManager.update()
-        }
-      }, 16)
-      this.cleanups.push(() => {
-        if (this.bgTimer) clearInterval(this.bgTimer)
-        this.bgTimer = null
-      })
-
-      this.watchdogTimer = setInterval(() => {
-        this.runWatchdogHeartbeat()
-      }, 1500)
-      this.cleanups.push(() => {
-        if (this.watchdogTimer) clearInterval(this.watchdogTimer)
-        this.watchdogTimer = null
-        setSkipBattleResult(false)
-      })
     }
 
-    return this.runLoop()
+    return this.runLoop(generation).finally(() => {
+      if (generation === this.runGeneration) this.stop()
+    })
   }
 
   public stop(): void {
     this.active = false
-    setSkipBattleResult(false)
+    this.runGeneration++
+    this.controlRevision++
+    this.choiceAbort?.abort(new DOMException('Stopped', 'AbortError'))
+    this.actionAbort?.abort(new DOMException('Stopped', 'AbortError'))
+    this.puzzleTargetOverride = null
     for (const cleanup of this.cleanups) cleanup()
     this.cleanups = []
     this.emit('idle', '托管已停止')
   }
 
-  private async runLoop(): Promise<void> {
+  private async runLoop(generation: number): Promise<void> {
     const g = globalThis as any
+    let contextOwner = g.$gameSystem
+    let lastDiagnosisAt = -Infinity
+    let lastErrorKey = ''
+    let lastErrorAt = 0
+    let repeatedErrors = 0
 
-    while (this.active && !this.deps.signal.aborted) {
+    while (this.active && !this.deps.signal.aborted && generation === this.runGeneration) {
       try {
+        if (contextOwner && g.$gameSystem !== contextOwner) {
+          this.stop()
+          this.emit('paused', '游戏存档已切换，托管已停止，请重新启动以使用新存档状态。')
+          return
+        }
+        contextOwner = g.$gameSystem
         // 1. Handle player preemption pause
-      if (this.isPreempted()) {
-        await this.sleep(200)
-        continue
-      }
-
-      const scene = g.SceneManager?._scene
-      const sceneName = scene?.constructor?.name as string | undefined
-
-      if (!scene) {
-        await this.sleep(100)
-        continue
-      }
-
-      // 2. Gameover scene -> restart to Title
-      if (sceneName === 'Scene_Gameover') {
-        this.emit('title', '检测到 Gameover 界面，正在返回标题…')
-        if (typeof scene.gotoTitle === 'function') scene.gotoTitle()
-        await this.sleep(1000)
-        continue
-      }
-
-      // Sub-scenes / Stray menus -> pop back to Map
-      if (sceneName && sceneName.startsWith('Scene_') && !['Scene_Map', 'Scene_Battle', 'Scene_Title', 'Scene_Gameover'].includes(sceneName)) {
-        this.emit('exploring', `检测到停留在界面 ${sceneName}，自动返回游戏地图…`)
-        this.simulateKey('escape')
-        if (typeof scene.popScene === 'function') scene.popScene()
-        await this.sleep(300)
-        continue
-      }
-
-      // 3. Title scene -> Auto New Game
-      if (sceneName === 'Scene_Title') {
-        this.emit('title', '标题界面：自动开始新游戏…')
-        if (typeof scene.commandNewGame === 'function') {
-          scene.commandNewGame()
+        if (this.isPreempted()) {
+          await this.sleep(200)
+          continue
         }
-        await this.sleep(800)
-        continue
-      }
+        if (this.actionAbort?.signal.aborted) this.actionAbort = new AbortController()
+        const actionSignal = AbortSignal.any([this.deps.signal, this.actionAbort!.signal])
 
-      // 4. Battle scene -> High-Speed Local Battle Resolution
-      if (sceneName === 'Scene_Battle') {
-        if (!this.inBattle) {
-          this.inBattle = true
-          this.banter.trigger('battle_start')
-        }
-        this.emit('battle', '战斗接管中：本地高速战斗核心正在歼灭敌人…')
-        this.resolveBattleStep(scene)
-        await this.sleep(50)
-        continue
-      } else if (this.inBattle) {
-        this.inBattle = false
-        this.banter.trigger('battle_win')
-        const curMapId = g.$gameMap?.mapId?.() ?? 0
-        StoryContextStore.recordGlobalAction(curMapId, '遭遇战胜利，击败敌方怪物', 'battle')
-      }
+        const scene = g.SceneManager?._scene
+        const sceneName = scene?.constructor?.name as string | undefined
 
-      // 5. Map scene -> Dialogue, Choices & Exploration
-      if (sceneName === 'Scene_Map') {
-        const curMapId = g.$gameMap?.mapId?.() ?? null
-        if (curMapId !== null && curMapId !== this.lastMapId) {
-          const fromId = this.lastMapId
-          this.lastMapId = curMapId
-          this.banter.trigger('map_transition', { mapId: curMapId })
-          if (fromId !== null) {
-            const player = g.$gamePlayer
-            const arrivalPos = player ? { x: Number(player.x), y: Number(player.y) } : undefined
-            StoryContextStore.recordTransition({
-              fromMapId: fromId,
-              toMapId: curMapId,
-              arrivalPos,
-              timestamp: Date.now(),
-            })
-          }
-        }
-
-        // Map 215: Prologue Act Selection
-        if (curMapId === 215) {
-          this.emit('exploring', '序章章节选择中：确认开始第一幕…')
-          this.simulateKey('ok')
-          await this.sleep(400)
+        if (!scene) {
+          await this.sleep(100)
           continue
         }
 
-        const message = g.$gameMessage
-        const messageWindow = scene._messageWindow
-
-        // 5a. Branch choices popup
-        if (message && typeof message.isChoice === 'function' && message.isChoice()) {
-          const choices = (typeof message.choices === 'function' ? message.choices() : []) as string[]
-          if (choices.length > 0) {
-            const mapId = g.$gameMap?.mapId?.() ?? null
-            this.emit('choice', `决策选择中：正在仲裁分支选项 [${choices.join(' / ')}]…`)
-            const pickedIdx = await this.driver.resolveChoice(choices, mapId, this.getPlayerGuidance())
-            this.driver.applyChoiceSelection(messageWindow, pickedIdx)
-            await this.sleep(300)
-            continue
-          }
+        if (sceneName === 'Scene_Gameover') {
+          this.stop()
+          this.emit('paused', '战斗失败，托管已停止，请选择存档后继续。')
+          this.deps.onGameover?.()
+          return
         }
 
-        // 5b. Dialogue message & map events running
-        const isMsgPause = Boolean(messageWindow && messageWindow.visible && messageWindow.pause)
-        const isMsgBusy = Boolean(message && typeof message.isBusy === 'function' && message.isBusy())
-        const isEventRunning = Boolean(g.$gameMap && typeof g.$gameMap.isEventRunning === 'function' && g.$gameMap.isEventRunning())
-
-        if (isMsgPause || isMsgBusy || isEventRunning) {
-          if (messageWindow) {
-            this.emit('dialogue', '对话推进中：自动快进与自然停顿阅读…')
-            const advanced = this.driver.tickMessageWindow(messageWindow)
-            if (advanced || isMsgPause) {
-              this.simulateKey('ok')
-            }
-          }
-          if (isEventRunning && (!messageWindow || !messageWindow.visible)) {
-            this.eventRunningTicks = (this.eventRunningTicks || 0) + 1
-            if (this.eventRunningTicks > 5) {
-              this.simulateKey('ok')
-              this.eventRunningTicks = 0
-            }
-          } else {
-            this.eventRunningTicks = 0
-          }
-          await this.sleep(60)
+        if (sceneName && sceneName.startsWith('Scene_') && !['Scene_Map', 'Scene_Battle', 'Scene_Title', 'Scene_Gameover'].includes(sceneName)) {
+          this.emit('paused', `当前处于 ${sceneName}，等待菜单操作完成…`)
+          await this.sleep(300)
           continue
         }
 
-        // 5d. Player free exploration
-        const player = g.$gamePlayer
-        const canMove = player && typeof player.canMove === 'function' ? player.canMove() : false
+        if (sceneName === 'Scene_Title') {
+          this.emit('title', '请从游戏菜单选择存档，读取后继续托管。')
+          await this.sleep(800)
+          continue
+        }
 
-        if (canMove) {
-          const mapId = g.$gameMap?.mapId?.() ?? 0
-          const px = Number(player.x)
-          const py = Number(player.y)
-
-          // Stuck check
-          if (this.stuckDetector.update(mapId, px, py)) {
-            this.emit('stuck_recovery', '检测到行进停滞，正在执行自救脱困…')
-            await this.executeStuckJitter(player)
-            this.stuckDetector.reset()
-            await this.sleep(300)
-            continue
+        if (sceneName === 'Scene_Battle') {
+          if (!this.inBattle) {
+            this.inBattle = true
+            this.banter.trigger('battle_start')
+            const troop = g.$gameTroop
+            const enemies =
+              troop && typeof troop.members === 'function'
+                ? (troop.members() as any[])
+                    .filter((e) => e && e.isAlive?.())
+                    .map((e) => e.name?.())
+                    .filter(Boolean)
+                : []
+            const leader = g.$gameParty?.leader?.()
+            const leaderHp = leader ? `我方 HP: ${leader.hp}/${leader.mhp}` : ''
+            this.emit('battle', `⚔️ 遭遇战斗：${enemies.join('、') || '敌方怪物'}！(${leaderHp})`)
           }
+          this.battle.step(scene)
+          await this.sleep(350)
+          continue
+        } else if (this.inBattle) {
+          this.inBattle = false
+          this.banter.trigger('battle_win')
+          const curMapId = g.$gameMap?.mapId?.() ?? 0
+          StoryContextStore.recordGlobalAction(curMapId, '遭遇战胜利，击败敌方怪物', 'battle')
+        }
 
-          // Check for prologue climax completion on Map 6
-          if (mapId === 6) {
-            const switches = g.$gameSwitches
-            if (switches && (switches.value(24) || switches.value(25)) && !this.prologueMilestoneAnnounced) {
-              this.prologueMilestoneAnnounced = true
-              this.banter.trigger('milestone')
-              StoryContextStore.recordMilestone(mapId, '🎉 序章试炼已顺利通关！')
-              this.emit('exploring', '🎉 序章试炼已顺利通关！托管自律推进中，继续探索后续场景…')
+        // 5. Map scene -> Dialogue, Choices & Exploration
+        if (sceneName === 'Scene_Map') {
+          const curMapId = g.$gameMap?.mapId?.() ?? null
+          if (curMapId !== null && curMapId !== this.lastMapId) {
+            const fromId = this.lastMapId
+            this.lastMapId = curMapId
+            this.banter.trigger('map_transition', { mapId: curMapId })
+            if (fromId !== null) {
+              const player = g.$gamePlayer
+              const arrivalPos = player ? { x: Number(player.x), y: Number(player.y) } : undefined
+              StoryContextStore.recordTransition({
+                fromMapId: fromId,
+                toMapId: curMapId,
+                arrivalPos,
+                timestamp: Date.now(),
+              })
             }
           }
 
-          // Next target from exploration planner
-          const guidance = this.getPlayerGuidance()
-          let target = this.planner.findNextTarget(mapId, { x: px, y: py }, guidance)
+          const message = g.$gameMessage
+          const messageWindow = scene._messageWindow
 
-          const isStuck = this.stuckDetector.update(mapId, px, py)
-          if (!target || isStuck) {
-            this.emit('exploring', '正在结合剧情对话与地图环境，调用大模型分析下一步主线推进策略…')
-            target = await this.planner.resolvePuzzleTarget(mapId, { x: px, y: py }, this.driver.getRecentHistory(10), guidance)
-            if (target) {
-              this.banter.trigger('puzzle', { detail: target.hint })
-              this.emit('exploring', `大模型分析推理：${target.hint || target.name} (${target.x}, ${target.y})…`)
-            } else if (isStuck) {
-              this.emit('stuck_recovery', '检测到行进停滞，正在执行自救脱困…')
-              await this.executeStuckJitter(player)
-              this.stuckDetector.reset()
+          // 5a. Branch choices popup
+          if (message && typeof message.isChoice === 'function' && message.isChoice()) {
+            const choices = [...(typeof message.choices === 'function' ? message.choices() : [])] as string[]
+            if (choices.length > 0) {
+              const mapId = g.$gameMap?.mapId?.() ?? null
+              const map = g.$gameMap
+              const choiceWindow = messageWindow?._choiceWindow
+              if (!choiceWindow?.active) {
+                await this.sleep(50)
+                continue
+              }
+              const revision = this.controlRevision
+              const choiceContext = this.driver.getChoiceContext()
+              const pending = new AbortController()
+              this.choiceAbort = pending
+              this.emit('choice', `决策选择中：正在仲裁分支选项 [${choices.join(' / ')}]…`)
+              let pickedIdx: number
+              try {
+                pickedIdx = await this.driver.resolveChoice(choices, mapId, this.getPlayerGuidance(), AbortSignal.any([this.deps.signal, pending.signal]))
+              } catch (error) {
+                if (!pending.signal.aborted && !this.deps.signal.aborted) throw error
+                continue
+              } finally {
+                if (this.choiceAbort === pending) this.choiceAbort = null
+              }
+              if (!this.active || this.deps.signal.aborted || this.isPreempted() || this.controlRevision !== revision) continue
+              if (g.SceneManager?._scene !== scene || g.$gameMap !== map || g.$gameMap?.mapId?.() !== mapId || g.$gameMessage !== message) continue
+              if (scene._messageWindow !== messageWindow || messageWindow?._choiceWindow !== choiceWindow || !choiceWindow?.active || !message.isChoice()) continue
+              const currentChoices = message.choices()
+              if (currentChoices.length !== choices.length || currentChoices.some((choice: string, index: number) => choice !== choices[index])) continue
+              const currentContext = this.driver.getChoiceContext()
+              if (currentContext.eventId !== choiceContext.eventId || currentContext.prompt !== choiceContext.prompt) continue
+              if (pickedIdx === -2) {
+                this.stop()
+                this.emit('paused', '当前选项均与玩家的路线限制冲突，托管已暂停，请手动处理或调整指示。', { mapId, ...currentContext })
+                return
+              } else if (pickedIdx < 0) {
+                const context = this.driver.getChoiceContext()
+                if (context.cancelIndex >= 0 && context.cancelIndex < choices.length) {
+                  if (!this.driver.applyChoiceSelection(messageWindow, context.cancelIndex)) {
+                    this.stop()
+                    this.emit('paused', `事件 EV${String(context.eventId).padStart(3, '0')} 的退出选项未被游戏菜单接受，托管已暂停。`, { mapId, ...context })
+                    return
+                  }
+                  StoryFailureMemory.settleChoice(mapId ?? 0, context.eventId, false)
+                  StoryFailureMemory.record(mapId ?? 0, context.eventId, 'no_effect', `Choice branches exhausted: ${context.prompt}`)
+                  this.emit('thought', `事件 EV${String(context.eventId).padStart(3, '0')} 的当前分支未能推进，已通过菜单退出并记录阻碍，尝试其他路线。`)
+                } else {
+                  this.stop()
+                  this.emit('paused', `事件 EV${String(context.eventId).padStart(3, '0')} 的当前分支已尝试且没有安全退出选项，托管已暂停。`, { mapId, ...context })
+                  return
+                }
+              } else {
+                if (!this.driver.applyChoiceSelection(messageWindow, pickedIdx)) {
+                  this.stop()
+                  this.emit('paused', '当前选择未被游戏菜单接受，托管已暂停，请检查选项是否可用。', { mapId, ...currentContext, pickedIdx })
+                  return
+                }
+              }
               await this.sleep(300)
               continue
             }
           }
 
-          if (target) {
-            const rawDesc = target.hint || target.name || `事件 ${target.eventId}`
-            const desc = rawDesc.replace(/^前往\s*/, '')
-            this.emit('exploring', target.guided ? `根据你的建议：前往 ${desc} (${target.x}, ${target.y})…` : `地图探索中：前往 ${desc} (${target.x}, ${target.y})…`)
+          // 5b. Dialogue message & map events running
+          const isMsgPause = Boolean(messageWindow && messageWindow.visible && messageWindow.pause)
+          const isMsgBusy = Boolean(message && typeof message.isBusy === 'function' && message.isBusy())
+          const isEventRunning = Boolean(g.$gameMap && typeof g.$gameMap.isEventRunning === 'function' && g.$gameMap.isEventRunning())
 
-            const io: InteractIo = {
-              press: async (key) => {
-                this.simulateKey(key)
-              },
-              readState: readAgentGameState,
-              interrupted: () => !this.active || this.deps.signal.aborted || this.isPreempted(),
-            }
-
-            const actionRes = await this.planner.executeTarget(target, io, this.deps.signal)
-            if (actionRes.success) {
-              if (target.guided && this.playerGuidance) {
-                this.playerGuidance.consumed = true
-              }
-              if (target.kind === 'chest') {
-                this.banter.trigger('loot', { name: target.name || undefined })
-              } else if (target.kind === 'lever') {
-                this.banter.trigger('puzzle')
+          if (isMsgPause || isMsgBusy || isEventRunning) {
+            if (messageWindow) {
+              this.emit('dialogue', '对话推进中：等待文字显示并停顿阅读…')
+              const advanced = this.driver.tickMessageWindow(messageWindow)
+              if (advanced) {
+                this.simulateKey('ok')
               }
             }
-            await this.sleep(200)
-            continue
-          } else {
-            this.emit('exploring', '地图探索中：当前区域暂无新目标，巡航观察中…')
-            await this.sleep(500)
+            if (isEventRunning && (!messageWindow || !messageWindow.visible)) {
+              this.eventRunningTicks = (this.eventRunningTicks || 0) + 1
+              if (this.eventRunningTicks > 5) {
+                this.simulateKey('ok')
+                this.eventRunningTicks = 0
+              }
+            } else {
+              this.eventRunningTicks = 0
+            }
+            await this.sleep(60)
             continue
           }
-        }
-      }
 
-      await this.sleep(100)
+          // 5d. Player free exploration
+          const player = g.$gamePlayer
+          const canMove = player && typeof player.canMove === 'function' ? player.canMove() : false
+
+          if (canMove) {
+            const settled = this.planner.settlePendingTarget()
+            StoryFailureMemory.settleUnownedChoices(this.planner.pendingEventId)
+            if (settled) {
+              this.driver.setCurrentTargetEventId(null)
+              if (!settled.result.success) this.emit('thought', `目标【${settled.target.name}】尚未完成，已记录阻碍并切换其他路线。`)
+            }
+            if (isStoryMenuActive()) {
+              await this.sleep(100)
+              continue
+            }
+            await tryMapMenuHealing((summary) => this.emit('exploring', summary), actionSignal)
+            actionSignal.throwIfAborted()
+            if (g.SceneManager?._scene !== scene || g.$gameMap?.mapId?.() !== curMapId) continue
+            const mapId = g.$gameMap?.mapId?.() ?? 0
+            const px = Number(player.x)
+            const py = Number(player.y)
+
+            // Check for prologue climax completion on Map 6
+            if (isBenchmarkStoryGame() && mapId === 6) {
+              const switches = g.$gameSwitches
+              if (switches && (switches.value(30) || switches.value(683)) && !this.prologueMilestoneAnnounced) {
+                this.prologueMilestoneAnnounced = true
+                this.banter.trigger('milestone')
+                StoryContextStore.recordMilestone(mapId, '🎉 序章试炼已顺利通关！')
+                this.emit('exploring', '🎉 序章试炼已顺利通关！托管自律推进中，继续探索后续场景…')
+              }
+            }
+
+            // Next target from exploration planner
+            const guidance = this.getPlayerGuidance()
+            let target: ExplorationTarget | null = null
+            if (this.puzzleTargetOverride) {
+              target = this.planner.isEligible(mapId, this.puzzleTargetOverride.eventId) ? this.puzzleTargetOverride : null
+              this.puzzleTargetOverride = null
+            } else {
+              target = this.planner.findNextTarget(mapId, { x: px, y: py }, guidance)
+            }
+
+            const isStuck = this.stuckDetector.update(mapId, px, py)
+            if (!target || isStuck) {
+              if (Date.now() - lastDiagnosisAt >= 15_000) {
+                lastDiagnosisAt = Date.now()
+                this.emit('exploring', '正在结合剧情对话与地图环境，调用大模型分析下一步主线推进策略…')
+                target = await this.planner.resolvePuzzleTarget(mapId, { x: px, y: py }, this.driver.getRecentHistory(10), guidance, actionSignal)
+                actionSignal.throwIfAborted()
+              }
+              if (target) {
+                this.banter.trigger('puzzle', { detail: target.hint })
+                this.emit('exploring', `大模型分析推理：${target.hint || target.name} (${target.x}, ${target.y})…`)
+              } else if (!target) {
+                target = this.planner.findFallbackTarget(mapId, { x: px, y: py })
+                if (target) {
+                  this.emit('exploring', target.hint || `备选探索：调查 ${target.name}…`)
+                }
+              }
+              this.stuckDetector.reset()
+            }
+
+            if (target) {
+              const desc = target.hint || target.name || `事件 ${target.eventId}`
+              this.emit('exploring', target.guided ? `根据你的建议：前往 ${desc} (${target.x}, ${target.y})…` : `地图探索中：前往 ${desc} (${target.x}, ${target.y})…`, {
+                mapId,
+                eventId: target.eventId,
+                routes: this.planner.routes,
+                failures: StoryFailureMemory.history(mapId),
+              })
+              this.driver.setCurrentTargetEventId(target.eventId)
+
+              const io: InteractIo = {
+                press: async (key) => {
+                  this.simulateKey(key)
+                  await this.sleep(100)
+                },
+                readState: readAgentGameState,
+                interrupted: () => !this.active || actionSignal.aborted || this.isPreempted(),
+              }
+
+              let actionRes: any
+              try {
+                actionRes = await this.planner.executeTarget(target, io, actionSignal)
+              } catch (error) {
+                actionSignal.throwIfAborted()
+                log.warn('Target interaction raised a runtime exception', { mapId, eventId: target.eventId, error })
+                this.stop()
+                this.emit('paused', '交互执行发生程序异常，托管已停止；请查看日志修复后继续。', {
+                  mapId,
+                  eventId: target.eventId,
+                  error: error instanceof Error ? error.message : String(error),
+                  stack: error instanceof Error ? error.stack : undefined,
+                })
+                return
+              } finally {
+                this.driver.setCurrentTargetEventId(this.planner.pendingEventId)
+              }
+              if (actionRes.pending || actionRes.outcome === 'approaching' || actionRes.outcome === 'interrupted') continue
+              if (!actionRes.success && !io.interrupted()) {
+                log.warn('Target interaction did not complete', {
+                  mapId,
+                  eventId: target.eventId,
+                  outcome: actionRes.outcome,
+                  detail: actionRes.detail,
+                })
+                this.emit(
+                  'thought',
+                  `⚠️ 目标【${target.name || `事件 #${target.eventId}`}】交互结果与预期不一致（${actionRes.detail || actionRes.outcome}），触发大模型解谜思考分析替代路线…`
+                )
+                lastDiagnosisAt = Date.now()
+                const puzzleTarget = await this.planner.resolvePuzzleTarget(mapId, { x: px, y: py }, this.driver.getRecentHistory(10), guidance, actionSignal)
+                actionSignal.throwIfAborted()
+                if (puzzleTarget) {
+                  this.puzzleTargetOverride = puzzleTarget
+                  this.banter.trigger('puzzle', { detail: puzzleTarget.hint })
+                  this.emit('exploring', `大模型分析推理新目标：${puzzleTarget.hint || puzzleTarget.name} (${puzzleTarget.x}, ${puzzleTarget.y})…`)
+                }
+                await this.sleep(300)
+                continue
+              }
+              if (actionRes.success) {
+                if (target.kind === 'chest') {
+                  this.banter.trigger('loot', { name: target.name || undefined })
+                } else if (target.kind === 'lever') {
+                  this.banter.trigger('puzzle')
+                }
+              }
+              await this.sleep(200)
+              continue
+            } else {
+              this.emit('paused', '当前路线暂时受阻，等待前置条件变化；失败目标保持禁用，定期分析替代路线。', {
+                mapId,
+                player: { x: px, y: py },
+                routes: this.planner.routes,
+                failures: StoryFailureMemory.history(mapId),
+              })
+              await this.sleep(500)
+              continue
+            }
+          }
+        }
+
+        await this.sleep(100)
       } catch (err) {
-        console.warn('[story-runtime] Recovering loop from exception:', err)
+        if (!this.active || this.deps.signal.aborted || generation !== this.runGeneration) return
+        if (this.isPreempted() || this.actionAbort?.signal.aborted) continue
+        log.warn('Recovering loop from exception', err)
+        const errorKey = err instanceof Error ? `${err.name}:${err.message}` : String(err)
+        repeatedErrors = errorKey === lastErrorKey && Date.now() - lastErrorAt < 15_000 ? repeatedErrors + 1 : 1
+        lastErrorKey = errorKey
+        lastErrorAt = Date.now()
+        if (repeatedErrors >= 3) {
+          this.stop()
+          this.emit('paused', '同一运行异常连续出现，托管已停止；请查看日志后修复，避免重复执行。', { error: errorKey })
+          return
+        }
         await this.sleep(1000)
       }
-    }
-  }
-
-  private resolveBattleStep(scene: any): void {
-    const g = globalThis as any
-    const bm = g.BattleManager
-    const troop = g.$gameTroop
-    const party = g.$gameParty
-    const sm = g.SceneManager
-
-    if (!bm) return
-    ensureSafeSceneManagerPop()
-
-    // If SceneManager is already transitioning to another scene (e.g. back to Scene_Map),
-    // wait for it without executing more pops or scene mutations.
-    if (sm?._nextScene) return
-
-    // 1. Battle End / Victory Resolution
-    const isEnding = (typeof bm.isBattleEnd === 'function' && bm.isBattleEnd()) ||
-      String(bm._phase) === 'battleEnd' ||
-      isBattleResultContext()
-
-    if (isEnding) {
-      this.battleEndSteps++
-      this.emit('battle', '战斗结算确认中：正在推进胜利结算与掉落物…')
-      this.simulateKey('ok')
-      trySkipBattleResult()
-
-      if (g.$gameMessage && typeof g.$gameMessage.isBusy === 'function' && g.$gameMessage.isBusy()) {
-        if (typeof g.$gameMessage.clear === 'function') g.$gameMessage.clear()
-      }
-      if (sm?._nextScene) return
-
-      if (String(bm._phase) === 'battleEnd') {
-        if (typeof bm.updateBattleEnd === 'function') bm.updateBattleEnd()
-      } else if (typeof bm.update === 'function') {
-        bm.update()
-      }
-      if (typeof scene.update === 'function') scene.update()
-
-      // Post-battle safeguard: recover party HP
-      if (party && typeof party.members === 'function') {
-        for (const m of party.members()) {
-          if (m && typeof m.recoverAll === 'function' && m.hp < m.mhp) {
-            m.recoverAll()
-          }
-        }
-      }
-
-      // If battle ending is stuck in Scene_Battle for more than 15 steps (~1.2s)
-      if (this.battleEndSteps > 15) {
-        if (typeof bm.replayBgmAndBgs === 'function') bm.replayBgmAndBgs()
-        const hasStack = Array.isArray(sm?._stack) && sm._stack.length > 0
-        if (hasStack && typeof sm?.pop === 'function') {
-          sm.pop()
-        } else if (g.Scene_Map && typeof sm?.goto === 'function') {
-          sm.goto(g.Scene_Map)
-        }
-        this.battleEndSteps = 0
-      }
-      return
-    }
-
-    this.battleEndSteps = 0
-
-    // 2. High-Speed Combat Turn Execution
-    let steps = 0
-    while (steps < 20 && scene && scene.constructor?.name === 'Scene_Battle') {
-      steps++
-      if (scene._partyCommandWindow && scene._partyCommandWindow.active) {
-        if (typeof scene.commandFight === 'function') scene.commandFight()
-      } else if (typeof bm.isInputting === 'function' && bm.isInputting() && typeof bm.inputtingAction === 'function') {
-        const action = bm.inputtingAction()
-        const members = troop && typeof troop.members === 'function' ? (troop.members() as any[]) : []
-        const livingIdx = members.findIndex((e) => e && typeof e.isAlive === 'function' && e.isAlive())
-        if (action && livingIdx >= 0) {
-          if (typeof action.setAttack === 'function') action.setAttack()
-          if (typeof action.setTarget === 'function') action.setTarget(livingIdx)
-          const actor = typeof bm.actor === 'function' ? bm.actor() : null
-          if (actor && g.$dataSkills && typeof actor.attackSkillId === 'function') {
-            actor.setLastBattleSkill(g.$dataSkills[actor.attackSkillId()])
-          }
-          if (typeof bm.selectNextCommand === 'function') bm.selectNextCommand()
-        }
-      }
-      if (typeof bm.update === 'function') bm.update()
-      if (typeof scene.update === 'function') scene.update()
-    }
-  }
-
-  private runWatchdogHeartbeat(): void {
-    ensureSafeSceneManagerPop()
-    if (!this.active || this.deps.signal.aborted || this.isPreempted()) return
-    const g = globalThis as any
-    const scene = g.SceneManager?._scene
-    if (!scene) return
-    const sceneName = String(scene.constructor?.name || '')
-
-    // Battle stall heartbeat
-    if (sceneName === 'Scene_Battle') {
-      if (g.SceneManager?._nextScene) return
-      trySkipBattleResult()
-      const bm = g.BattleManager
-      if (bm && (bm.isBattleEnd?.() || String(bm._phase) === 'battleEnd' || isBattleResultContext())) {
-        this.simulateKey('ok')
-        if (String(bm._phase) === 'battleEnd' && typeof bm.updateBattleEnd === 'function') {
-          bm.updateBattleEnd()
-        }
-      }
-      return
-    }
-
-    // Sub-scene / menu stall heartbeat
-    if (sceneName.startsWith('Scene_') && !['Scene_Map', 'Scene_Battle', 'Scene_Title', 'Scene_Gameover'].includes(sceneName)) {
-      this.simulateKey('escape')
-      if (typeof scene.popScene === 'function') scene.popScene()
-      return
-    }
-
-    // Dialogue stall heartbeat on Map
-    if (sceneName === 'Scene_Map') {
-      const messageWindow = scene._messageWindow
-      if (messageWindow && messageWindow.visible && messageWindow.pause) {
-        this.simulateKey('ok')
-      }
-    }
-  }
-
-  private async executeStuckJitter(player: any): Promise<void> {
-    const directions = [2, 4, 6, 8]
-    const randomDir = directions[Math.floor(Math.random() * directions.length)]
-    if (player && typeof player.moveStraight === 'function') {
-      player.moveStraight(randomDir)
-      await this.sleep(300)
     }
   }
 
@@ -599,25 +567,5 @@ export class CompanionStoryRuntime {
         }
       }
     }, 60)
-  }
-
-}
-
-export function ensureSafeSceneManagerPop(): void {
-  const g = globalThis as any
-  const sm = g.SceneManager
-  if (!sm || sm.__chayaSafePopInstalled) return
-  sm.__chayaSafePopInstalled = true
-  const origPop = sm.pop
-  sm.pop = function (this: any) {
-    if (Array.isArray(this._stack) && this._stack.length > 0) {
-      if (typeof origPop === 'function') {
-        return origPop.call(this)
-      }
-      return this.goto(this._stack.pop())
-    }
-    if (g.Scene_Map && typeof this.goto === 'function') {
-      return this.goto(g.Scene_Map)
-    }
   }
 }

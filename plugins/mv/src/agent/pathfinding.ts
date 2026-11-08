@@ -70,9 +70,9 @@ export function planRoute(input: {
   if (!inside(input.start, input.bounds) || !inside(input.target, input.bounds)) {
     return { status: 'outside_visible_area', path: [], distance: null, target: input.target, eventBoundaryIds: [], exploredNodes: 0, visibleBounds: input.bounds }
   }
-  const blockedEvents = events.filter((event) => !event.target && event.id !== input.targetEventId)
-  const blocked = new Set(blockedEvents.map((event) => key(event)))
   const targets = input.interactionPositions?.length ? input.interactionPositions : [input.target]
+  const blockedEvents = events.filter((event) => (!event.target && event.id !== input.targetEventId) || !targets.some((target) => key(target) === key(event)))
+  const blocked = new Set(blockedEvents.map((event) => key(event)))
   let best: { path: Point[]; target: Point; exploredNodes: number } | null = null
   let exploredNodes = 0
   for (const target of targets) {
@@ -99,7 +99,7 @@ export function planRoute(input: {
     const candidate = search({ ...input, target, blocked: new Set() })
     if (!terrain.path.length || (candidate.path.length && candidate.path.length < terrain.path.length)) terrain = { ...candidate, target }
   }
-  const eventBoundaryIds = terrain.path.length ? blockedEvents.filter((event) => terrain.path.some((point) => key(point) === key(event))).map((event) => event.id) : []
+  const eventBoundaryIds = terrain.path.flatMap((point) => blockedEvents.filter((event) => key(point) === key(event)).map((event) => event.id))
   return {
     status: eventBoundaryIds.length ? 'event_boundary' : terrain.path.length ? 'reachable' : 'terrain_blocked',
     path: [],

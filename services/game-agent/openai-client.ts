@@ -162,6 +162,7 @@ export async function completeOpenAiChat(
     token?: string
     requestHeaders?: Record<string, string>
     signal?: AbortSignal
+    format?: Record<string, unknown>
   },
   fetcher: typeof fetch = fetch
 ): Promise<GameAgentMessage> {
@@ -184,6 +185,7 @@ export async function completeOpenAiChat(
         temperature: input.temperature ?? 0.2,
         ...(input.maxTokens ? { max_completion_tokens: input.maxTokens } : {}),
         messages: toOpenAiMessages(input.messages),
+        ...(input.format ? { response_format: { type: 'json_object' } } : {}),
         ...(input.tools?.length
           ? {
               tools: input.tools.map((tool) => ({

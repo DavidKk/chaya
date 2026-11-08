@@ -1,5 +1,6 @@
 import { defineApiRoute } from '@/initializer/controller'
 import { apiError, apiOk } from '@/initializer/response'
+import { resolveAgentModelsByProfile } from '@/lib/game-agent/profile-models'
 import { CLI_PROVIDERS_FEATURE, isCliProvider, isOpenApiProvider, OPENAPI_PROVIDERS_FEATURE } from '@/lib/game-agent/providers'
 import { agentSettingsFromSyncDocument, type AgentSyncDocument, agentSyncDocumentForReader } from '@/lib/game-agent/settings-sync'
 import { canUseDisk } from '@/lib/service-mode/mode'
@@ -88,12 +89,17 @@ function withTokenFlags(settings: GameAgentSettings) {
   }
 }
 
+function modelsPayload(settings: GameAgentSettings) {
+  const cached = loadAgentModelCache(settings.profiles)
+  return resolveAgentModelsByProfile(settings.profiles, cached)
+}
+
 export const GET = defineApiRoute('get:/api/integration/game-agent', async () => {
   if (!canUseDisk()) return apiError(404, 'GAME_AGENT_LOCAL_ONLY', 'Agent configuration is only available in Chaya App or local service')
   let sync = loadGameAgentSyncDocument()
   if (agentSettingsFromSyncDocument(sync).profiles.length === 0) sync = updateGameAgentSyncFromSettings({ profiles: [] }).sync
   const settings = agentSettingsFromSyncDocument(sync)
-  return apiOk({ settings: withTokenFlags(settings), sync, models: loadAgentModelCache(settings.profiles) })
+  return apiOk({ settings: withTokenFlags(settings), sync, models: modelsPayload(settings) })
 })
 
 export const POST = defineApiRoute('post:/api/integration/game-agent', async ({ request }) => {
@@ -166,7 +172,7 @@ export const PUT = defineApiRoute('put:/api/integration/game-agent', async ({ re
     }
     releaseRemovedAuthorizations(before, result.settings.profiles)
     const visible = forReader(result, features)
-    return apiOk({ ...visible, settings: withTokenFlags(visible.settings), models: loadAgentModelCache(visible.settings.profiles) })
+    return apiOk({ ...visible, settings: withTokenFlags(visible.settings), models: modelsPayload(visible.settings) })
   } catch (error) {
     return apiError(400, 'INVALID_AGENT_SETTINGS', error instanceof Error ? error.message : String(error))
   }

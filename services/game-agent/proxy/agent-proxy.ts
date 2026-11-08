@@ -10,6 +10,7 @@ import {
   normalizeAgentProxyHeaders,
   normalizeAgentProxyProtocols,
   resolveAgentProxySlots,
+  runtimeAgentProxyUrl,
 } from '@/lib/game-agent/proxy'
 import { startOperation } from '@/services/log/operation'
 
@@ -45,8 +46,9 @@ function slotsOf(profile: AgentProxyProfile | string | undefined) {
 /** CLI-facing HTTP(S) proxy URL. socks5 and headered http/https proxies use the local bridge. */
 async function cliProxyUrl(proxy: string, headers: Record<string, string>): Promise<string> {
   if (!proxy) return ''
-  if (isSocksProxy(proxy) || Object.keys(headers).length > 0) return socksBridgeUrl(proxy, headers)
-  return proxy
+  const runtime = runtimeAgentProxyUrl(proxy)
+  if (isSocksProxy(runtime) || Object.keys(headers).length > 0) return socksBridgeUrl(runtime, headers)
+  return runtime
 }
 
 /**
@@ -87,13 +89,14 @@ export async function agentProxyEnv(profile: AgentProxyProfile | string | undefi
 }
 
 function dispatcherFor(proxy: string, headers: Record<string, string>) {
-  const key = `${proxy}\n${agentProxyHeadersKey(headers)}`
+  const runtime = runtimeAgentProxyUrl(proxy)
+  const key = `${runtime}\n${agentProxyHeadersKey(headers)}`
   let dispatcher = dispatchers.get(key)
   if (!dispatcher) {
     dispatcher = (async () => {
-      if (isSocksProxy(proxy)) return new ProxyAgent(await socksBridgeUrl(proxy, headers))
-      if (Object.keys(headers).length) return new ProxyAgent({ uri: proxy, headers })
-      return new ProxyAgent(proxy)
+      if (isSocksProxy(runtime)) return new ProxyAgent(await socksBridgeUrl(runtime, headers))
+      if (Object.keys(headers).length) return new ProxyAgent({ uri: runtime, headers })
+      return new ProxyAgent(runtime)
     })()
     dispatchers.set(key, dispatcher)
     dispatcher.catch(() => dispatchers.delete(key))
