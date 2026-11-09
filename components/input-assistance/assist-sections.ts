@@ -1,4 +1,4 @@
-import { LuBot, LuCircleDot, LuGamepad2, LuKeyboard, LuLayoutGrid, LuMap, LuMessageCircle, LuSave, LuSparkles } from 'react-icons/lu'
+import { LuBot, LuCircleDot, LuGamepad2, LuKeyboard, LuLayoutGrid, LuMap, LuSave, LuSparkles } from 'react-icons/lu'
 
 import type { MessageKey } from '@/lib/i18n'
 
@@ -10,8 +10,6 @@ export const ASSIST_SECTIONS = [
   { id: 'minimap', labelKey: 'nav.minimap', icon: LuMap },
   { id: 'floating-ball', labelKey: 'floatingBall.title', icon: LuCircleDot },
   { id: 'enhance', labelKey: 'nav.enhance', icon: LuSparkles },
-  { id: 'agents', labelKey: 'integration.agentSettingsTab', icon: LuBot },
-  { id: 'companion', labelKey: 'nav.companion', icon: LuMessageCircle },
   { id: 'panels', labelKey: 'nav.miniPanels', icon: LuLayoutGrid },
 ] as const satisfies ReadonlyArray<{ id: string; labelKey: MessageKey; icon: typeof LuBot }>
 

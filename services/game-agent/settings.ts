@@ -293,7 +293,7 @@ export function mergeOwnedGameAgentSyncDocument(incoming: AgentSyncDocument, syn
 }
 
 export function profileById(settings: GameAgentSettings, id: string) {
-  return settings.profiles.find((profile) => profile.id === id) || null
+  return settings.profiles.find((profile) => profile.id === id) || settings.profiles.find((profile) => profile.provider === id) || null
 }
 
 export function ollamaProfiles(settings: GameAgentSettings) {

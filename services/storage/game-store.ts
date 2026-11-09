@@ -70,19 +70,35 @@ export function createPublicGameStore(db: SharedCacheDb, dataDir: string) {
   function advanceRevision(gameId: string) {
     client.prepare('INSERT INTO game_storage_revisions VALUES(?,1) ON CONFLICT(game_id) DO UPDATE SET revision=revision+1').run(gameId)
   }
-  function materialize(gameId: string, directory: string) {
+  function materialize(gameId: string, directory: string, targetKind?: GameContentKind | 'cacheNdjson' | 'all') {
     // These public files are rebuildable read views. Only this owner process writes them.
-    atomic(
-      path.join(directory, GAME_CONTENT_RELS.cacheNdjson),
-      rows(gameId)
-        .map((row) => JSON.stringify(row))
-        .join('\n') + '\n'
-    )
-    for (const kind of Object.keys(GAME_CONTENT_RELS) as GameContentKind[]) {
-      const value = document(gameId, kind)
-      if (value !== null) atomic(path.join(directory, GAME_CONTENT_RELS[kind]), JSON.stringify(value) + '\n')
+    const mode = targetKind ?? 'all'
+    if (mode === 'all' || mode === 'cacheNdjson') {
+      atomic(
+        path.join(directory, GAME_CONTENT_RELS.cacheNdjson),
+        rows(gameId)
+          .map((row) => JSON.stringify(row))
+          .join('\n') + '\n'
+      )
+    }
+    if (mode === 'all') {
+      for (const kind of Object.keys(GAME_CONTENT_RELS) as GameContentKind[]) {
+        const value = document(gameId, kind)
+        if (value !== null) atomic(path.join(directory, GAME_CONTENT_RELS[kind]), JSON.stringify(value) + '\n')
+      }
+    } else if (mode !== 'cacheNdjson' && Object.hasOwn(GAME_CONTENT_RELS, mode)) {
+      const value = document(gameId, mode as GameContentKind)
+      if (value !== null) atomic(path.join(directory, GAME_CONTENT_RELS[mode as GameContentKind]), JSON.stringify(value) + '\n')
     }
     atomic(path.join(directory, '.revision'), String(revision(gameId)))
+  }
+  function tryMaterialize(gameId: string, directory: string, targetKind?: GameContentKind | 'cacheNdjson' | 'all'): { viewStatus: 'ready' | 'failed'; viewError?: string } {
+    try {
+      materialize(gameId, directory, targetKind)
+      return { viewStatus: 'ready' }
+    } catch (error) {
+      return { viewStatus: 'failed', viewError: error instanceof Error ? error.message : String(error) }
+    }
   }
   function ensureViews(state: { gameId: string; directory: string }) {
     try {
@@ -247,8 +263,8 @@ export function createPublicGameStore(db: SharedCacheDb, dataDir: string) {
       client.exec('ROLLBACK')
       throw error
     }
-    materialize(state.gameId, state.directory)
-    return { ok: true }
+    const viewResult = tryMaterialize(state.gameId, state.directory, 'cacheNdjson')
+    return { ok: true, committed: true, ...viewResult }
   }
   async function append(root: string, values: unknown[], key?: string) {
     return appendMounted(await mount(root), values, key)
@@ -265,17 +281,20 @@ export function createPublicGameStore(db: SharedCacheDb, dataDir: string) {
       client.exec('ROLLBACK')
       throw error
     }
-    materialize(state.gameId, state.directory)
-    return { ok: true }
+    if (Object.hasOwn(GAME_CONTENT_RELS, kind)) {
+      const viewResult = tryMaterialize(state.gameId, state.directory, kind as GameContentKind)
+      return { ok: true, committed: true, ...viewResult }
+    }
+    return { ok: true, committed: true, viewStatus: 'ready' as const }
   }
   return {
     mount,
     append,
     write,
-    refresh(gameId: string) {
+    refresh(gameId: string, kind?: GameContentKind | 'cacheNdjson' | 'all') {
       advanceRevision(gameId)
       const state = [...mounted.values()].find((item) => item.gameId === gameId)
-      if (state) materialize(gameId, state.directory)
+      if (state) tryMaterialize(gameId, state.directory, kind ?? 'all')
     },
     async read(root: string, kind: string) {
       return document((await mount(root)).gameId, kind)

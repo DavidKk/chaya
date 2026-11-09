@@ -6,18 +6,19 @@ const order = MAIN_NAV.map((item) => item.id)
 const isSubsequence = (ids: readonly string[]) => ids.every((id, i) => i === 0 || order.indexOf(id as never) > order.indexOf(ids[i - 1] as never))
 
 describe('main nav', () => {
-  it('has one order: 翻译 then 辅助', () => {
-    expect(order).toEqual(['library', 'edit', 'translate', 'assist', 'remote', 'logs', 'integration', 'about'])
+  it('has one order: 翻译 then 辅助 then AI', () => {
+    expect(order).toEqual(['library', 'edit', 'translate', 'assist', 'ai', 'remote', 'logs', 'integration', 'about'])
   })
 
   it('surfaces only hide items, never reorder them', () => {
-    expect(mainNavFor('web').map((i) => i.id)).toEqual(['library', 'edit', 'translate', 'assist', 'remote', 'logs', 'integration'])
-    expect(mainNavFor('overlay').map((i) => i.id)).toEqual(['edit', 'translate', 'assist', 'logs', 'integration', 'about'])
+    expect(mainNavFor('web').map((i) => i.id)).toEqual(['library', 'edit', 'translate', 'assist', 'ai', 'remote', 'logs', 'integration'])
+    expect(mainNavFor('overlay').map((i) => i.id)).toEqual(['edit', 'translate', 'assist', 'ai', 'logs', 'integration', 'about'])
     expect(isSubsequence(APP_NAV_ITEMS.map((i) => i.id))).toBe(true)
   })
 
   it('maps overlay pages to modules both ways', () => {
     expect(overlayTabFor('edit', 'bag')).toBe('bag')
+    expect(overlayTabFor('ai', 'run')).toBe('ai')
     expect(overlayTabFor('assist', 'run')).toBe('settings')
     expect(overlayTabFor('library', 'run')).toBeNull()
     for (const [id, tab] of Object.entries(OVERLAY_MAIN_TABS)) expect(mainNavIdForTab(tab)).toBe(id)

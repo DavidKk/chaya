@@ -18,6 +18,7 @@ export const TABS = [
   { id: 'data', labelKey: 'data.tab' },
   { id: 'trans', labelKey: 'nav.translate' },
   { id: 'settings', labelKey: 'nav.assist' },
+  { id: 'ai', labelKey: 'nav.ai' },
   { id: 'logs', labelKey: 'nav.logs' },
   { id: 'mcp', labelKey: 'nav.integration' },
   { id: 'about', labelKey: 'nav.about' },
@@ -31,6 +32,7 @@ export type GameEditSurface = 'page' | 'overlay'
 export const OVERLAY_MAIN_TABS = {
   translate: 'trans',
   assist: 'settings',
+  ai: 'ai',
   logs: 'logs',
   integration: 'mcp',
   about: 'about',

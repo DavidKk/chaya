@@ -98,7 +98,11 @@ function saveConfig(value: unknown): AgentSyncSettings {
 
 export function profileOf(config: AgentSyncSettings | null | undefined, profileId?: string) {
   if (!config) throw new Error('请先在 Chaya 网页连接一次游戏以同步 Agent 配置')
-  return config.profiles.find((profile) => profile.id === profileId) ?? config.profiles.find((profile) => profile.id === config.defaultProfileId) ?? config.profiles[0]
+  return (
+    config.profiles.find((profile) => profile.id === profileId || profile.provider === profileId) ??
+    config.profiles.find((profile) => profile.id === config.defaultProfileId) ??
+    config.profiles[0]
+  )
 }
 
 function toolRuntime(taskId: string, recall: (args: Record<string, unknown>) => unknown): { definitions: RuntimeTool[]; implementations: ToolImpls } {
@@ -608,11 +612,7 @@ export function createGameAgentRuntime(libraryGameId = gameRoomId()) {
         },
         false,
         signal,
-        isCustody
-          ? storyHost.execute
-          : input.action === 'battle' && input.shape === 'open'
-            ? battleHost.execute
-            : undefined
+        isCustody ? storyHost.execute : input.action === 'battle' && input.shape === 'open' ? battleHost.execute : undefined
       ) as Promise<AgentTask>
     },
   })

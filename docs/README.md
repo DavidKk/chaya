@@ -54,7 +54,8 @@
 | 页面 / API 请求慢、请求 ID、HTTP 耗时、慢请求集中查看 | [HTTP 请求追踪](technical/http-request-tracing.md) | 1 秒预警、精简汇总 API、阶段含义与日志恢复上限 |
 | GitHub 分发、资源/匹配算法下发、插件/业务包/App 更新 | [更新前置需求](application-updates.md) | [统一更新设计](technical/application-updates.md)；排期与阶段验收才读 [更新里程碑](milestones/application-updates.md) |
 | 本机 data/ 布局、备份、Agent 配置多副本 | [数据布局](technical/data-layout.md) | 与 `constants/paths`、局内 `content-paths` 对照 |
-| 存储三桶：公共 / 游戏内 / IndexedDB | [存储策略](technical/storage-policy.md) | 技术方案；公共单实例服务、SQLite 分库、身份签名与迁移自愈 |
+| 存储三桶、Local / Cloud 数据库读写、游戏插件与 Storage Daemon | [存储策略](technical/storage-policy.md) §1.2 简版架构 | 技术方案；公共单实例服务、SQLite 分库、身份签名与迁移自愈 |
+| Agent / 旅伴存储优化、Trace 增量归档、记忆增量写入、角色文件工作区、FTS5 | [存储优化需求](agent-storage-optimization.md)（待实现；阶段见 §5） | [存储优化技术方案](technical/agent-storage-optimization.md)；当前代码差距、迁移与验收 |
 | 文档维护、token 与索引优化 | [优化需求](ai-docs-optimization.md) | 无独立技术方案，仅维护时读取 |
 
 状态只在目标页维护：有效性（草案 / 现行 / 冻结 / 历史）与实现进度分开；冻结不等于未实现，现行不等于全实现。混合文档按章节及替代入口判断。

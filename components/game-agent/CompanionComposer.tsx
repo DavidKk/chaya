@@ -25,13 +25,15 @@ type Props = {
   chatBusy: boolean
   controlBusy: boolean
   canSend: boolean
+  unbound?: boolean
   onSend: (text: string) => void
   onStopChat: () => void
   onStopControl: () => void
 }
 
-export function CompanionComposer({ locale, question, chatBusy, controlBusy, canSend, onSend, onStopChat, onStopControl }: Props) {
+export function CompanionComposer({ locale, question, chatBusy, controlBusy, canSend, unbound, onSend, onStopChat, onStopControl: _onStopControl }: Props) {
   const t = useT()
+  const isZh = locale.startsWith('zh') || locale === 'cht'
   const copy = locale.startsWith('zh') || locale === 'cht' ? COPY.zh : COPY.en
   const [draft, setDraft] = useState('')
 
@@ -55,7 +57,18 @@ export function CompanionComposer({ locale, question, chatBusy, controlBusy, can
         maxLength={500}
         disabled={false}
         aria-label={t('companion.inputAria')}
-        placeholder={question || (chatBusy ? copy.chatBusy : controlBusy ? t('companion.autopilotPlaceholder') : t('companion.placeholder'))}
+        placeholder={
+          question ||
+          (unbound
+            ? isZh
+              ? '当前旅伴未绑定 Agent，请先在「AI > 旅伴」中配置'
+              : 'Companion has no agent configured'
+            : chatBusy
+              ? copy.chatBusy
+              : controlBusy
+                ? t('companion.autopilotPlaceholder')
+                : t('companion.placeholder'))
+        }
         className="min-w-0 flex-1 border-0 bg-transparent px-2 text-[11px] text-ink outline-none placeholder:text-ink-soft focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
       />
       {showStopChat ? (

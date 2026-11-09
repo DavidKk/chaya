@@ -1,6 +1,6 @@
 'use client'
 
-import { LuFileCode2, LuGlobe, LuPlug } from 'react-icons/lu'
+import { LuCode, LuGlobe, LuPlug } from 'react-icons/lu'
 
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
 import { useT } from '@/components/i18n/LocaleProvider'
@@ -9,13 +9,13 @@ import { Tooltip } from '@/components/sk'
 import { useViewState } from '@/lib/view-state'
 
 import { GameEditMcpPane } from './GameEditMcpPane'
-import { GameEditSkillsPane } from './GameEditSkillsPane'
+import { GameEditOpenApiPane } from './GameEditOpenApiPane'
 import { GameEditWebMcpPane } from './GameEditWebMcpPane'
 
 const SECTIONS = [
-  { id: 'skills', labelKey: 'integration.tabSkills', icon: LuFileCode2 },
   { id: 'mcp', labelKey: 'integration.tabMcp', icon: LuPlug },
   { id: 'webmcp', labelKey: 'integration.tabWebMcp', icon: LuGlobe },
+  { id: 'openapi', labelKey: 'integration.tabOpenApi', icon: LuCode },
 ] as const
 
 type SectionId = (typeof SECTIONS)[number]['id']
@@ -23,7 +23,7 @@ type SectionId = (typeof SECTIONS)[number]['id']
 const isSectionId = (v: unknown): v is SectionId => SECTIONS.some((item) => item.id === v)
 
 /** In-game integration uses the same three sections as the console, inside the overlay. */
-export function GameEditIntegrationPane({ request }: { request?: GameAgentRequest }) {
+export function GameEditIntegrationPane({ request: _request }: { request?: GameAgentRequest }) {
   const t = useT()
   const [section, setSection] = useViewState<SectionId>('integration.section', 'mcp', isSectionId)
   return (
@@ -44,7 +44,7 @@ export function GameEditIntegrationPane({ request }: { request?: GameAgentReques
         })}
       </SectionSideNav>
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        {section === 'skills' ? <GameEditSkillsPane request={request} /> : section === 'webmcp' ? <GameEditWebMcpPane /> : <GameEditMcpPane />}
+        {section === 'openapi' ? <GameEditOpenApiPane /> : section === 'webmcp' ? <GameEditWebMcpPane /> : <GameEditMcpPane />}
       </div>
     </div>
   )

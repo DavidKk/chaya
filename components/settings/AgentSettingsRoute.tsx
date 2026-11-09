@@ -8,18 +8,18 @@ import { returnToNavigationSource } from '@/lib/ui/navigation-restoration'
 
 import { AgentSettingsView } from './AgentSettingsView'
 
-export function AgentSettingsRoute({ agentId }: { agentId?: string }) {
+export function AgentSettingsRoute({ agentId, basePath = '/ai/agents' }: { agentId?: string; basePath?: string }) {
   const router = useRouter()
   const { request } = useGameAgentRequest()
   const navigate = useCallback(
     (id?: string) => {
       if (id) {
-        const href = `/assist/agents/${encodeURIComponent(id)}`
+        const href = `${basePath}/${encodeURIComponent(id)}`
         if (agentId === 'new') router.replace(href)
         else router.push(href)
-      } else returnToNavigationSource(router, '/assist/agents')
+      } else returnToNavigationSource(router, basePath)
     },
-    [router, agentId]
+    [router, agentId, basePath]
   )
   return <AgentSettingsView request={request} agentId={agentId} onNavigate={navigate} />
 }

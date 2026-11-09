@@ -48,6 +48,11 @@ const ALLOWED = new Set([
   'plugins/mv/src/agent/runtime/companion-core/story-exploration.ts',
   'plugins/mv/src/agent/runtime/companion-core/story-puzzle-solver.ts',
   'plugins/mv/src/agent/runtime/companion-core/story-context.ts',
+  'plugins/mv/src/agent/runtime/companion-core/story-transfer.ts',
+  'plugins/mv/src/agent/runtime/companion-core/story-choice-policy.ts',
+  'plugins/mv/src/agent/runtime/companion-core/story-guidance.ts',
+  'plugins/mv/src/agent/runtime/companion-core/story-guide.ts',
+  'plugins/mv/src/agent/runtime/companion-core/story-puzzle-target.ts',
 ])
 
 test('the Agent pipeline never routes or judges by natural-language keyword matching', () => {

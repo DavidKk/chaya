@@ -101,13 +101,13 @@ export function applyControlTurnEvent(input: { taskId: string; item: TurnEvent; 
     }
   }
   if (item.type === 'turn.failed') {
-    const isTaskNotFound = String(item.message || "").includes("Task not found")
+    const isTaskNotFound = String(item.message || '').includes('Task not found')
     if (isTaskNotFound) {
       return {
         ended: true,
         messages: messages.map((line) => (line.cardTurnId === taskId && line.cardState === 'pending' ? { ...line, cardState: 'expired' as const } : line)),
-        question: "",
-        controlProgress: "",
+        question: '',
+        controlProgress: '',
       }
     }
     return {

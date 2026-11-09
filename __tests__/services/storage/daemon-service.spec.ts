@@ -338,4 +338,41 @@ describe('daemon-service', () => {
     expect((await send('x'.repeat(1024 * 1024 + 1))).status).toBe(413)
     expect((await makeRequest(daemon.port, '/api/storage/ping', 'GET', daemon.authToken)).status).toBe(200)
   })
+
+  it('handles trace append and paginated queries through daemon rpc (F01)', async () => {
+    daemon = await startStorageDaemon({ dataDir: tmpDir, port: 0 })
+    const call = (method: string, args: unknown[]) =>
+      makeRequest(daemon!.port, '/api/storage/rpc', 'POST', daemon!.authToken, JSON.stringify({ method, args })).then((res) => {
+        const data = res.data as { error?: string; value?: any }
+        if (res.status !== 200) throw new Error(data?.error || 'RPC failed')
+        return data.value
+      })
+
+    const task = {
+      id: 'daemon-trace-1',
+      goal: 'Investigate',
+      gameId: 'game-123',
+      runtimeInstanceId: 'inst-1',
+      capability: 'play',
+      state: 'running',
+      currentStep: 1,
+      maxSteps: 5,
+      lastSeq: 0,
+      createdAt: 1000,
+      updatedAt: 1000,
+      events: [],
+      messages: [],
+    }
+
+    await call('trace.append', [task, { seq: 1, taskSeq: 1, at: 1001, text: 'Action 1' }])
+    await call('trace.append', [task, { seq: 2, taskSeq: 2, at: 1002, text: 'Action 2' }])
+
+    const page = (await call('trace.listPage', [{ gameId: 'game-123', limit: 10 }])) as { items: Array<{ id: string }> }
+    expect(page.items).toHaveLength(1)
+    expect(page.items[0].id).toBe('daemon-trace-1')
+
+    const readPage = (await call('trace.readPage', ['daemon-trace-1', { limit: 10 }])) as { events: Array<{ text?: string }> }
+    expect(readPage.events).toHaveLength(2)
+    expect(readPage.events[0].text).toBe('Action 1')
+  })
 })

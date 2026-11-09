@@ -25,6 +25,9 @@ export type MessageTree = {
     openMenu: string
     closeMenu: string
     library: string
+    ai: string
+    roles: string
+    agents: string
     assist: string
     keyMouse: string
     gameSaves: string

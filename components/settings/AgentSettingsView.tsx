@@ -7,7 +7,7 @@ import { TbPencilCog } from 'react-icons/tb'
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { useUnsavedChanges } from '@/components/confirm/UnsavedChangesProvider'
 import { lockIconBtn } from '@/components/game-edit/lock-ui'
-import { useT } from '@/components/i18n/LocaleProvider'
+import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import {
   formCard,
   formControlInlineStart,
@@ -62,6 +62,7 @@ import {
   normalizeAgentProxyProtocols,
   resolveAgentProxySlots,
 } from '@/lib/game-agent/proxy'
+import { loadAiRoles, saveAiRole } from '@/lib/game-agent/roles'
 import type { AgentSyncDocument } from '@/lib/game-agent/settings-sync'
 import { cn } from '@/lib/utils'
 
@@ -100,6 +101,7 @@ type Props = {
 
 export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Props) {
   const t = useT()
+  const locale = useLocaleCode()
   const confirm = useConfirm()
   const notify = useNotification()
   const [settings, setSettings] = useState<AgentSettings | null>(null)
@@ -413,16 +415,40 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
 
   const removeProfile = async (profile: AgentProfile, navigateAfter = false) => {
     if (!settings || settings.profiles.length <= 1 || deletingId) return
-    const ok = await confirm({
-      title: t('integration.agentDeleteTitle'),
-      description: t('integration.agentDeleteDescription', { name: profile.label }),
-      confirmLabel: t('integration.agentDelete'),
-      confirmVariant: 'fail',
-    })
+    const roles = loadAiRoles()
+    const referencingRoles = roles.filter((r) => r.provider === profile.id || r.provider === profile.provider)
+
+    let ok = false
+    if (referencingRoles.length > 0) {
+      const names = referencingRoles.map((r) => r.name).join('、')
+      const phrase = `DELETE ${profile.label}`
+      const isZh = locale.startsWith('zh') || locale === 'cht'
+      ok = await confirm({
+        title: isZh ? '危险操作：强制删除 Agent 实例' : 'Force Delete Agent Instance',
+        description: isZh
+          ? `该 Agent 实例正被旅伴「${names}」关联使用。删除后这些旅伴将无法正常运行！如确认删除，请在下方输入确认文字：`
+          : `This agent instance is used by companion(s): "${names}". Deleting it will leave them unconfigured! Type the confirmation text below:`,
+        challengePhrase: phrase,
+        confirmLabel: isZh ? '强制删除' : 'Force Delete',
+        confirmVariant: 'fail',
+      })
+    } else {
+      ok = await confirm({
+        title: t('integration.agentDeleteTitle'),
+        description: t('integration.agentDeleteDescription', { name: profile.label }),
+        confirmLabel: t('integration.agentDelete'),
+        confirmVariant: 'fail',
+      })
+    }
     if (!ok) return
     setDeletingId(profile.id)
     try {
       await saveSettings({ ...settings, profiles: settings.profiles.filter((item) => item.id !== profile.id) })
+      if (referencingRoles.length > 0) {
+        for (const r of referencingRoles) {
+          saveAiRole({ ...r, provider: '' as GameAgentProvider, model: '' })
+        }
+      }
       onSaved?.()
       if (navigateAfter) onNavigate()
     } catch (error) {
@@ -470,56 +496,64 @@ export function AgentSettingsView({ request, agentId, onNavigate, onSaved }: Pro
   if (!editing) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
+        <div className={panelHead}>
+          <div className="flex min-w-0 flex-col">
+            <h2 className="m-0 text-sm font-semibold text-ink">AGENT</h2>
+            <p className="m-0 truncate text-xs text-ink-soft">{locale.startsWith('zh') ? '管理全局 Agent 运行实例与后端驱动配置' : 'Manage global agent runtime profiles'}</p>
+          </div>
+        </div>
         <ScrollArea className="min-h-0 flex-1" scrollClassName="p-4" restorationKey={editing ? `agent:${agentId}` : 'agents'}>
-          <section className="w-full max-w-3xl overflow-hidden rounded-md border border-line bg-panel" data-agent-list-card>
-            <div className="flex min-w-0 items-center gap-3 border-b border-line px-4 py-3">
-              <div className="min-w-0 flex-1">
-                <strong className="block text-sm text-ink">{t('integration.agentProfiles')}</strong>
-                <span className="mt-1 block text-xs leading-[1.35] text-ink-soft">{t('integration.agentProfilesHint')}</span>
+          <div className={settingsCardWide}>
+            <section className="w-full overflow-hidden rounded-md border border-line bg-panel" data-agent-list-card>
+              <div className="flex min-w-0 items-center gap-3 border-b border-line px-4 py-3">
+                <div className="min-w-0 flex-1">
+                  <strong className="block text-sm text-ink">{t('integration.agentProfiles')}</strong>
+                  <span className="mt-1 block text-xs leading-[1.35] text-ink-soft">{t('integration.agentProfilesHint')}</span>
+                </div>
+                <Button className="shrink-0" variant="accent" onClick={() => void handleNavigate('new')}>
+                  <IoAdd size={16} />
+                  {t('integration.agentAddProfile')}
+                </Button>
               </div>
-              <Button className="shrink-0" variant="accent" onClick={() => void handleNavigate('new')}>
-                <IoAdd size={16} />
-                {t('integration.agentAddProfile')}
-              </Button>
-            </div>
-            <ul className="m-0 flex list-none flex-col divide-y divide-line p-0">
-              {settings.profiles.map((profile) => (
-                <li
-                  key={profile.id}
-                  data-navigation-id={`agent:${profile.id}`}
-                  className="flex items-center gap-3 px-3 py-3 hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]"
-                >
-                  <div className="min-w-0 flex-1">
-                    <TruncateText text={profile.label} className="block text-sm font-medium text-ink" />
-                    <TruncateText
-                      text={
-                        isCliProvider(profile.provider)
-                          ? `${providerLabel(profile.provider)} · ${profile.defaultModel.replace(/\[[^\]]*\]$/, '') || t('agentAuth.defaultModelAuto')}`
-                          : `${providerLabel(profile.provider)} · ${profile.defaultModel || t('integration.agentNoModels')} · ${profile.endpoint}`
-                      }
-                      className="mt-1 block text-xs text-ink-soft"
-                    />
-                  </div>
-                  <div className="flex shrink-0 items-center gap-px">
-                    <Button variant="plain" size="icon" aria-label={t('integration.agentEdit')} data-navigation-trigger="" onClick={() => void handleNavigate(profile.id)}>
-                      <TbPencilCog size={16} aria-hidden />
-                    </Button>
-                    <Button
-                      variant="plain"
-                      size="icon"
-                      className="text-fail"
-                      aria-label={t('integration.agentDelete')}
-                      disabled={settings.profiles.length <= 1 || Boolean(deletingId)}
-                      loading={deletingId === profile.id}
-                      onClick={() => void removeProfile(profile)}
-                    >
-                      <IoTrashOutline size={16} aria-hidden />
-                    </Button>
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </section>
+              <ul className="m-0 flex list-none flex-col divide-y divide-line p-0">
+                {settings.profiles.map((profile) => (
+                  <li
+                    key={profile.id}
+                    data-navigation-id={`agent:${profile.id}`}
+                    className="flex items-center gap-3 px-3 py-3 hover:bg-[color-mix(in_oklab,var(--accent)_8%,transparent)]"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <TruncateText text={profile.label} className="block text-sm font-medium text-ink" />
+                      <TruncateText
+                        text={
+                          isCliProvider(profile.provider)
+                            ? `${providerLabel(profile.provider)} · ${profile.defaultModel.replace(/\[[^\]]*\]$/, '') || t('agentAuth.defaultModelAuto')}`
+                            : `${providerLabel(profile.provider)} · ${profile.defaultModel || t('integration.agentNoModels')} · ${profile.endpoint}`
+                        }
+                        className="mt-1 block text-xs text-ink-soft"
+                      />
+                    </div>
+                    <div className="flex shrink-0 items-center gap-px">
+                      <Button variant="plain" size="icon" aria-label={t('integration.agentEdit')} data-navigation-trigger="" onClick={() => void handleNavigate(profile.id)}>
+                        <TbPencilCog size={16} aria-hidden />
+                      </Button>
+                      <Button
+                        variant="plain"
+                        size="icon"
+                        className="text-fail"
+                        aria-label={t('integration.agentDelete')}
+                        disabled={settings.profiles.length <= 1 || Boolean(deletingId)}
+                        loading={deletingId === profile.id}
+                        onClick={() => void removeProfile(profile)}
+                      >
+                        <IoTrashOutline size={16} aria-hidden />
+                      </Button>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          </div>
         </ScrollArea>
       </div>
     )

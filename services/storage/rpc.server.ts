@@ -7,7 +7,6 @@ import type { MemoryWriteBatch } from '@/lib/game-agent/companion/memory-types'
 import type { AgentTask, AgentTaskEvent } from '@/lib/game-agent/runtime'
 import type { AgentSyncDocument } from '@/lib/game-agent/settings-sync'
 import { agentSettingsFromSyncDocument } from '@/lib/game-agent/settings-sync'
-import { createAgentTraceFileStore } from '@/services/game-agent/activity-file-store.server'
 import type { CompanionDb } from '@/services/game-agent/companion-memory-db'
 import {
   loadOwnedGameAgentSettings,
@@ -28,6 +27,8 @@ import { storageLibraryEntries } from './game-library'
 import { createPublicGameStore } from './game-store'
 import { importLegacyAgentSettings } from './migration/agent-settings'
 import { migrateCompanionMemory } from './migration/companion-migrator.server'
+import { createRoleStore } from './role-store'
+import { createTraceSqliteStore } from './trace-store'
 import { createTranslationObservationStore } from './translation-observation-store'
 import { createTranslationResourceStore } from './translation-resource-store'
 import { commitTranslations, type TranslationCommitInput } from './translation-store'
@@ -36,7 +37,8 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
   const games = createPublicGameStore(shared, dataDir)
   const configuration = createPublicConfigurationStore(dataDir)
   const memory = createCompanionSqliteStore(companion)
-  const traces = createAgentTraceFileStore()
+  const traces = createTraceSqliteStore(path.join(dataDir, 'agent-trace', 'trace.sqlite'), path.join(dataDir, 'agent-logs'))
+  const roles = createRoleStore(dataDir)
   let migration: Promise<unknown> | undefined
   let cache: ReturnType<typeof openOwnedSharedCache> | undefined
   let resources: ReturnType<typeof createTranslationResourceStore> | undefined
@@ -133,7 +135,7 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
       return result
     }
     if (method === 'game.read') return games.read(String(args[0]), String(args[1]))
-    if (method === 'companion.load' || method === 'companion.state' || method === 'companion.commit' || method === 'companion.manage') {
+    if (method === 'companion.load' || method === 'companion.state' || method === 'companion.commit' || method === 'companion.manage' || method === 'companion.query') {
       await migrate()
       let gameId = String(args[0])
       if (!gameId || gameId.length > 200) throw new Error('Invalid companion game ID')
@@ -143,6 +145,7 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
       if (gameId === 'default') throw new Error('Companion memory requires a verified game identity')
       if (method === 'companion.load') return memory.load(gameId)
       if (method === 'companion.state') return memory.state(gameId)
+      if (method === 'companion.query') return memory.query(gameId, args[1] as Parameters<typeof memory.query>[1])
       if (method === 'companion.manage') return memory.manage(gameId, args[1] as MemoryManagementRequest)
       return memory.commit(gameId, bindWriteBatchToGame(args[1] as MemoryWriteBatch, gameId))
     }
@@ -166,6 +169,8 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
     if (method === 'trace.append') return traces.append(args[0] as AgentTask, args[1] as AgentTaskEvent)
     if (method === 'trace.source') return traces.appendSource(args[0] as SourceGameEvent)
     if (method === 'trace.list') return (await traces.list()).filter((task) => (!args[0] || task.gameId === args[0]) && (!args[1] || task.runtimeInstanceId === args[1]))
+    if (method === 'trace.listPage') return traces.listPage(args[0] as Parameters<typeof traces.listPage>[0])
+    if (method === 'trace.readPage') return traces.readPage(String(args[0]), args[1] as Parameters<typeof traces.readPage>[1])
     if (method === 'trace.read' || method === 'trace.export') {
       const task = await traces.read(String(args[1]))
       if (!task || (args[0] && task.gameId !== args[0]) || (args[2] && task.runtimeInstanceId !== args[2])) return null
@@ -177,6 +182,11 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
         : args[0]
           ? traces.removeForGame(String(args[0]), args[1] as string | undefined)
           : traces.remove(args[1] as string | undefined)
+    if (method === 'role.list') return roles.list()
+    if (method === 'role.read') return roles.read(String(args[0]), args[1] as number | undefined)
+    if (method === 'role.commit') return roles.commit(args[0] as any, args[1] as any)
+    if (method === 'role.remove') return roles.remove(String(args[0]))
+    if (method === 'role.import') return roles.import(args[0] as any)
     if (method.startsWith('shared.')) {
       cache ??= openOwnedSharedCache(path.join(dataDir, 'translate-cache/shared.sqlite'))
       await waitSharedCacheHeavyMigrate(path.join(dataDir, 'translate-cache/shared.sqlite'))

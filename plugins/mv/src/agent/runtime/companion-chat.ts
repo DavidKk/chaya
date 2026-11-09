@@ -35,6 +35,7 @@ type CompanionCompleteOptions = {
   onModelStatus?: (status: CompanionModelStatus) => void
   conversationKey?: string
   format?: Record<string, unknown>
+  think?: boolean
 }
 
 export type CompanionComplete = ((messages: RuntimeMessage[], options: CompanionCompleteOptions) => Promise<RuntimeMessage & { companionMetrics?: CompanionModelMetrics }>) & {
@@ -104,7 +105,9 @@ function buildChatMessages(input: {
         `guardAvailable=${guardAvailable}; disarmKnownUseful=${disarm}.`,
         guardAvailable ? conditionalDefenseText(input.selection.locale) : '',
         disarm ? conditionalDisarmText(input.selection.locale) : '',
-        input.custody?.active ? `Custody is currently running (action: ${input.custody.summary || input.custody.phase}). Acknowledge player guidance warmly and converse in character.` : '',
+        input.custody?.active
+          ? `Custody is currently running (action: ${input.custody.summary || input.custody.phase}). Acknowledge player guidance warmly and converse in character.`
+          : '',
         'Pure social chat may be plain text without JSON. Mentions of memories/skills require JSON blocks.',
       ]
         .filter(Boolean)

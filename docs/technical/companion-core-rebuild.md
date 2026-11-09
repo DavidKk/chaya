@@ -776,22 +776,25 @@ T0 的旧路径基线包含六次未完成战斗的记录；T6 按实际结局�
 ## 11. 战斗逻辑共享与剧情全托管演进（2026-11-04）
 
 ### 11.1 战斗效果抽取与模块复用
+
 - 抽取 `plugins/mv/src/helpers/game/battle-effects.ts`，导出 `createAction`、`setActionItem`、`safeEvaluateDamage`、`estimateHpRecovery`、`getUsableItems` 等标准评估函数。
 - 原 `plugins/mv/src/cheat/runtime/auto-battle-effects.ts` 改为向前兼容导出，避免自动战斗作弊逻辑漂移。
 - 旅伴决策层（`action-selector.ts`）与导航层（`battle-navigator.ts`、`battle-input.ts`）打通 `_itemWindow` 道具窗口和阵亡目标（`one_dead_ally`）的快速导航与动作绑定。
 
 ### 11.2 单实例与资源安全
+
 - 自动化运行器（`companion-engine-smoke.cjs`）增加 `terminatePriorGameInstances()`，通过进程表在启动新测试前自动终结游荡的 NW.js、mkxp-z 与旧 Electron Smoke 窗口。
 - `companion-host-smoke.cts` 在退出与异常中断的 `finally` 阶段触发强杀，彻底杜绝测试进程资源泄漏。
 
 ### 11.3 目标游戏实机验证
+
 - 目标游戏：《Heroines of Swords & Spells II》（ID: `cfbafc20-c4d9-4b96-ad07-21ce55722678`）
 - 解决 SV 模式缺失动作贴图时的 `_movementDuration` 战斗起手卡死。
 - 6 大 Engine Smoke 场景通过（证据归档 `/tmp/smoke-run`），局域网 Ollama MBA `qwen3:4b` Host Smoke 端到端验收通过（证据归档 `/tmp/host-smoke`）。
 
 ### 11.4 剧情全托管技术架构设计
+
 1. **Dialogue Driver**：基于 `Window_Message` 扩展打字机快进与自然停顿，流水沉淀 `dialogue_history`。
 2. **Choice Arbiter**：常见功能项（住宿/购买/确认）走静态规则；主线分支由 4B 模型基于剧情上下文与旅伴人设决策。
 3. **Exploration Engine**：基于 `$gameMap.events()` 提取出入口、宝箱与 NPC 实体，结合 `smart-path` 实现拓扑遍历。
 4. **Stuck Detector**：超时或无状态变更时唤醒推理模型重读 NPC 对话并重定目标。
-

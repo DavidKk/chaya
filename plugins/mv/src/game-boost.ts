@@ -145,10 +145,7 @@ function chayaUpdateMain(this: HighHzSceneManager): void {
     this.updateScene()
     ranFrame = true
   } else {
-    const newTime =
-      typeof this._getTimeInMsWithoutMobileSafari === 'function'
-        ? this._getTimeInMsWithoutMobileSafari()
-        : performance.now()
+    const newTime = typeof this._getTimeInMsWithoutMobileSafari === 'function' ? this._getTimeInMsWithoutMobileSafari() : performance.now()
     let fTime = (newTime - (this._currentTime ?? newTime)) / 1000
     if (fTime > 0.25) fTime = 0.25
     this._currentTime = newTime

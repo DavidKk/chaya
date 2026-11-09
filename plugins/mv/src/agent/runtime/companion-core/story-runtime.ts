@@ -58,6 +58,8 @@ export class CompanionStoryRuntime {
   private eventRunningTicks = 0
   private actionAbort: AbortController | null = null
   private readonly playerGuidance: string[] = []
+  private lastTargetEventId: number | null = null
+  private consecutiveTargetRepeats = 0
 
   constructor(private readonly deps: StoryRuntimeDeps) {
     this.battle = new StoryBattleDriver(
@@ -81,6 +83,9 @@ export class CompanionStoryRuntime {
       model: deps.model,
       signal: deps.signal,
       onThought: forwardThought,
+      onDiagnosing: () => {
+        this.emit('exploring', '正在结合剧情对话与地图环境，调用大模型分析下一步主线推进策略…')
+      },
     })
     this.planner = new StoryExplorationPlanner(this.puzzleSolver)
     if (deps.goal?.trim()) this.playerGuidance.push(deps.goal.trim())
@@ -186,6 +191,8 @@ export class CompanionStoryRuntime {
     this.choiceAbort?.abort(new DOMException('Stopped', 'AbortError'))
     this.actionAbort?.abort(new DOMException('Stopped', 'AbortError'))
     this.puzzleTargetOverride = null
+    this.lastTargetEventId = null
+    this.consecutiveTargetRepeats = 0
     for (const cleanup of this.cleanups) cleanup()
     this.cleanups = []
     this.emit('idle', '托管已停止')
@@ -274,6 +281,8 @@ export class CompanionStoryRuntime {
           if (curMapId !== null && curMapId !== this.lastMapId) {
             const fromId = this.lastMapId
             this.lastMapId = curMapId
+            this.lastTargetEventId = null
+            this.consecutiveTargetRepeats = 0
             this.banter.trigger('map_transition', { mapId: curMapId })
             if (fromId !== null) {
               const player = g.$gamePlayer
@@ -385,11 +394,27 @@ export class CompanionStoryRuntime {
           const canMove = player && typeof player.canMove === 'function' ? player.canMove() : false
 
           if (canMove) {
+            const mapId = g.$gameMap?.mapId?.() ?? 0
+            const px = Number(player.x)
+            const py = Number(player.y)
+            const guidance = this.getPlayerGuidance()
+
             const settled = this.planner.settlePendingTarget()
             StoryFailureMemory.settleUnownedChoices(this.planner.pendingEventId)
             if (settled) {
               this.driver.setCurrentTargetEventId(null)
-              if (!settled.result.success) this.emit('thought', `目标【${settled.target.name}】尚未完成，已记录阻碍并切换其他路线。`)
+              if (!settled.result.success) {
+                this.emit('thought', `⚠️ 目标【${settled.target.name || `事件 #${settled.target.eventId}`}】交互未完成，临时禁用该目标，结合剧情线索分析下一步主线推进策略…`)
+                this.planner.suppressTarget(mapId, settled.target.eventId, 60_000)
+                lastDiagnosisAt = Date.now()
+                const puzzleTarget = await this.planner.resolvePuzzleTarget(mapId, { x: px, y: py }, this.driver.getRecentHistory(10), guidance, actionSignal)
+                actionSignal.throwIfAborted()
+                if (puzzleTarget) {
+                  this.puzzleTargetOverride = puzzleTarget
+                  this.banter.trigger('puzzle', { detail: puzzleTarget.hint })
+                  this.emit('exploring', `大模型分析推理新目标：${puzzleTarget.hint || puzzleTarget.name} (${puzzleTarget.x}, ${puzzleTarget.y})…`)
+                }
+              }
             }
             if (isStoryMenuActive()) {
               await this.sleep(100)
@@ -398,9 +423,6 @@ export class CompanionStoryRuntime {
             await tryMapMenuHealing((summary) => this.emit('exploring', summary), actionSignal)
             actionSignal.throwIfAborted()
             if (g.SceneManager?._scene !== scene || g.$gameMap?.mapId?.() !== curMapId) continue
-            const mapId = g.$gameMap?.mapId?.() ?? 0
-            const px = Number(player.x)
-            const py = Number(player.y)
 
             // Check for prologue climax completion on Map 6
             if (isBenchmarkStoryGame() && mapId === 6) {
@@ -414,7 +436,6 @@ export class CompanionStoryRuntime {
             }
 
             // Next target from exploration planner
-            const guidance = this.getPlayerGuidance()
             let target: ExplorationTarget | null = null
             if (this.puzzleTargetOverride) {
               target = this.planner.isEligible(mapId, this.puzzleTargetOverride.eventId) ? this.puzzleTargetOverride : null
@@ -427,7 +448,6 @@ export class CompanionStoryRuntime {
             if (!target || isStuck) {
               if (Date.now() - lastDiagnosisAt >= 15_000) {
                 lastDiagnosisAt = Date.now()
-                this.emit('exploring', '正在结合剧情对话与地图环境，调用大模型分析下一步主线推进策略…')
                 target = await this.planner.resolvePuzzleTarget(mapId, { x: px, y: py }, this.driver.getRecentHistory(10), guidance, actionSignal)
                 actionSignal.throwIfAborted()
               }
@@ -441,6 +461,35 @@ export class CompanionStoryRuntime {
                 }
               }
               this.stuckDetector.reset()
+            }
+
+            if (target) {
+              if (this.lastTargetEventId === target.eventId) {
+                this.consecutiveTargetRepeats = (this.consecutiveTargetRepeats || 0) + 1
+              } else {
+                this.consecutiveTargetRepeats = 1
+                this.lastTargetEventId = target.eventId
+              }
+
+              if (this.consecutiveTargetRepeats >= 2) {
+                this.emit('thought', `⚠️ 目标【${target.name || `事件 #${target.eventId}`}】重复选择 (${this.consecutiveTargetRepeats} 次)，临时禁用该目标并分析下一步推进策略…`)
+                this.planner.suppressTarget(mapId, target.eventId, 60_000)
+                lastDiagnosisAt = Date.now()
+                const puzzleTarget = await this.planner.resolvePuzzleTarget(mapId, { x: px, y: py }, this.driver.getRecentHistory(10), guidance, actionSignal)
+                actionSignal.throwIfAborted()
+                if (puzzleTarget) {
+                  target = puzzleTarget
+                  this.puzzleTargetOverride = null
+                  this.lastTargetEventId = target.eventId
+                  this.consecutiveTargetRepeats = 1
+                  this.banter.trigger('puzzle', { detail: target.hint })
+                  this.emit('exploring', `大模型分析推理新目标：${target.hint || target.name} (${target.x}, ${target.y})…`)
+                } else {
+                  target = this.planner.findFallbackTarget(mapId, { x: px, y: py })
+                  this.lastTargetEventId = target?.eventId ?? null
+                  this.consecutiveTargetRepeats = 1
+                }
+              }
             }
 
             if (target) {

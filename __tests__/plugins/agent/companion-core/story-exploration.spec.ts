@@ -602,4 +602,32 @@ describe('story exploration game isolation', () => {
     await planner.executeTarget({ eventId: 99, kind: 'npc', x: 1, y: 1, name: 'Guide', priority: 50 }, { press: jest.fn(), readState: jest.fn(), interrupted: () => false })
     expect(new StoryExplorationPlanner().findFallbackTarget(1, { x: 0, y: 0 })).toBeNull()
   })
+
+  test('allows puzzle model to re-examine eligible visited events when all new candidate branches are exhausted', async () => {
+    createAgentRuntimeIdentity('another-game')
+    engine.$gamePlayer = {}
+    const guide = npc(99)
+    guide.event = () => ({ name: 'Guide', pages: [{ conditions: { switch1Valid: true, switch1Id: 1 } }] })
+    events = [guide]
+    let switch1 = false
+    engine.$gameSwitches = { value: (id: number) => (id === 1 ? switch1 : false) }
+    jest.mocked(interactEvent).mockImplementation(async () => {
+      switch1 = true
+      return { outcome: 'done' } as any
+    })
+    const complete = jest.fn(async () => ({
+      role: 'assistant' as const,
+      content: JSON.stringify({ targetEventId: 99, hint: 'Ask the guide for another clue' }),
+    }))
+    const planner = new StoryExplorationPlanner(new StoryPuzzleSolver({ complete, profileId: 'profile', model: 'model' }))
+    const target = planner.findNextTarget(1, { x: 0, y: 0 })!
+    expect(target).toMatchObject({ eventId: 99 })
+    const res = await planner.executeTarget(target, { press: jest.fn(), readState: jest.fn(), interrupted: () => false })
+    expect(res.success).toBe(true)
+    expect(planner.findNextTarget(1, { x: 0, y: 0 })).toBeNull()
+
+    const puzzleTarget = await planner.resolvePuzzleTarget(1, { x: 0, y: 0 })
+    expect(puzzleTarget).toMatchObject({ eventId: 99, hint: 'Ask the guide for another clue' })
+    expect(complete).toHaveBeenCalledTimes(1)
+  })
 })

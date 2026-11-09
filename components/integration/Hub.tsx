@@ -94,7 +94,7 @@ export function HubNavItem({ active, icon, label, meta, title, href, onSelect }:
 /** 正文 / 试调列头：标题 + 一行说明 + 右侧操作 */
 export function HubPaneHeader({ title, description, actions }: { title: ReactNode; description?: ReactNode; actions?: ReactNode }) {
   return (
-    <header className="flex min-h-14 shrink-0 items-center justify-between gap-3 border-b border-line-soft px-4 py-2">
+    <header className="flex h-[3.25rem] max-h-[3.25rem] min-h-[3.25rem] shrink-0 items-center justify-between gap-3 border-b border-line px-4">
       <div className="flex min-w-0 flex-col gap-0.5">
         <h2 className="m-0 flex min-w-0 text-sm font-semibold text-ink">
           <TruncateText text={title} />

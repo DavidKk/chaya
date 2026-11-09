@@ -176,7 +176,7 @@ function terminatePriorGameInstances() {
   try {
     const { execSync } = require('node:child_process')
     if (process.platform === 'win32') {
-      execSync('wmic process where "name like '%nw.exe%' or name like '%Game.exe%' or name like '%mkxp%'" call terminate', { stdio: 'ignore', timeout: 2000 })
+      execSync(((((('wmic process where "name like ' % nw.exe) % ' or name like ') % Game.exe) % ' or name like ') % mkxp) % '" call terminate', { stdio: 'ignore', timeout: 2000 })
       return
     }
     const stdout = execSync('ps -eo pid,command', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], timeout: 2000 })

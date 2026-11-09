@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import type { ReactNode } from 'react'
-import { LuFileCode2, LuGlobe, LuPlug } from 'react-icons/lu'
+import { LuCode, LuGlobe, LuPlug } from 'react-icons/lu'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { INTEGRATION_TABS, integrationTabFromPathname } from '@/components/integration/tabs'
@@ -14,15 +14,15 @@ import { Tooltip } from '@/components/sk'
 import type { MessageKey } from '@/lib/i18n'
 
 const REGION_LABEL = {
-  skills: 'integration.regionSkills',
   mcp: 'integration.regionMcp',
   webmcp: 'integration.regionWebMcp',
+  openapi: 'integration.regionOpenApi',
 } as const satisfies Record<string, MessageKey>
 
 const TAB_ICON = {
-  skills: LuFileCode2,
   mcp: LuPlug,
   webmcp: LuGlobe,
+  openapi: LuCode,
 } as const
 
 /** layout 内持久壳：切子页时二级导航不重挂 */

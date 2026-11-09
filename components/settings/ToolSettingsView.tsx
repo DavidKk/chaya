@@ -6,6 +6,8 @@ import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { formCard, panelHead, settingsCardNarrow } from '@/components/layoutClasses'
 import { ScrollArea, Select, Skeleton, SkeletonRegion, Switch } from '@/components/sk'
 import { COMPANION_CHARACTERS, type CompanionCharacter, companionWords } from '@/lib/game-agent/companion'
+import { PROVIDER_META } from '@/lib/game-agent/providers'
+import { loadAiRoles } from '@/lib/game-agent/roles'
 
 export type ToolPage = 'minimap' | 'companion'
 
@@ -36,6 +38,16 @@ export function ToolSettingsView({ page, request }: { page: ToolPage; request: G
   const isMap = page === 'minimap'
   const title = isMap ? t('nav.minimap') : t('nav.companion')
   const enabled = isMap ? settings.miniMapEnabled : settings.companionEnabled
+  const companionRoles = !isMap ? loadAiRoles() : []
+  const characterOptions = companionRoles.length
+    ? companionRoles.map((role) => ({
+        value: role.id,
+        label: `${role.name}${role.provider ? ` (${PROVIDER_META[role.provider]?.label || role.provider})` : ''}`,
+      }))
+    : COMPANION_CHARACTERS.map((character) => ({
+        value: character,
+        label: companionWords(locale).names[character] || character,
+      }))
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-paper-2">
@@ -68,7 +80,7 @@ export function ToolSettingsView({ page, request }: { page: ToolPage; request: G
                     id="companion-character"
                     className="w-48 max-w-[60%]"
                     value={settings.companionCharacter}
-                    options={COMPANION_CHARACTERS.map((character) => ({ value: character, label: companionWords(locale).names[character] }))}
+                    options={characterOptions}
                     disabled={busy || unavailable || !enabled}
                     onChange={(character) => void update({ companionCharacter: character as CompanionCharacter })}
                   />

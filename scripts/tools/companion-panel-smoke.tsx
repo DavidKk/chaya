@@ -36,7 +36,16 @@ function Panel() {
         <p>官方 MV 样例 · 隔离测试数据 · 两个面板连接同一个游戏宿主</p>
         {status ? (
           <>
-            <CompanionMemoryControls locale="zh" hostStatus={status} call={call} onClearChat={() => {}} onHostRefresh={refresh} onNotice={setNotice} />
+            <CompanionMemoryControls
+              locale="zh"
+              hostStatus={status}
+              controlBusy={false}
+              activityVisible={false}
+              onStartControl={() => {}}
+              onStopControl={() => {}}
+              onToggleActivity={() => {}}
+              onClearChat={() => {}}
+            />
             <p role="status">
               记录：{status.memory.recording ? '开启' : '关闭'} · 记忆版本：{status.memory.epoch}
             </p>

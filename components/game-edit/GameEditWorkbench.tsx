@@ -57,6 +57,7 @@ const GameEditIntegrationPane = lazy(() => import('./GameEditIntegrationPane').t
 const GameEditAboutPane = lazy(() => import('./GameEditAboutPane').then((m) => ({ default: m.GameEditAboutPane })))
 const SaveDataPane = lazy(() => import('./save-data/SaveDataPane').then((m) => ({ default: m.SaveDataPane })))
 const GameEditAgentSettingsPane = lazy(() => import('@/components/settings/GameEditAgentSettingsPane').then((m) => ({ default: m.GameEditAgentSettingsPane })))
+const GameEditAiPane = lazy(() => import('@/components/ai/GameEditAiPane').then((m) => ({ default: m.GameEditAiPane })))
 
 function TabSuspense({
   tab,
@@ -354,7 +355,7 @@ export function GameEditWorkbench({
   const eventSourceCount = !events?.data ? 0 : tab === 'map' ? events.data.mapIndex.nodes.length : tab === 'troop' ? (events.data.troops?.length ?? 0) : events.data.events.length
   const activeTab = TABS.find((item) => item.id === tab)
   const legalKind: LegalNoticeKind | null =
-    tab === 'logs' || tab === 'about' ? null : tab === 'trans' ? 'translate' : tab === 'mcp' ? 'integration' : tab === 'settings' ? 'agent' : 'edit'
+    tab === 'logs' || tab === 'about' ? null : tab === 'trans' ? 'translate' : tab === 'mcp' ? 'integration' : tab === 'settings' || tab === 'ai' ? 'agent' : 'edit'
   const closeButton = onClose ? (
     <Button variant="ghost" size="icon" aria-label={t('common.close')} tooltip={t('edit.closeEsc')} onClick={onClose}>
       <IoCloseOutline size={17} aria-hidden />
@@ -493,6 +494,10 @@ export function GameEditWorkbench({
               ) : tab === 'about' ? (
                 <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
                   <GameEditAboutPane />
+                </Suspense>
+              ) : tab === 'ai' && agentRequest ? (
+                <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>
+                  <GameEditAiPane request={agentRequest} />
                 </Suspense>
               ) : tab === 'settings' && agentRequest ? (
                 <Suspense fallback={<Spinner size="sm" label={t('edit.loadPanel')} />}>

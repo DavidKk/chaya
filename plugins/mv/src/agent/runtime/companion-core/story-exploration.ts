@@ -146,13 +146,12 @@ export class StoryExplorationPlanner {
     this.syncOwner()
     const mapId = this.currentMapId ?? (globalThis as any).$gameMap?.mapId?.() ?? 0
     if (StoryFailureMemory.blocked(mapId, eventId)) return true
-    if (!this.loopDetector.isSuppressed(eventId)) return false
-    if (StoryFailureMemory.history(mapId, eventId).length) {
-      this.loopDetector.release(eventId)
-      return false
-    }
-    this.recordFailure(eventId, mapId, 'cycle', 'Repeated target cycle without meaningful progress')
-    return true
+    if (this.loopDetector.isSuppressed(eventId)) return true
+    return false
+  }
+
+  public suppressTarget(mapId: number, eventId: number, durationMs = 60_000): void {
+    this.getLoopDetector(mapId).suppress(eventId, durationMs)
   }
 
   public recordUnreachable(mapId: number, eventId: number): void {
@@ -388,10 +387,12 @@ export class StoryExplorationPlanner {
       if (isChest) {
         if (!isCompletedEvent(event, mapId, eventId)) {
           const isNewlyUnlocked = this.lastLockBonusTargets.has(eventId)
-          const priority = isNewlyUnlocked ? 115 : 80
-          const hint = isNewlyUnlocked ? `开锁等级达标，前往开启已记录的宝箱 (#${eventId})` : '开启未收集的宝箱'
-          candidates.push({ eventId, x, y, kind: 'chest', name: rawName || 'Chest', priority, hint })
-          continue
+          if (!this.visitedKeys.has(pageVisitKey) || isNewlyUnlocked) {
+            const priority = isNewlyUnlocked ? 115 : 80
+            const hint = isNewlyUnlocked ? `开锁等级达标，前往开启已记录的宝箱 (#${eventId})` : '开启未收集的宝箱'
+            candidates.push({ eventId, x, y, kind: 'chest', name: rawName || 'Chest', priority, hint })
+            continue
+          }
         }
       }
 
@@ -400,9 +401,9 @@ export class StoryExplorationPlanner {
         nearby?.kind === 'pickup' ||
         nearby?.interactionClass === 'reward' ||
         /(sparkle|звёзд|звезд|отмычк|flame|сияние|блеск|пузырь|闪光|光点|掉落)/i.test(rawName) ||
-        (/!Flame|!Other/i.test(event._characterName || '') && (rawName || '').length > 0)
+        (/!Flame/i.test(event._characterName || '') && (rawName || '').length > 0)
       if (isPickup) {
-        if (!isCompletedEvent(event, mapId, eventId)) {
+        if (!isCompletedEvent(event, mapId, eventId) && !this.visitedKeys.has(pageVisitKey)) {
           candidates.push({ eventId, x, y, kind: 'chest', name: rawName || 'Pickup', priority: 82, hint: rawName ? `调查收集 ${rawName}` : '拾取地表发光物品' })
           continue
         }
@@ -563,15 +564,19 @@ export class StoryExplorationPlanner {
     const candidates = this.findCandidateBranches(mapId, playerPos)
     const localTargets = candidates.filter((target) => target.kind !== 'transfer')
     const allowed = new Set((!storyTravelPolicy(this.playerGuidance).explicitTravel && localTargets.length ? localTargets : candidates).map((target) => target.eventId))
-    return resolveStoryPuzzleTarget(
+    const target = await resolveStoryPuzzleTarget(
       this.puzzleSolver,
-      (currentMapId, eventId) => allowed.has(eventId) && this.isEligible(currentMapId, eventId),
+      (currentMapId, eventId) => (!allowed.size || allowed.has(eventId)) && this.isEligible(currentMapId, eventId),
       mapId,
       playerPos,
       recentDialogue,
       this.playerGuidance,
       signal
     )
+    if (target) {
+      this.unmarkVisited(mapId, target.eventId)
+    }
+    return target
   }
 
   /**

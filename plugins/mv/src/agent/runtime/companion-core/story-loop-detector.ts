@@ -75,8 +75,9 @@ export class StoryLoopDetector {
 
     const ids = this.history.map((h) => h.eventId)
 
-    if (n >= 3 && ids[n - 1] === ids[n - 2] && ids[n - 2] === ids[n - 3]) {
-      this.suppress(ids[n - 1])
+    if (n >= 2 && ids[n - 1] === ids[n - 2]) {
+      const isIndefinite = n >= 3 && ids[n - 2] === ids[n - 3]
+      this.suppress(ids[n - 1], isIndefinite ? Infinity : 60_000)
       return {
         detected: true,
         cycle: [ids[n - 1]],

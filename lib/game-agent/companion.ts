@@ -12,9 +12,12 @@ export const COMPANION_CHARACTER_PROFILES: Record<CompanionCharacter, { name: st
 }
 
 export function normalizeCompanionCharacter(value: unknown): CompanionCharacter {
-  if (typeof value === 'string' && COMPANION_CHARACTERS.includes(value as CompanionCharacter)) return value as CompanionCharacter
-  if (value === 'steady') return 'nagi'
-  if (value === 'bright') return 'yui'
+  if (typeof value === 'string' && value.trim()) {
+    const trimmed = value.trim()
+    if (COMPANION_CHARACTERS.includes(trimmed as CompanionCharacter)) return trimmed as CompanionCharacter
+    if (trimmed === 'steady') return 'nagi'
+    if (trimmed === 'bright') return 'yui'
+  }
   return 'rin'
 }
 
@@ -110,7 +113,7 @@ export class CompanionTracker {
 
 const WORDS = {
   zh: {
-    names: { nagi: 'Nagi · 温柔', rin: 'Rin · 活泼', rei: 'Rei · 冷静', koto: 'Koto · 文艺', yui: 'Yui · 亲近', towa: 'Towa · 神秘' },
+    names: { nagi: 'Nagi', rin: 'Rin', rei: 'Rei', koto: 'Koto', yui: 'Yui', towa: 'Towa' },
     lines: {
       nagi: { chest: '那边有个宝箱，我们慢慢过去看看吧。', battle: '战斗开始了，我会留意大家的状态。', danger: '有人快撑不住了，先找机会治疗吧。' },
       rin: { chest: '喂，宝箱就在那边，别装作没看见。', battle: '开打了，先看看对面什么路数。', danger: '这血量可不妙，赶紧加血！' },
@@ -121,7 +124,7 @@ const WORDS = {
     },
   },
   en: {
-    names: { nagi: 'Nagi · Gentle', rin: 'Rin · Playful', rei: 'Rei · Strategic', koto: 'Koto · Thoughtful', yui: 'Yui · Friendly', towa: 'Towa · Curious' },
+    names: { nagi: 'Nagi', rin: 'Rin', rei: 'Rei', koto: 'Koto', yui: 'Yui', towa: 'Towa' },
     lines: {
       nagi: {
         chest: 'There is a chest nearby. Let us take our time getting there.',
@@ -144,7 +147,7 @@ const WORDS = {
     },
   },
   ja: {
-    names: { nagi: 'Nagi · 穏やか', rin: 'Rin · 快活', rei: 'Rei · 冷静', koto: 'Koto · 物語好き', yui: 'Yui · 親しみ', towa: 'Towa · 神秘的' },
+    names: { nagi: 'Nagi', rin: 'Rin', rei: 'Rei', koto: 'Koto', yui: 'Yui', towa: 'Towa' },
     lines: {
       nagi: { chest: 'あそこに宝箱があるね。ゆっくり見に行こう。', battle: '戦闘が始まったね。みんなの様子を見ているよ。', danger: '仲間の HP が少ないね。回復を考えよう。' },
       rin: { chest: '宝箱が見えてるよ。まさか見逃さないよね？', battle: '戦闘だね。相手の動きを見てみよう。', danger: 'その HP はまずいよ。早く回復！' },
@@ -155,7 +158,7 @@ const WORDS = {
     },
   },
   ko: {
-    names: { nagi: 'Nagi · 다정함', rin: 'Rin · 발랄함', rei: 'Rei · 침착함', koto: 'Koto · 사려 깊음', yui: 'Yui · 친근함', towa: 'Towa · 신비로움' },
+    names: { nagi: 'Nagi', rin: 'Rin', rei: 'Rei', koto: 'Koto', yui: 'Yui', towa: 'Towa' },
     lines: {
       nagi: { chest: '저기 보물상자가 있네. 천천히 가서 보자.', battle: '전투가 시작됐어. 동료들을 살펴볼게.', danger: '동료 체력이 낮아. 먼저 회복하자.' },
       rin: { chest: '저기 보물상자야. 설마 못 본 건 아니지?', battle: '전투다. 상대 움직임부터 보자.', danger: '그 체력은 위험해. 빨리 회복해!' },

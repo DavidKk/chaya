@@ -27,7 +27,7 @@ export function createStoryHost(deps: StoryHostDeps) {
       const config = (deps.readConfig || readConfig)()
       const profile = config ? profileOf(config, task.profileId) : null
       const effectiveProfileId = profile?.id || task.profileId || ''
-      const effectiveModel = task.model || profile?.defaultModel || ''
+      const effectiveModel = (task.model && task.model !== 'auto' ? task.model : profile?.defaultModel) || profile?.defaultModel || task.model || ''
 
       if (deps.complete.ensureReady && effectiveProfileId && effectiveModel) {
         void deps.complete
@@ -68,7 +68,6 @@ export function createStoryHost(deps: StoryHostDeps) {
         onProgress: (update: StoryProgressUpdate) => {
           if (update.phase === 'thought' && update.detail) {
             deps.controller.emit(task.id, 'model.thought', update.detail as Record<string, unknown>)
-            return
           }
           deps.controller.emit(task.id, 'progress.updated', {
             executor: 'story_custody',

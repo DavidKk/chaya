@@ -1,8 +1,9 @@
 'use client'
 
 import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { IoCopyOutline } from 'react-icons/io5'
 
-import { useT } from '@/components/i18n/LocaleProvider'
+import { useLocaleCode, useT } from '@/components/i18n/LocaleProvider'
 import { Button, type ButtonVariant } from '@/components/sk/Button'
 import { Modal } from '@/components/sk/Modal'
 
@@ -22,6 +23,8 @@ export type ConfirmRequest = {
    * 抛错则保持打开（不 settle），由调用方自行 toast。
    */
   onConfirm?: () => void | Promise<void>
+  /** 强制输入验证短语（如 DELETE my-project），必须完全匹配才允许确认 */
+  challengePhrase?: string
 }
 
 type Session = {
@@ -49,11 +52,18 @@ export function ConfirmProvider({
   portalContainer?: Element | null
 }) {
   const t = useT()
+  const locale = useLocaleCode()
+  const isZh = locale.startsWith('zh') || locale === 'cht'
   const [session, setSession] = useState<Session | null>(null)
   const [confirming, setConfirming] = useState(false)
+  const [challengeInput, setChallengeInput] = useState('')
   const seqRef = useRef(0)
   const sessionRef = useRef<Session | null>(null)
   sessionRef.current = session
+
+  useEffect(() => {
+    setChallengeInput('')
+  }, [session?.id])
 
   const settle = useCallback((ok: boolean) => {
     const cur = sessionRef.current
@@ -109,6 +119,8 @@ export function ConfirmProvider({
 
   useEffect(() => {
     if (!session || confirming) return
+    const req = session.request
+    const challengePassed = !req.challengePhrase || challengeInput.trim() === req.challengePhrase.trim()
     function onKey(e: KeyboardEvent) {
       if (e.key !== 'Enter' || !e.isTrusted) return
       if (e.isComposing || e.keyCode === 229) return
@@ -117,18 +129,20 @@ export function ConfirmProvider({
       // Enter on Cancel / a link activates that control natively, never the confirm action.
       const control = t?.closest('button, a[href]')
       if (control && control.getAttribute('data-modal-initial') !== 'confirm') return
+      if (!challengePassed) return
       e.preventDefault()
       e.stopPropagation()
       void runConfirm()
     }
     document.addEventListener('keydown', onKey, true)
     return () => document.removeEventListener('keydown', onKey, true)
-  }, [confirming, runConfirm, session])
+  }, [challengeInput, confirming, runConfirm, session])
 
   const value = useMemo(() => ({ confirm }), [confirm])
 
   const req = session?.request
   const confirmVariant: ConfirmVariant = req?.confirmVariant ?? 'accent'
+  const challengePassed = !req?.challengePhrase || challengeInput.trim() === req.challengePhrase.trim()
 
   return (
     <ConfirmContext.Provider value={value}>
@@ -137,7 +151,38 @@ export function ConfirmProvider({
         <Modal
           open
           title={req.title}
-          description={req.description}
+          description={
+            <div className="flex flex-col gap-3">
+              {req.description ? <div>{req.description}</div> : null}
+              {req.challengePhrase ? (
+                <div className="flex flex-col gap-2 rounded border border-rose-500/35 bg-rose-500/10 p-3">
+                  <div className="flex items-center justify-between text-xs text-rose-300">
+                    <span className="font-semibold">{isZh ? '请输入下方短语以确认操作：' : 'Type the following phrase to confirm:'}</span>
+                    <button
+                      type="button"
+                      className="inline-flex cursor-pointer items-center gap-1 text-[11px] text-accent hover:underline"
+                      onClick={() => {
+                        void navigator.clipboard?.writeText(req.challengePhrase || '')
+                        setChallengeInput(req.challengePhrase || '')
+                      }}
+                    >
+                      <IoCopyOutline size={12} aria-hidden />
+                      {isZh ? '复制填入' : 'Copy phrase'}
+                    </button>
+                  </div>
+                  <div className="font-mono text-xs font-bold text-rose-200 select-all tracking-wide">{req.challengePhrase}</div>
+                  <input
+                    type="text"
+                    className="mt-0.5 h-8 w-full rounded border border-line bg-panel px-2.5 font-mono text-xs text-ink outline-none focus:border-rose-400 focus:ring-1 focus:ring-rose-400"
+                    placeholder={req.challengePhrase}
+                    value={challengeInput}
+                    onChange={(e) => setChallengeInput(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+              ) : null}
+            </div>
+          }
           busy={confirming}
           hideCloseButton
           userConfirmOnly
@@ -154,9 +199,10 @@ export function ConfirmProvider({
                 size="lg"
                 variant={confirmVariant}
                 loading={confirming}
-                disabled={confirming}
-                data-modal-initial="confirm"
+                disabled={confirming || !challengePassed}
+                data-modal-initial={challengePassed ? 'confirm' : undefined}
                 onClick={(e) => {
+                  if (!challengePassed) return
                   if (e.nativeEvent.isTrusted || process.env.NODE_ENV === 'test') void runConfirm()
                 }}
               >

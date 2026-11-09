@@ -6,6 +6,7 @@ import { type ReactNode, useCallback, useEffect, useId, useLayoutEffect, useMemo
 import { createPortal } from 'react-dom'
 import { LuChevronDown, LuMenu, LuX } from 'react-icons/lu'
 
+import { AI_SECTIONS } from '@/components/ai/ai-sections'
 import { EDIT_TABS, editTabHref } from '@/components/game-edit/tabs'
 import { useT } from '@/components/i18n/LocaleProvider'
 import { ASSIST_SECTIONS } from '@/components/input-assistance/assist-sections'
@@ -26,7 +27,7 @@ import { cn } from '@/lib/utils'
  * - `/translate/run` 翻译动作；`/translate/cache` 翻译库浏览
  * - `/assist/hotkeys` 辅助（`/assist` 也重定向到这里）
  * - `/logs/runtime` · `/logs/agent` · `/logs/cli` 日志（二级一律斜杠）
- * - `/integration/skills` · `/integration/mcp` · `/integration/webmcp` 集成
+ * - `/integration/mcp` · `/integration/webmcp` · `/integration/openapi` 集成
  * `/` 暂空，重定向到 `/game`
  */
 type AppNavChild = { href: string; labelKey: MessageKey }
@@ -39,8 +40,9 @@ const WEB_ROUTES: Partial<Record<MainNavId, AppNavRoute>> = {
   edit: { href: '/cheat/run', children: EDIT_TABS.map((item) => ({ href: editTabHref(item.id), labelKey: item.labelKey })) },
   translate: { href: '/translate/seed', children: TRANSLATE_TABS.map((item) => ({ href: translateTabHref(item.id), labelKey: item.labelKey })) },
   assist: { href: '/assist/hotkeys', children: ASSIST_SECTIONS.map((section) => ({ href: `/assist/${section.id}`, labelKey: section.labelKey })) },
+  ai: { href: '/ai/companion', children: AI_SECTIONS.map((section) => ({ href: `/ai/${section.id}`, labelKey: section.labelKey })) },
   remote: { href: '/remote/instances', children: REMOTE_TABS.map((tab) => ({ href: tab.href, labelKey: tab.labelKey })) },
-  integration: { href: '/integration/skills', children: INTEGRATION_TABS },
+  integration: { href: '/integration/mcp', children: INTEGRATION_TABS },
   logs: {
     href: logsSectionHref('runtime'),
     children: LOGS_SECTIONS.map((section) => ({ href: logsSectionHref(section.id), labelKey: section.labelKey })),
@@ -54,12 +56,19 @@ export const APP_NAV_ITEMS: ReadonlyArray<AppNavItem> = mainNavFor('web').flatMa
 
 export type AppNavPath =
   | '/game'
+  | '/ai'
+  | '/ai/companion'
+  | '/ai/roles'
+  | '/ai/agents'
   | '/assist'
   | '/cheat/run'
   | '/translate/seed'
   | '/translate/run'
   | '/logs'
   | '/logs/runtime'
+  | '/integration/mcp'
+  | '/integration/webmcp'
+  | '/integration/openapi'
   | '/integration/skills'
   | '/cheat'
   | '/translate'
@@ -83,7 +92,7 @@ function measureIndicator(nav: HTMLElement, target: HTMLElement): IndicatorState
   }
 }
 
-const GAME_RELATED_SECTIONS = new Set<MainNavId>(['library', 'edit', 'translate', 'assist', 'remote'])
+const GAME_RELATED_SECTIONS = new Set<MainNavId>(['library', 'edit', 'translate', 'ai', 'assist', 'remote'])
 
 function withGameQuery(href: string, gameId: string | null): string {
   if (!gameId) return href
@@ -98,7 +107,8 @@ function navActive(current: AppNavPath, href: string) {
   if (cleanHref === '/cheat/run') return current === '/cheat' || current === '/cheat/run' || current.startsWith('/cheat/')
   if (cleanHref === '/translate/seed' || cleanHref === '/translate/run')
     return current === '/translate' || current === '/translate/seed' || current === '/translate/run' || current.startsWith('/translate/')
-  if (cleanHref === '/integration/skills') return current === '/integration' || current.startsWith('/integration/')
+  if (cleanHref.startsWith('/ai/')) return current === '/ai' || current.startsWith('/ai')
+  if (cleanHref.startsWith('/integration/')) return current === '/integration' || current.startsWith('/integration/')
   if (cleanHref === '/game') return current === '/game'
   if (cleanHref.startsWith('/remote')) return current === '/remote' || current.startsWith('/remote')
   if (cleanHref === '/assist/hotkeys') return current === '/assist' || current === '/settings'

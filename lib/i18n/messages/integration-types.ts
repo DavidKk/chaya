@@ -3,6 +3,10 @@ export type IntegrationMessages = {
   section: string
   tabSkills: string
   tabMcp: string
+  tabOpenApi: string
+  regionOpenApi: string
+  openApiTitle: string
+  openApiDesc: string
   regionSkills: string
   regionMcp: string
   skillsListAria: string

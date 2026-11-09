@@ -7,6 +7,7 @@ import { createRoot, type Root } from 'react-dom/client'
 import { CompanionPanel } from '@/components/game-agent/CompanionPanel'
 import type { GameAgentRequest } from '@/components/game-agent/GameAgentWorkspace'
 import { LocaleProvider } from '@/components/i18n/LocaleProvider'
+import { AI_ROLES_STORAGE_KEY, defaultAiRoles } from '@/lib/game-agent/roles'
 import { DEFAULT_TOOL_SETTINGS } from '@/lib/game-agent/tool-settings'
 
 const confirm = jest.fn<Promise<boolean>, [{ title: string; confirmVariant?: string }]>()
@@ -71,6 +72,7 @@ beforeAll(() => {
 
 beforeEach(async () => {
   localStorage.clear()
+  localStorage.setItem(AI_ROLES_STORAGE_KEY, JSON.stringify(defaultAiRoles().map((r) => ({ ...r, provider: 'local', model: 'qwen' }))))
   calls = []
   agentStatus = { available: false, profiles: [], defaultProfileId: '', session: null, reason: null }
   confirm.mockReset()
@@ -194,29 +196,107 @@ it('shows and stops the Agent task started from another surface', async () => {
   expect(deletes()).toContainEqual({ path: '/api/game-agent/turn/turn-a?gameId=game-a', method: 'DELETE' })
 })
 
-it('keeps the selected runtime provider and model across games', async () => {
-  localStorage.setItem('chaya.game-agent.runtime-selection', JSON.stringify({ profileId: 'gemini', model: 'gemini-2.5-flash' }))
+it('allows selecting the companion character from header dropdown', async () => {
+  const trigger = host.querySelector<HTMLButtonElement>('button[aria-label*="选择旅伴"]')!
+  expect(trigger).not.toBeNull()
+  await act(async () => trigger.click())
+  const nagiButton = [...document.querySelectorAll<HTMLButtonElement>('button')].find((btn) => btn.textContent?.includes('Nagi'))!
+  expect(nagiButton).not.toBeNull()
+  await act(async () => nagiButton.click())
+  expect(trigger.getAttribute('aria-label')).toContain('Nagi')
+})
+
+it('marks unbound roles with badge and disables selecting them, while bound roles can be selected', async () => {
   await act(async () => root.unmount())
+  localStorage.setItem(
+    AI_ROLES_STORAGE_KEY,
+    JSON.stringify(defaultAiRoles().map((r) => (r.id === 'nagi' ? { ...r, provider: 'ollama', model: 'qwen3:4b' } : { ...r, provider: '', model: '' })))
+  )
+  root = createRoot(host)
+  await act(async () =>
+    root.render(
+      <LocaleProvider initialLocale="zh" initialPreference="zh">
+        <CompanionPanel gameId="game-a" open={false} observe={() => ({}) as never} request={request} />
+      </LocaleProvider>
+    )
+  )
+  const trigger = host.querySelector<HTMLButtonElement>('button[aria-label*="选择旅伴"]')!
+  expect(trigger).not.toBeNull()
+  await act(async () => trigger.click())
+
+  const rinButton = [...document.querySelectorAll<HTMLButtonElement>('button')].find((btn) => btn.textContent?.includes('Rin'))!
+  expect(rinButton).not.toBeNull()
+  expect(rinButton.textContent).toContain('未绑定')
+  expect(rinButton.disabled).toBe(true)
+
+  const nagiButton = [...document.querySelectorAll<HTMLButtonElement>('button')].find((btn) => btn.textContent?.includes('Nagi'))!
+  expect(nagiButton).not.toBeNull()
+  expect(nagiButton.textContent).not.toContain('未绑定')
+  expect(nagiButton.textContent).toContain('qwen3:4b')
+  expect(nagiButton.disabled).toBe(false)
+  await act(async () => nagiButton.click())
+  expect(trigger.getAttribute('aria-label')).toContain('Nagi')
+})
+
+it('dispatches companion prompt with bound agent model (Nagi / ollama / qwen3:4b)', async () => {
+  await act(async () => root.unmount())
+  localStorage.setItem(
+    AI_ROLES_STORAGE_KEY,
+    JSON.stringify(defaultAiRoles().map((r) => (r.id === 'nagi' ? { ...r, provider: 'ollama', model: 'qwen3:4b' } : { ...r, provider: '', model: '' })))
+  )
   agentStatus = {
     available: true,
-    profiles: [
-      { id: 'ollama', label: 'Ollama', online: true, models: [{ name: 'qwen' }], defaultModel: 'qwen' },
-      { id: 'gemini', label: 'Gemini', online: true, models: [{ name: 'gemini-2.5-flash' }], defaultModel: 'gemini-2.5-flash' },
-    ],
-    defaultProfileId: 'ollama',
+    profiles: [{ id: 'ollama-local', provider: 'ollama', label: 'Ollama', online: true, models: [{ name: 'qwen3:4b' }], defaultModel: 'qwen3:4b' }],
+    defaultProfileId: 'ollama-local',
     session: null,
     reason: null,
+  }
+  const routes: Array<Record<string, unknown>> = []
+  const customRequest: GameAgentRequest = async (path, init) => {
+    if (path.startsWith('/api/game-agent/companion') && init?.method === 'POST') {
+      const body = JSON.parse(String(init.body || '{}')) as { message?: Record<string, unknown> }
+      if (body.message?.type === 'agent.companion.route') {
+        routes.push(body.message)
+        return json({ result: { kind: 'chat', stamp: companionStatus().stamp } })
+      }
+      if (body.message?.type === 'agent.companion.chat') {
+        routes.push(body.message)
+        return json({ result: { requestId: 'chat-nagi', messageId: 'msg-nagi' } })
+      }
+    }
+    return request(path, init)
   }
   root = createRoot(host)
   await act(async () =>
     root.render(
       <LocaleProvider initialLocale="zh" initialPreference="zh">
-        <CompanionPanel gameId="game-b" open={false} observe={() => ({}) as never} request={request} />
+        <CompanionPanel gameId="game-a" open={false} observe={() => ({}) as never} request={customRequest} />
       </LocaleProvider>
     )
   )
-  const runtime = host.querySelector<HTMLButtonElement>('button[aria-label^="选择平台与模型"]')!
-  expect(runtime.getAttribute('aria-label')).toContain('Gemini')
+  // Switch to Nagi
+  const trigger = host.querySelector<HTMLButtonElement>('button[aria-label*="选择旅伴"]')!
+  await act(async () => trigger.click())
+  const nagiButton = [...document.querySelectorAll<HTMLButtonElement>('button')].find((btn) => btn.textContent?.includes('Nagi'))!
+  await act(async () => nagiButton.click())
+
+  // Send a message
+  const input = host.querySelector<HTMLInputElement>('input[aria-label]')!
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, '你好 Nagi')
+    input.dispatchEvent(new Event('input', { bubbles: true }))
+  })
+  await act(async () => input.form!.requestSubmit())
+
+  expect(routes).toContainEqual(
+    expect.objectContaining({
+      type: 'agent.companion.route',
+      prompt: '你好 Nagi',
+      character: 'nagi',
+      profileId: 'ollama',
+      model: 'qwen3:4b',
+    })
+  )
 })
 
 it('can stop a red running task button before the turn id arrives', async () => {
@@ -408,7 +488,7 @@ it('offers to fetch a nearby chest and hands the walk to 托管 once accepted', 
   expect(stopAutopilot.querySelector('svg')?.getAttribute('class')).toContain('lucide-compass')
   expect(stopAutopilot.getAttribute('aria-pressed')).toBe('true')
   expect(clearButton()).not.toBeNull()
-  expect(host.querySelector('button[aria-label^="选择平台与模型"]')).not.toBeNull()
+  expect(host.querySelector('button[aria-label*="选择旅伴"]')).not.toBeNull()
   const custodyInput = host.querySelector<HTMLInputElement>('input[placeholder="托管推进中，可随时交流或给出建议…"]')!
   expect(custodyInput).not.toBeNull()
   // Composer remains open for chat/guidance during custody

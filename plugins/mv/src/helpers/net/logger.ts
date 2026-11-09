@@ -199,16 +199,8 @@ function emit(level: ChayaLogLevel, source: string, ...contents: unknown[]) {
   const now = Date.now()
   const sanitizedMeta = contents.length === 1 && typeof contents[0] === 'string' ? undefined : meta
   const last = queue[queue.length - 1]
-  const metaMatch =
-    (!sanitizedMeta && !last?.meta) ||
-    (sanitizedMeta !== undefined && last?.meta !== undefined && JSON.stringify(sanitizedMeta) === JSON.stringify(last.meta))
-  const isDuplicate =
-    last &&
-    last.level === level &&
-    last.source === safeSource &&
-    last.message === message &&
-    now - last.ts < DEDUP_WINDOW_MS &&
-    metaMatch
+  const metaMatch = (!sanitizedMeta && !last?.meta) || (sanitizedMeta !== undefined && last?.meta !== undefined && JSON.stringify(sanitizedMeta) === JSON.stringify(last.meta))
+  const isDuplicate = last && last.level === level && last.source === safeSource && last.message === message && now - last.ts < DEDUP_WINDOW_MS && metaMatch
 
   if (isDuplicate) {
     last.repeatCount = (last.repeatCount ?? 1) + 1

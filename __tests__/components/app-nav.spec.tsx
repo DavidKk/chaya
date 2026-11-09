@@ -59,7 +59,7 @@ test('opens the mobile drawer with the active section and its secondary links', 
   expect(integrationToggle.getAttribute('aria-expanded')).toBe('true')
 
   const secondaryLinks = Array.from(drawer.querySelectorAll<HTMLAnchorElement>('#app-mobile-nav-integration a'))
-  expect(secondaryLinks.map((link) => link.textContent)).toEqual(['Skills', 'MCP', 'WebMCP'])
+  expect(secondaryLinks.map((link) => link.textContent)).toEqual(['MCP', 'WebMCP', 'OpenAPI'])
   expect(secondaryLinks.find((link) => link.getAttribute('aria-current') === 'page')?.getAttribute('href')).toBe('/integration/mcp')
 })
 
@@ -73,8 +73,8 @@ test('closes the mobile drawer after navigating', async () => {
   )
 
   await act(async () => host.querySelector<HTMLButtonElement>('button[aria-controls="app-mobile-nav"]')!.click())
-  const skillsLink = document.querySelector<HTMLAnchorElement>('#app-mobile-nav-integration a[href="/integration/skills"]')!
-  await act(async () => skillsLink.click())
+  const openApiLink = document.querySelector<HTMLAnchorElement>('#app-mobile-nav-integration a[href="/integration/openapi"]')!
+  await act(async () => openApiLink.click())
   expect(document.querySelector('[data-app-mobile-nav]')).toBeNull()
 })
 

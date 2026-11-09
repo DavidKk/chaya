@@ -6,6 +6,7 @@ import type { ChatLine } from './CompanionChatLine'
 const MAX_LINES = 200
 const PERSISTED_ACTIVITY = new Set([
   'thought.updated',
+  'model.thought',
   'tool.started',
   'tool.completed',
   'turn.completed',

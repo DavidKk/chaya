@@ -18,7 +18,7 @@ import {
 import { HiVariable } from 'react-icons/hi'
 import { IoIosSwitch } from 'react-icons/io'
 import { IoListOutline, IoSettingsOutline } from 'react-icons/io5'
-import { LuInfo, LuPlug } from 'react-icons/lu'
+import { LuBot, LuInfo, LuPlug } from 'react-icons/lu'
 
 import type { TabId } from './tabs'
 
@@ -38,6 +38,7 @@ export const TAB_ICONS: Record<TabId, IconType> = {
   battle: GiCrossedSwords,
   data: GiDatabase,
   trans: GiNothingToSay,
+  ai: LuBot,
   logs: IoListOutline,
   mcp: LuPlug,
   settings: IoSettingsOutline,

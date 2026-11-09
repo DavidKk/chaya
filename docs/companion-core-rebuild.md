@@ -264,21 +264,23 @@ Ollama 模型加载后保持驻留，完成、停止和取消请求不卸载模�
 ## 12. 战斗共用下沉、目标游戏验证与全托管剧情方案（2026-11-04）
 
 ### 12.1 战斗能力共用与动作扩展
+
 - **效果预估下沉**：抽取 `plugins/mv/src/helpers/game/battle-effects.ts`，将原本散落在自动战斗作弊逻辑中的动作构建（`createAction`）、伤害/治疗效果安全计算（`safeEvaluateDamage`、`estimateHpRecovery`、`estimateMpRecovery`）、背包可用道具检索（`getUsableItems`、`matchBestHealingItem`）以及增益/异常判定（`hasUsefulEffect`）统一为通用底层。
 - **旅伴道具与复活**：扩展 `ActionOffer` 与目标规则，支持 `one_dead_ally` 与 `all_dead_allies`，实现队伍阵亡时的 0 级紧急复活以及战斗背包道具导航与释放。
 - **侧视角（SV）动作容错**：针对 RPG Maker MV 侧视角缺少战斗图或图纸损坏导致 `_movementDuration > 0` 战斗开始挂起的问题，在引擎桥接中加入 `Sprite_Actor.prototype.updateMove` 兜底补丁。
 - **单实例生命周期加固**：在自动化验证运行器（`companion-engine-smoke.cjs`、`companion-host-smoke.cts`）与控制台接口中加固单实例生命周期控制，启动前自动清理残留游戏进程，退出时强杀 Electron 子进程，避免多开占用机器资源。
 
 ### 12.2 目标游戏《Heroines of Swords & Spells II》实测验收
+
 - 真实游戏路径 `/Volumes/Games/Heroines.of.Swords.Spells.2`（游戏 ID `cfbafc20-c4d9-4b96-ad07-21ce55722678`）：
   - 自动化 6 项场景全量通过：`baseline`（14.2s 获胜，单步决策 0.9ms，0 模型往返）、`healing`（9% HP 队友被治疗抬血至 180 HP 并获胜）、`insufficient-mp`（0 MP 智能降级防御攻击）、`single-battle`、`stop`、`manual`。
   - 局域网 Ollama MBA（`qwen3:4b`）全链路 Host 验收通过：涵盖战斗接管、战时聊天、首战获胜、65s 静默等待、动态 MP 战术约束、第二战获胜与历史战斗经验检索。
 
 ### 12.3 剧情与全托管架构方案（下一步规划）
+
 - 遵循“代码负责常规流转与感知，模型负责分支与卡点决断”的动静分离原则：
   1. **剧情对话推进器**：基于现有 `auto-talk`，模拟人类视觉习惯轻微停顿推进文本，后台全量留存对话日志。
   2. **分支选项决断器**：分级处理，常规无害选项走代码快路径，关键剧情分支交给小模型进行决策与台词吐槽。
   3. **地图探索导航**：扫描地图事件拓扑，结合 A* 寻路优先清理未探索宝箱、NPC 与传送点。
   4. **目标追踪与卡点感知**：记录主线变量与任务目标，地图长时间徘徊未产生进度时唤醒模型分析 NPC 对话自救。
   5. **双模型解耦并发**：小模型（4B）负责结构化战术/分支抉择，大/主模型负责伴游聊天吐槽，两路并发互不阻塞。
-

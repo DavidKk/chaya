@@ -51,6 +51,40 @@ test('shows semantic game events and filters without exposing raw JSON by defaul
   expect(host.textContent).toContain('老人：拿走吧。')
 })
 
+test('renders model.thought with analysis target, thought content, and decision', async () => {
+  await act(async () => {
+    root.render(
+      <AgentActivityTimeline
+        events={[
+          {
+            seq: 1,
+            type: 'model.thought',
+            data: {
+              model: 'qwen2.5',
+              durationMs: 1200,
+              promptSummary: '分析当前地图路线',
+              thought: '需要前往村庄东侧找到NPC对话',
+              decision: '前往坐标 (12, 8)',
+            },
+          },
+        ]}
+      />
+    )
+  })
+
+  expect(host.textContent).toContain('思考过程')
+  expect(host.textContent).toContain('1200ms · qwen2.5')
+  expect(host.textContent).toContain('分析目标：')
+  expect(host.textContent).toContain('分析当前地图路线')
+  expect(host.textContent).toContain('需要前往村庄东侧找到NPC对话')
+  expect(host.textContent).toContain('推理结论：')
+  expect(host.textContent).toContain('前往坐标 (12, 8)')
+
+  const decisionFilter = [...host.querySelectorAll('button')].find((button) => button.textContent === '决策')!
+  await act(async () => decisionFilter.click())
+  expect(host.textContent).toContain('思考过程')
+})
+
 test('shows individual model and tool timings below the operation without duplicating game feedback', async () => {
   await act(async () => {
     root.render(

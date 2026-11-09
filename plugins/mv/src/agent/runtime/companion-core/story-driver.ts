@@ -239,6 +239,7 @@ export class StoryDriver {
             profileId: this.deps.profileId,
             model: this.deps.model,
             purpose: 'route',
+            think: true,
             signal: signal ?? new AbortController().signal,
           }
         )

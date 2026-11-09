@@ -45434,7 +45434,7 @@ function loadOwnedGameAgentSettings(file = GAME_AGENT_SETTINGS_PATH) {
   }
 }
 function profileById(settings, id) {
-  return settings.profiles.find((profile) => profile.id === id) || null;
+  return settings.profiles.find((profile) => profile.id === id) || settings.profiles.find((profile) => profile.provider === id) || null;
 }
 function ollamaProfiles(settings) {
   return settings.profiles.filter((profile) => profile.provider === "ollama");

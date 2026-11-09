@@ -65,10 +65,7 @@ function remember(target: Map<string, CanvasText>, canvas: object, value: unknow
   if (value == null) return
   const raw = typeof value === 'string' ? value : String(value)
   if (!raw) return
-  const text =
-    raw.length > MAX_TEXT_LENGTH
-      ? raw.replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT_LENGTH)
-      : raw.trim()
+  const text = raw.length > MAX_TEXT_LENGTH ? raw.replace(/\s+/g, ' ').trim().slice(0, MAX_TEXT_LENGTH) : raw.trim()
   if (!text) return
   let canvasId = canvasIds.get(canvas)
   if (!canvasId) {

@@ -45,7 +45,7 @@ export function resolveAgentProfileModels(
         : []
   let models = filterEnabledModels(catalog, profile.enabledModels)
   const preferred = profile.defaultModel?.trim() || ''
-  if (preferred && !models.some((model) => model.name === preferred)) {
+  if (preferred && !models.some((model) => model.name === preferred) && (!cached.length || catalog.some((model) => model.name === preferred))) {
     models = [...models, catalog.find((model) => model.name === preferred) || { name: preferred }]
   }
   const defaultModel = models.some((model) => model.name === preferred) ? preferred : models[0]?.name || ''

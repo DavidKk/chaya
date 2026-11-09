@@ -17,6 +17,7 @@ export const POST = defineApiRoute('post:/api/game-agent/companion-model', async
     conversationKey?: unknown
     messages?: unknown
     format?: unknown
+    think?: unknown
   } | null
   const purposes = ['companion-chat', 'companion-route', 'companion-warmup', 'companion-prepare', 'companion-tactic-quick', 'companion-tactic-deep']
   if (
@@ -48,7 +49,11 @@ export const POST = defineApiRoute('post:/api/game-agent/companion-model', async
   const encoder = new TextEncoder()
   const purpose = body.purpose as CompanionModelPurpose
   const requestId = body.requestId
-  const model = body.model
+  const model = (body.model && body.model !== 'auto' ? body.model : profile.defaultModel) || profile.defaultModel || body.model
+  const shouldThink =
+    typeof body.think === 'boolean'
+      ? body.think
+      : purpose === 'companion-tactic-deep' || purpose === 'companion-route' || (purpose as string) === 'route' || (purpose as string) === 'tactic-deep'
   const stream = new ReadableStream<Uint8Array>({
     start(controller) {
       let closed = false
@@ -61,7 +66,7 @@ export const POST = defineApiRoute('post:/api/game-agent/companion-model', async
         model,
         purpose,
         messages,
-        think: purpose === 'companion-tactic-deep',
+        think: shouldThink,
         conversationKey: typeof body.conversationKey === 'string' ? body.conversationKey.slice(0, 500) : requestId,
         ...(body.format && typeof body.format === 'object' && !Array.isArray(body.format) ? { format: body.format as Record<string, unknown> } : {}),
         signal: AbortSignal.any([request.signal, cancel.signal]),
@@ -83,7 +88,8 @@ export const POST = defineApiRoute('post:/api/game-agent/companion-model', async
         },
       })
         .then(
-          (message) => send({ type: 'completed', metrics, message: { role: 'assistant', content: message.content, usage: message.usage, timing: message.timing } }),
+          (message) =>
+            send({ type: 'completed', metrics, message: { role: 'assistant', content: message.content, thought: message.thought, usage: message.usage, timing: message.timing } }),
           (error) =>
             send({
               type: 'failed',

@@ -58,11 +58,23 @@ export const companionAppliedBatches = sqliteTable(
   (table) => [primaryKey({ columns: [table.gameId, table.batchId] })]
 )
 
+export const companionCheckpoints = sqliteTable(
+  'companion_checkpoints',
+  {
+    gameId: text('game_id').notNull(),
+    generation: integer('generation').notNull(),
+    snapshotJson: text('snapshot_json').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (table) => [primaryKey({ columns: [table.gameId, table.generation] })]
+)
+
 export const companionSchema = {
   companionManifest,
   companionEpisodes,
   companionEvidence,
   companionAppliedBatches,
+  companionCheckpoints,
 }
 
 export type CompanionDb = ReturnType<typeof drizzle> & { $client: DatabaseSync }
@@ -117,6 +129,16 @@ export function ensureCompanionMemorySchema(db: CompanionDb, _client: DatabaseSy
       fingerprint TEXT NOT NULL,
       applied_at INTEGER NOT NULL,
       PRIMARY KEY (game_id, batch_id)
+    )
+  `)
+
+  db.run(sql`
+    CREATE TABLE IF NOT EXISTS companion_checkpoints (
+      game_id TEXT NOT NULL,
+      generation INTEGER NOT NULL,
+      snapshot_json TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (game_id, generation)
     )
   `)
 }

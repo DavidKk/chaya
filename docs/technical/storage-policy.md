@@ -42,6 +42,38 @@
 | **游戏内桶** | `<contentRoot>/chaya/`                     | 跟踪插件磁盘缓存（`plugins/`）、配置缓存、用户存入游戏内的存档（`saves/`）、离线待重放日志（`pending-mutations.ndjson`）、改包回写 | **随游戏目录移动或丢弃**；`plugins/` 可随时清空重建；局内存档属用户数据，禁止静默随缓存清除；离线日志仅作待提交缓冲，不作权威真源读取。 |
 | **浏览器桶** | 页面 Origin 作用域                         | 语言偏好、侧栏收起状态、窗口连接 Token、活动游戏暂存、FSA 句柄                                                                     | **刷新即恢复，清站点可安全重建**；**严禁**存放译文、记忆、存档或 Agent 权威配置。                                                       |
 
+### 1.2 当前数据库读写链路（简版）
+
+2026-11-09 按代码核对；本节只说明翻译库、旅伴记忆库的读写入口，不表示后文验收矩阵已全部通过。运行模式沿用 [run-modes.md](../run-modes.md) 的 `local / cloud / plugin`；本次讨论中的 EDGE 按 `cloud`（线上模式）理解，与 Next.js Edge Runtime 无关。
+
+**本机 Storage Daemon 统一持有数据库连接；LOCAL 服务和游戏插件都是它的客户端。**
+
+```mermaid
+flowchart LR
+    Cloud["Cloud 控制台"] -->|WebRTC 游戏连接| Plugin["MV/MZ 游戏插件"]
+    Local["Local 控制台"] --> Service["本机 Chaya 服务"]
+    Local -->|游戏连接| Plugin
+    Game["游戏内 UI"] --> Plugin
+    Plugin -->|本机 HTTP RPC| Storage["本机 Storage Daemon"]
+    Service -->|本机 RPC| Storage
+    Storage --> Translations["shared.sqlite · 翻译库"]
+    Storage --> Companion["companion.sqlite · 旅伴记忆库"]
+```
+
+| 入口                                          | 数据库写入链路                                                |
+| --------------------------------------------- | ------------------------------------------------------------- |
+| Cloud 中通过 MV/MZ 插件执行的操作             | 控制台 → WebRTC → 游戏插件 → 本机 Storage Daemon → SQLite     |
+| Local 的服务端操作，如共享译文编辑、后台补译  | 控制台 / 后台任务 → 本机 Chaya 服务 → Storage Daemon → SQLite |
+| Local 中通过 MV/MZ 插件执行的操作、游戏内操作 | 控制台 / 游戏内 UI → 游戏插件 → Storage Daemon → SQLite       |
+| RGSS 翻译 UI                                  | WebView → 本机 Chaya 服务接口 → Storage Daemon → SQLite       |
+
+- **是否经过插件由具体入口决定**。例如控制台翻译页仅在 `play` 页且游戏已连接时走游戏运行时，其余走服务端接口；共享翻译库管理走服务端接口。
+- **数据库在用户电脑上**：`$CHAYA_DATA_DIR/translate-cache/shared.sqlite`、`$CHAYA_DATA_DIR/companion-memory/companion.sqlite`。Cloud 服务不持有这两个本机库的连接；Cloud 中上述插件操作需要游戏连接及可用的本机存储运行时。
+- **游戏文件另有入口**：Cloud 准备游戏时可经浏览器授权直接读写游戏目录；游戏原生存档、改包文件不等同于这两个 SQLite 库。
+- **进程生命周期独立**：存储服务是独立 Node 进程，可由本机服务或插件按需拉起；插件恢复服务依赖已有的本机运行时定位信息。翻译和旅伴的待提交写入可先保留在游戏旁离线日志，之后重放给存储服务。
+
+代码入口：[控制台翻译路由选择](../../components/translate/TranslateLayoutShell.tsx)、[Local 存储客户端](../../services/storage/client.ts)、[MV/MZ 插件存储客户端](../../plugins/mv/src/helpers/storage/client.ts)、[RGSS 翻译请求](../../plugins/rgss/src/translation-request.ts)、[存储服务与数据库连接](../../services/storage/daemon-service.server.ts)。
+
 ---
 
 ## 2. 数据库物理划分与 Schema 规范

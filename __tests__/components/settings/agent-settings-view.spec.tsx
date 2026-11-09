@@ -168,11 +168,11 @@ test('lists multiple agents, opens a detail route, and saves edits through the s
   expect(host.textContent).not.toContain('验证服务连接并刷新可用模型列表。')
   expect(host.querySelector<HTMLButtonElement>('button[aria-label="刷新"]')).toBeNull()
   const modelCalls = () => request.mock.calls.filter(([, init]) => init?.method === 'POST' && String(init.body).includes('"action":"models"')).length
-  const modelSelect = host.querySelectorAll<HTMLButtonElement>('button[aria-haspopup="listbox"]')[1]
+  const modelInput = host.querySelector<HTMLInputElement>('input[role="combobox"]')!
   expect(modelCalls()).toBe(0)
-  await act(async () => modelSelect.click())
+  await act(async () => modelInput.click())
   expect(modelCalls()).toBe(1)
-  await act(async () => modelSelect.click())
+  await act(async () => modelInput.click())
   expect(toolbar.closest('section')).not.toBeNull()
   expect(host.querySelectorAll('[data-agent-detail-card]')).toHaveLength(1)
   expect(toolbar.closest('[data-agent-detail-card]')?.textContent).toContain('Temperature')
@@ -259,7 +259,7 @@ test('shows a plain test result in a toast instead of describing the model refre
 
   await act(async () => resolveTest({ ok: true, status: 200, json: async () => ({ models: [{ name: 'qwen3' }] }) } as Response))
 
-  const toast = document.body.querySelector<HTMLElement>('[role="status"]')!
+  const toast = document.body.querySelector<HTMLElement>('[role="status"][aria-live="polite"]')!
   expect(toast.textContent).toContain('测试成功')
   expect(toast.textContent).not.toContain('模型')
   expect(testButton.disabled).toBe(false)
@@ -384,13 +384,13 @@ test('loads cached models immediately and refreshes them automatically from the 
       )
     )
 
-    const selects = host.querySelectorAll<HTMLButtonElement>('button[aria-haspopup="listbox"]')
-    expect(selects[1]?.textContent).toContain('qwen3')
+    const modelInput = host.querySelector<HTMLInputElement>('input[role="combobox"]')!
+    expect(modelInput.value).toBe('qwen3')
     await act(async () => jest.advanceTimersByTime(500))
 
     const modelRequest = request.mock.calls.find(([, init]) => init?.method === 'POST')
     expect(JSON.parse(String(modelRequest?.[1]?.body))).toMatchObject({ action: 'models', profile: { endpoint: 'http://127.0.0.1:11434' } })
-    expect(selects[1]?.textContent).toContain('gemma4')
+    expect(modelInput.value).toBe('gemma4')
   } finally {
     jest.useRealTimers()
   }

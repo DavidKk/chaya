@@ -8,7 +8,7 @@ export type PuzzleContext = {
   playerPos: { x: number; y: number }
   recentDialogue: string[]
   inventorySummary: string[]
-  visibleEvents: Array<{ id: number; name: string; x: number; y: number; kind?: string; reachable?: boolean }>
+  visibleEvents: Array<{ id: number; name: string; x: number; y: number; kind?: string; reachable?: boolean; preview?: string }>
   unreachableTarget?: { id: number; name: string; x: number; y: number }
   playerGuidance?: string | null
   questContextSummary?: string
@@ -38,6 +38,7 @@ export type PuzzleSolverDeps = {
   model?: string
   signal?: AbortSignal
   onThought?: (thought: ModelThoughtEvent) => void
+  onDiagnosing?: () => void
 }
 
 export class StoryPuzzleSolver {
@@ -45,32 +46,129 @@ export class StoryPuzzleSolver {
 
   public async diagnoseNextStep(ctx: PuzzleContext, signal = this.deps.signal): Promise<PuzzleDiagnosis> {
     signal?.throwIfAborted()
-    // 1. Try remote model reasoning if configured
+
+    // 1. Fast-Path: High-confidence heuristic clue matching
+    // If recent dialogue or guidance directly points to an identifiable target on the map (e.g. Severin's shop, lever, door),
+    // resolve immediately with zero latency and 100% determinism.
+    const directMatch = this.matchDirectClue(ctx)
+    if (directMatch) {
+      return directMatch
+    }
+
+    // 2. Focused model reasoning with pre-ranked Top-K candidates
     if (this.deps.complete && this.deps.profileId && this.deps.model) {
+      this.deps.onDiagnosing?.()
       try {
         const diagnosis = await this.askModel(ctx, signal)
         signal?.throwIfAborted()
         if (diagnosis) return diagnosis
-      } catch {
+      } catch (err) {
         signal?.throwIfAborted()
+        console.warn('[StoryPuzzleSolver] Model reasoning failed:', err)
         // Fall through to heuristic
       }
     }
 
-    // 2. Local heuristic fallback
+    // 3. Local heuristic fallback
     return this.heuristicFallback(ctx)
+  }
+
+  public matchDirectClue(ctx: PuzzleContext): PuzzleDiagnosis | null {
+    // Priority 0: Player explicit guidance has top priority
+    if (ctx.playerGuidance) {
+      const lower = positiveStoryGuidance(ctx.playerGuidance).toLowerCase()
+      const match = ctx.visibleEvents.find((e) => (e.name && lower.includes(e.name.toLowerCase())) || (e.kind && lower.includes(e.kind)))
+      if (match) {
+        return {
+          targetEventId: match.id,
+          targetPos: { x: match.x, y: match.y },
+          reason: '遵循玩家建议目标',
+          suggestedAction: 'interact',
+          hint: `根据建议调查 ${match.name} (${match.x}, ${match.y})`,
+        }
+      }
+    }
+
+    // Priority 0b: Dialogue clue matching (e.g. Severin's shop or specific place mentioned in recent dialogue)
+    const dialogueText = ctx.recentDialogue.slice(-5).join(' ')
+    if (!dialogueText) return null
+
+    // Check specific name mentions (e.g. Severin / 塞维林 / Северин)
+    if (/(塞维林|severin|северин)/i.test(dialogueText)) {
+      const severinMatch = ctx.visibleEvents.find(
+        (e) =>
+          /(северин|severin|塞维林)/i.test(e.name) ||
+          /(северин|severin|塞维林)/i.test(e.preview || '') ||
+          (e.kind === 'shop' && /(северин|severin|лавка|магазин|shop|塞维林)/i.test(e.name + (e.preview || '')))
+      )
+      if (severinMatch) {
+        return {
+          targetEventId: severinMatch.id,
+          targetPos: { x: severinMatch.x, y: severinMatch.y },
+          reason: '剧情对话线索指引：前往塞维林的店铺',
+          suggestedAction: 'interact',
+          hint: `前往塞维林的店铺 ${severinMatch.name} (${severinMatch.x}, ${severinMatch.y})`,
+        }
+      }
+    }
+
+    // Check shop / store mentions
+    if (/(店|商店|лавка|магазин|shop)/i.test(dialogueText)) {
+      const shopMatch = ctx.visibleEvents.find((e) => e.kind === 'shop' || /(магазин|лавка|shop|商店|店)/i.test(e.name) || /(магазин|лавка|shop|商店|店)/i.test(e.preview || ''))
+      if (shopMatch) {
+        return {
+          targetEventId: shopMatch.id,
+          targetPos: { x: shopMatch.x, y: shopMatch.y },
+          reason: '剧情对话线索指引：前往商店设施',
+          suggestedAction: 'interact',
+          hint: `前往商店 ${shopMatch.name} (${shopMatch.x}, ${shopMatch.y})`,
+        }
+      }
+    }
+
+    return null
   }
 
   private async askModel(ctx: PuzzleContext, signal?: AbortSignal): Promise<PuzzleDiagnosis | null> {
     const questSection = ctx.questContextSummary ? `${ctx.questContextSummary}\n\n` : ''
+
+    // Pre-rank candidates to keep the prompt focused on the most relevant events (Top 8 max)
+    const dialogueLower = ctx.recentDialogue.join(' ').toLowerCase()
+    const scored = ctx.visibleEvents.map((e) => {
+      let score = 0
+      const nameLower = (e.name || '').toLowerCase()
+      const previewLower = (e.preview || '').toLowerCase()
+
+      if (dialogueLower) {
+        for (const token of ['северин', 'severin', '塞维林', 'лавка', 'магазин', 'shop', 'рычаг', 'lever', 'кнопка', 'ключ', 'key', 'дверь', 'door']) {
+          if (dialogueLower.includes(token)) {
+            if (nameLower.includes(token) || previewLower.includes(token)) score += 50
+          }
+        }
+      }
+
+      if (e.kind === 'lever') score += 20
+      if (e.kind === 'shop') score += 15
+      if (e.kind === 'npc') score += 10
+      if (e.reachable !== false) score += 5
+
+      const dist = Math.abs(e.x - ctx.playerPos.x) + Math.abs(e.y - ctx.playerPos.y)
+      score -= Math.min(20, Math.floor(dist / 5))
+
+      return { event: e, score }
+    })
+
+    scored.sort((a, b) => b.score - a.score)
+    const candidates = scored.slice(0, 8).map((s) => s.event)
+
     const prompt = `当前地图：${ctx.mapName || '未知区域'} (ID: ${ctx.mapId})，坐标 (${ctx.playerPos.x}, ${ctx.playerPos.y})
-近期对话要点：
-${ctx.recentDialogue.slice(-5).join('\n') || '（无近期台词）'}
+近期剧情/对话要点（注意：游戏剧情可能有俄语/英语原名与中文翻译对应，如“塞维林”对应俄语“Северин”/Severin，“店/商店”对应“Лавка”/“Магазин”/Shop）：
+${ctx.recentDialogue.slice(-8).join('\n') || '（无近期台词）'}
 
 背包关键道具：${ctx.inventorySummary.join('、') || '（无关键道具）'}
 
-地图可见事件：
-${ctx.visibleEvents.map((e) => `- ID ${e.id}: "${e.name}" at (${e.x}, ${e.y}) [类型: ${e.kind || '未知'}, 可达: ${e.reachable !== false ? '是' : '否'}]`).join('\n')}
+地图候选事件列表（已根据线索相关度预先筛选）：
+${candidates.map((e) => `- ID ${e.id}: "${e.name}" at (${e.x}, ${e.y}) [类型: ${e.kind || '未知'}, 可达: ${e.reachable !== false ? '是' : '否'}${e.preview ? `, 内容预览: "${e.preview}"` : ''}]`).join('\n')}
 ${questSection}
 ${
   ctx.unreachableTarget
@@ -84,8 +182,10 @@ ${ctx.playerGuidance}
 `
         : ''
     }
-优先完成本层可处理目标，不能仅因存在楼梯或传送点就离开。只能选择以上候选事件 ID，无可行目标时返回 null。
-请分析下一步应该前往调查或互动的目标，输出 JSON：
+任务说明：
+请仔细结合近期对话中的线索提示（例如去某个特定的店铺、找某个人、使用某个机关等）。如果对话指明了要去的地方或找的人，请在事件列表中寻找对应的目标（注意俄文/英文名称与中文译名的对应关系，如 Северин/Severin/Лавка/Shop 等）。
+优先选择最符合剧情线索的目标。只能选择以上候选事件 ID，无可行目标时返回 null。
+请输出 JSON：
 {"targetEventId": 目标事件ID数字或null, "reason": "分析原因", "hint": "简短伴游提示"}
 `
 
@@ -104,6 +204,7 @@ ${ctx.playerGuidance}
         profileId: this.deps.profileId!,
         model: this.deps.model!,
         purpose: 'route',
+        think: true,
         signal: signal ?? new AbortController().signal,
       }
     )
@@ -113,10 +214,13 @@ ${ctx.playerGuidance}
     const thought = reply.thought || (reply as any).reasoning_content || undefined
 
     try {
-      const raw = reply.content
-        .trim()
-        .replace(/^```(?:json)?\s*/i, '')
-        .replace(/\s*```$/, '')
+      const match = reply.content.match(/\{[\s\S]*\}/)
+      const raw = match
+        ? match[0]
+        : reply.content
+            .trim()
+            .replace(/^```(?:json)?\s*/i, '')
+            .replace(/\s*```$/, '')
       const data = JSON.parse(raw)
       const targetEventId = typeof data.targetEventId === 'number' ? data.targetEventId : undefined
       const targetEvent = targetEventId ? ctx.visibleEvents.find((e) => e.id === targetEventId) : undefined
@@ -138,6 +242,14 @@ ${ctx.playerGuidance}
       })
       return diagnosis
     } catch {
+      this.deps.onThought?.({
+        model: this.deps.model!,
+        durationMs,
+        thought,
+        promptSummary,
+        decision: reply.content.trim().slice(0, 100) || '无法解析模型结构化决策',
+        at: Date.now(),
+      })
       return null
     }
   }
@@ -154,6 +266,38 @@ ${ctx.playerGuidance}
           reason: '遵循玩家建议目标',
           suggestedAction: 'interact',
           hint: `根据建议调查 ${match.name} (${match.x}, ${match.y})`,
+        }
+      }
+    }
+
+    // Priority 0b: Dialogue clue matching (e.g. Severin's shop or specific place mentioned in recent dialogue)
+    const dialogueText = ctx.recentDialogue.join(' ')
+    if (/(塞维林|severin|северин)/i.test(dialogueText)) {
+      const severinMatch = ctx.visibleEvents.find(
+        (e) =>
+          /(северин|severin|塞维林)/i.test(e.name) ||
+          /(северин|severin|塞维林)/i.test(e.preview || '') ||
+          (e.kind === 'shop' && /(северин|severin|лавка|магазин|shop|塞维林)/i.test(e.name + (e.preview || '')))
+      )
+      if (severinMatch) {
+        return {
+          targetEventId: severinMatch.id,
+          targetPos: { x: severinMatch.x, y: severinMatch.y },
+          reason: '剧情对话提示需要前往塞维林的店铺',
+          suggestedAction: 'interact',
+          hint: `前往塞维林的店铺 ${severinMatch.name} (${severinMatch.x}, ${severinMatch.y})`,
+        }
+      }
+    }
+    if (/(店|商店|лавка|магазин|shop)/i.test(dialogueText)) {
+      const shopMatch = ctx.visibleEvents.find((e) => e.kind === 'shop' || /(магазин|лавка|shop|商店|店)/i.test(e.name) || /(магазин|лавка|shop|商店|店)/i.test(e.preview || ''))
+      if (shopMatch) {
+        return {
+          targetEventId: shopMatch.id,
+          targetPos: { x: shopMatch.x, y: shopMatch.y },
+          reason: '剧情对话提示需要前往商店设施',
+          suggestedAction: 'interact',
+          hint: `前往商店 ${shopMatch.name} (${shopMatch.x}, ${shopMatch.y})`,
         }
       }
     }

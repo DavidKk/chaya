@@ -78,21 +78,25 @@ type ModelPacket = {
 export function createCompanionModel(readConfig: () => AgentSyncSettings | null) {
   const complete: CompanionComplete = async (messages: RuntimeMessage[], options: CompanionModelOptions): ReturnType<CompanionComplete> => {
     const config = readConfig()
-    const profile = config?.profiles.find((item) => item.id === options.profileId)
+    const profile =
+      config?.profiles.find((item) => item.id === options.profileId || item.provider === options.profileId) ??
+      config?.profiles.find((item) => item.id === config.defaultProfileId) ??
+      config?.profiles[0]
     if (!profile) throw Object.assign(new Error('请先配置陪玩模型'), { code: 'MODEL_UNAVAILABLE', retryable: true })
+    const effectiveModel = (options.model && options.model !== 'auto' ? options.model : profile.defaultModel) || profile.defaultModel || options.model || ''
     const tactic = options.purpose === 'tactic-quick' || options.purpose === 'tactic-deep'
     const timeoutMs =
       options.purpose === 'warmup'
         ? 5_000
         : options.purpose === 'route'
           ? 15_000
-        : options.purpose === 'prepare'
-          ? 10_000
-          : options.purpose === 'tactic-quick'
-            ? 6_000
-            : options.purpose === 'tactic-deep'
-              ? 25_000
-              : 15_000
+          : options.purpose === 'prepare'
+            ? 10_000
+            : options.purpose === 'tactic-quick'
+              ? 6_000
+              : options.purpose === 'tactic-deep'
+                ? 25_000
+                : 15_000
     const startedAt = Date.now()
     const startupAllowance = profile.provider === 'ollama' && !tactic ? COMPANION_MODEL_STARTUP_MS : 0
     const signal = AbortSignal.any([options.signal, AbortSignal.timeout(timeoutMs + startupAllowance)])
@@ -104,7 +108,7 @@ export function createCompanionModel(readConfig: () => AgentSyncSettings | null)
       const logger = createLogger('companion-model')
       const diagnostic = (phase: string, meta?: Record<string, unknown>) => {
         if (phase !== 'completed' && phase !== 'failed') return
-        logger[phase === 'failed' ? 'warn' : 'info'](`Model ${phase}`, { requestId, resourceKey, model: options.model, purpose: `companion-${options.purpose}`, ...meta })
+        logger[phase === 'failed' ? 'warn' : 'info'](`Model ${phase}`, { requestId, resourceKey, model: effectiveModel, purpose: `companion-${options.purpose}`, ...meta })
       }
       let startupStarted: number | undefined
       let startupMs: number | undefined
@@ -133,7 +137,7 @@ export function createCompanionModel(readConfig: () => AgentSyncSettings | null)
             startupStarted = Date.now()
             const startup = await prepareCompanionOllama({
               endpoint: profile.endpoint,
-              model: options.model,
+              model: effectiveModel,
               signal: leaseSignal,
               onStatus: (status) => {
                 residency = status.residency
@@ -164,10 +168,10 @@ export function createCompanionModel(readConfig: () => AgentSyncSettings | null)
               const message = await streamOllamaChat(
                 {
                   endpoint: profile.endpoint,
-                  model: options.model,
+                  model: effectiveModel,
                   messages: trimmed,
                   tools: [],
-                  think: options.purpose === 'tactic-deep',
+                  think: options.think ?? (options.purpose === 'tactic-deep' || options.purpose === 'route'),
                   maxTokens: options.purpose === 'route' ? 512 : tactic ? 768 : options.purpose === 'prepare' ? 384 : 256,
                   temperature: options.purpose === 'chat' ? profile.temperature : 0,
                   keepAlive: COMPANION_KEEP_ALIVE,
@@ -222,12 +226,13 @@ export function createCompanionModel(readConfig: () => AgentSyncSettings | null)
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         requestId: crypto.randomUUID(),
-        profileId: options.profileId,
-        model: options.model,
+        profileId: profile.id || options.profileId,
+        model: effectiveModel,
         purpose: `companion-${options.purpose}`,
         conversationKey: options.conversationKey,
         messages,
         format: options.format,
+        think: options.think ?? (options.purpose === 'tactic-deep' || options.purpose === 'route'),
       }),
       signal,
     })
@@ -252,7 +257,11 @@ export function createCompanionModel(readConfig: () => AgentSyncSettings | null)
         options.onModelStatus?.({ phase: packet.phase, residency: packet.residency, startupMs: packet.startupMs, startupLoadMs: packet.startupLoadMs })
       if (packet.type === 'failed') throw Object.assign(new Error(packet.error?.message || '陪玩模型不可用'), packet.error)
       if (packet.type === 'completed' && packet.message) {
-        result = { ...packet.message, companionMetrics: { ...packet.metrics, totalMs: Date.now() - startedAt, firstTokenMs } }
+        result = {
+          ...packet.message,
+          thought: packet.message.thought ?? (packet as any).thought,
+          companionMetrics: { ...packet.metrics, totalMs: Date.now() - startedAt, firstTokenMs },
+        }
       }
     }
     try {
@@ -277,7 +286,11 @@ export function createCompanionModel(readConfig: () => AgentSyncSettings | null)
     }
   }
   complete.ensureReady = async (options) => {
-    const profile = readConfig()?.profiles.find((item) => item.id === options.profileId)
+    const config = readConfig()
+    const profile =
+      config?.profiles.find((item) => item.id === options.profileId || item.provider === options.profileId) ??
+      config?.profiles.find((item) => item.id === config.defaultProfileId) ??
+      config?.profiles[0]
     if (profile?.provider === 'ollama') await complete([], { ...options, purpose: 'warmup' })
   }
   return complete

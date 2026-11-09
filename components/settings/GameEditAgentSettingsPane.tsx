@@ -12,7 +12,6 @@ import { SectionSideNav, sectionSideNavItemClass, SectionSideNavItemContent } fr
 import { Tooltip } from '@/components/sk'
 import { useViewState } from '@/lib/view-state'
 
-import { AgentSettingsView } from './AgentSettingsView'
 import { EnhanceSettingsView } from './EnhanceSettingsView'
 import { FloatingBallSettingsView } from './FloatingBallSettingsView'
 import { ToolSettingsView } from './ToolSettingsView'
@@ -20,17 +19,15 @@ import { ToolSettingsView } from './ToolSettingsView'
 /** 局内浮层「辅助」：与 Web `/assist/*` 同一组分区与组件，只换外壳 */
 export function GameEditAgentSettingsPane({ request, hotkeys }: { request: GameAgentRequest; hotkeys: ReactNode }) {
   const t = useT()
-  const [agentId, setAgentId] = useViewState<string | undefined>('settings.agentId', undefined, (v): v is string | undefined => v === undefined || typeof v === 'string')
   const [section, setSection] = useViewState<AssistSection>('settings.section', DEFAULT_ASSIST_SECTION, isAssistSection)
 
   useEffect(() => {
     const reset = () => {
-      setAgentId(undefined)
-      setSection('agents')
+      setSection(DEFAULT_ASSIST_SECTION)
     }
     window.addEventListener('chaya:game-settings-opened', reset)
     return () => window.removeEventListener('chaya:game-settings-opened', reset)
-  }, [setAgentId, setSection])
+  }, [setSection])
 
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-paper-2 md:flex-row">
@@ -48,7 +45,6 @@ export function GameEditAgentSettingsPane({ request, hotkeys }: { request: GameA
                   className={`${sectionSideNavItemClass(active)} cursor-pointer`}
                   onClick={() => {
                     setSection(id)
-                    setAgentId(undefined)
                   }}
                 >
                   <SectionSideNavItemContent active={active} icon={<Icon size={17} />} />
@@ -71,8 +67,6 @@ export function GameEditAgentSettingsPane({ request, hotkeys }: { request: GameA
           <FloatingBallSettingsView request={request} />
         ) : section === 'enhance' ? (
           <EnhanceSettingsView request={request} />
-        ) : section === 'agents' ? (
-          <AgentSettingsView request={request} agentId={agentId} onNavigate={setAgentId} />
         ) : (
           <ToolSettingsView page={section} request={request} />
         )}

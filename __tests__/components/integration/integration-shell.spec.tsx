@@ -52,7 +52,7 @@ test('renders icon-only links with accessible labels and the active page', async
   expect(aside.className).toContain('hidden')
   expect(aside.className).toContain('md:block')
   expect(aside.getAttribute('data-mobile-visible')).toBeNull()
-  expect(links.map((link) => link.getAttribute('aria-label'))).toEqual(['Skills', 'MCP', 'WebMCP'])
+  expect(links.map((link) => link.getAttribute('aria-label'))).toEqual(['MCP', 'WebMCP', 'OpenAPI'])
   expect(links.map((link) => link.textContent)).toEqual(['', '', ''])
   expect(links.find((link) => link.getAttribute('aria-current') === 'page')?.getAttribute('href')).toBe('/integration/mcp')
 })

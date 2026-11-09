@@ -94,6 +94,7 @@ export class StoryTargetExecutor {
         }
         this.getLoopDetector(mapId).record(target)
         this.getLoopDetector(mapId).suppress(target.eventId)
+        this.planner.markVisited(mapId, target.eventId, before.pageIndex)
         this.planner.recordFailure(target.eventId, mapId, 'unopened', 'The event ended without the expected completion state or reward')
         return { success: false, outcome: 'unopened', detail: `Event #${target.eventId} completed without the expected state change` }
       }

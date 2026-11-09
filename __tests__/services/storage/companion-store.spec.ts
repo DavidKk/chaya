@@ -63,3 +63,76 @@ it('persists every memory collection, rejects conflicting retries and enforces e
     fs.rmSync(root, { recursive: true, force: true })
   }
 })
+
+it('supports incremental updates and range queries without dropping full episodes (F02)', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'chaya-memory-inc-'))
+  const file = path.join(root, 'companion.sqlite')
+  const connection = openCompanionMemoryDb(file)
+  const scope = { libraryGameId: 'game-inc', dataRevision: 'r1', playthroughId: 'p1', segmentId: 's1', runtimeInstanceId: 'runtime1' }
+  const store = createCompanionSqliteStore(connection.db)
+
+  try {
+    // Batch 1
+    store.commit('game-inc', {
+      schemaVersion: 1,
+      batchId: 'batch-1',
+      memoryEpoch: 1,
+      recordingRevision: 1,
+      at: 100,
+      episodes: [
+        {
+          episodeId: 'ep-1',
+          scope,
+          at: 100,
+          kind: 'milestone',
+          persistence: 'committed',
+          completeness: 'complete_for_claim',
+          summary: 'Milestone 1',
+          evidence: [],
+          memoryEpoch: 1,
+        },
+      ],
+    })
+
+    // Batch 2 (incremental append of ep-2)
+    store.commit('game-inc', {
+      schemaVersion: 1,
+      batchId: 'batch-2',
+      memoryEpoch: 1,
+      recordingRevision: 1,
+      at: 200,
+      episodes: [
+        {
+          episodeId: 'ep-2',
+          scope,
+          at: 200,
+          kind: 'milestone',
+          persistence: 'committed',
+          completeness: 'complete_for_claim',
+          summary: 'Milestone 2',
+          evidence: [],
+          memoryEpoch: 1,
+        },
+      ],
+    })
+
+    // Both episodes exist in DB
+    const qAll = store.query('game-inc')
+    expect(qAll.total).toBe(2)
+    expect(qAll.items).toHaveLength(2)
+
+    // Range pagination
+    const qPage1 = store.query('game-inc', { limit: 1 })
+    expect(qPage1.items).toHaveLength(1)
+    expect(qPage1.items[0].episodeId).toBe('ep-2')
+    expect(qPage1.nextCursor).not.toBeNull()
+
+    const qPage2 = store.query('game-inc', { limit: 1, cursor: qPage1.nextCursor! })
+    expect(qPage2.items).toHaveLength(1)
+    expect(qPage2.items[0].episodeId).toBe('ep-1')
+    expect(qPage2.nextCursor).toBeNull()
+  } finally {
+    connection.db.$client.close()
+    fs.rmSync(root, { recursive: true, force: true })
+  }
+})

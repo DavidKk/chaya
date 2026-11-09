@@ -16,6 +16,9 @@ export function createCompanionSqliteStore(db: CompanionDb) {
   const client = db.$client
   const recording = createCompanionRecordingStore(client)
   client.exec('CREATE TABLE IF NOT EXISTS companion_snapshots (game_id TEXT PRIMARY KEY NOT NULL, snapshot_json TEXT NOT NULL)')
+  client.exec(
+    'CREATE TABLE IF NOT EXISTS companion_checkpoints (game_id TEXT NOT NULL, generation INTEGER NOT NULL, snapshot_json TEXT NOT NULL, created_at INTEGER NOT NULL, PRIMARY KEY(game_id, generation))'
+  )
   function loadBase(gameId: string): MemoryStoreSnapshot {
     const row = client.prepare('SELECT snapshot_json FROM companion_snapshots WHERE game_id=?').get(gameId) as { snapshot_json: string } | undefined
     if (row) return JSON.parse(row.snapshot_json) as MemoryStoreSnapshot
@@ -71,6 +74,76 @@ export function createCompanionSqliteStore(db: CompanionDb) {
         .run(hash(`${gameId}\0${ev.episodeId}\0${index}`), hash(`${gameId}\0${ev.episodeId}`), gameId, ev.summary, body, ev.memoryEpoch, Buffer.byteLength(body), Date.now())
     }
     client.prepare('INSERT INTO companion_snapshots VALUES(?,?) ON CONFLICT(game_id) DO UPDATE SET snapshot_json=excluded.snapshot_json').run(gameId, JSON.stringify(next))
+    client
+      .prepare('INSERT OR REPLACE INTO companion_checkpoints(game_id, generation, snapshot_json, created_at) VALUES(?,?,?,?)')
+      .run(gameId, next.generation, JSON.stringify(next), Date.now())
+  }
+
+  function writeSnapshotIncremental(gameId: string, next: MemoryStoreSnapshot, batch: MemoryWriteBatch) {
+    const otherBytes = Number((client.prepare('SELECT COALESCE(SUM(used_bytes),0) AS n FROM companion_manifest WHERE game_id<>?').get(gameId) as { n: number }).n)
+    const used = snapshotLogicalBytes(next) + recording.bytes(gameId)
+    if (used > MEMORY_GAME_BUDGET_BYTES || used + otherBytes > MEMORY_GLOBAL_BUDGET_BYTES) throw new Error('Companion recording capacity reached')
+    client
+      .prepare(
+        `INSERT INTO companion_manifest(game_id,schema_version,generation,memory_epoch,recording_revision,recording_enabled,used_bytes,updated_at)
+        VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(game_id) DO UPDATE SET generation=excluded.generation,memory_epoch=excluded.memory_epoch,
+        recording_revision=excluded.recording_revision,recording_enabled=excluded.recording_enabled,used_bytes=excluded.used_bytes,updated_at=excluded.updated_at`
+      )
+      .run(gameId, next.schemaVersion, next.generation, next.memoryEpoch, next.recordingRevision, next.recordingEnabled ? 1 : 0, used, Date.now())
+
+    if (batch.episodes && batch.episodes.length > 0) {
+      for (const ep of batch.episodes) {
+        const fullEp = next.episodes.find((item) => item.episodeId === ep.episodeId)
+        if (!fullEp) continue
+        const body = JSON.stringify(fullEp)
+        const epId = hash(`${gameId}\0${fullEp.episodeId}`)
+        client
+          .prepare(
+            `INSERT INTO companion_episodes(id, game_id, kind, persistence, completeness, stable_key, outcome, data_json, bytes, created_at)
+             VALUES(?,?,?,?,?,?,?,?,?,?)
+             ON CONFLICT(id) DO UPDATE SET
+               kind=excluded.kind,
+               persistence=excluded.persistence,
+               completeness=excluded.completeness,
+               stable_key=excluded.stable_key,
+               outcome=excluded.outcome,
+               data_json=excluded.data_json,
+               bytes=excluded.bytes,
+               created_at=excluded.created_at`
+          )
+          .run(epId, gameId, fullEp.kind, fullEp.persistence, fullEp.completeness, fullEp.stableKey ?? null, fullEp.outcome ?? null, body, Buffer.byteLength(body), fullEp.at)
+      }
+    }
+
+    if (batch.evidence && batch.evidence.length > 0) {
+      for (const ev of batch.evidence) {
+        const body = JSON.stringify(ev)
+        const evKey = hash(`${gameId}\0${ev.episodeId}\0${ev.summary}\0${ev.memoryEpoch}`)
+        const epKey = hash(`${gameId}\0${ev.episodeId}`)
+        client
+          .prepare(
+            `INSERT OR IGNORE INTO companion_evidence(id, episode_id, game_id, summary, evidence_json, memory_epoch, bytes, created_at)
+             VALUES(?,?,?,?,?,?,?,?)`
+          )
+          .run(evKey, epKey, gameId, ev.summary, body, ev.memoryEpoch, Buffer.byteLength(body), Date.now())
+      }
+    }
+
+    const activeEpisodeIds = new Set(next.episodes.map((ep) => hash(`${gameId}\0${ep.episodeId}`)))
+    const existingRows = client.prepare('SELECT id FROM companion_episodes WHERE game_id=?').all(gameId) as Array<{ id: string }>
+    for (const row of existingRows) {
+      if (!activeEpisodeIds.has(row.id)) {
+        client.prepare('DELETE FROM companion_episodes WHERE id=?').run(row.id)
+        client.prepare('DELETE FROM companion_evidence WHERE episode_id=?').run(row.id)
+      }
+    }
+
+    client.prepare('INSERT INTO companion_snapshots VALUES(?,?) ON CONFLICT(game_id) DO UPDATE SET snapshot_json=excluded.snapshot_json').run(gameId, JSON.stringify(next))
+    if (next.generation % 20 === 0) {
+      client
+        .prepare('INSERT OR REPLACE INTO companion_checkpoints(game_id, generation, snapshot_json, created_at) VALUES(?,?,?,?)')
+        .run(gameId, next.generation, JSON.stringify(next), Date.now())
+    }
   }
 
   function commit(gameId: string, raw: MemoryWriteBatch) {
@@ -105,7 +178,7 @@ export function createCompanionSqliteStore(db: CompanionDb) {
         gameBudgetBytes: MEMORY_GAME_BUDGET_BYTES - retainedBytes,
         globalBudgetBytes: Math.min(MEMORY_GAME_BUDGET_BYTES, MEMORY_GLOBAL_BUDGET_BYTES - otherBytes) - retainedBytes,
       })
-      writeSnapshot(gameId, next)
+      writeSnapshotIncremental(gameId, next, batch)
       // Retain fingerprints: an offline client may replay an old batch after a long absence.
       client.exec('COMMIT')
       return { ok: true, duplicated: false }
@@ -152,5 +225,53 @@ export function createCompanionSqliteStore(db: CompanionDb) {
       throw error
     }
   }
-  return { load, state, commit, manage }
+
+  function query(gameId: string, options?: { kind?: string; limit?: number; cursor?: string; memoryEpoch?: number }) {
+    const limit = Math.min(Math.max(1, options?.limit ?? 50), 200)
+    const filters: string[] = ['game_id = ?']
+    const params: unknown[] = [gameId]
+
+    if (options?.kind) {
+      filters.push('kind = ?')
+      params.push(options.kind)
+    }
+
+    if (options?.cursor) {
+      try {
+        const [cursorTime, cursorId] = Buffer.from(options.cursor, 'base64').toString('utf8').split(':')
+        filters.push('(created_at < ? OR (created_at = ? AND id < ?))')
+        params.push(Number(cursorTime), Number(cursorTime), cursorId)
+      } catch {}
+    }
+
+    const whereClause = filters.join(' AND ')
+    const countRow = client.prepare(`SELECT COUNT(*) as cnt FROM companion_episodes WHERE ${whereClause}`).get(...params) as { cnt: number }
+    const total = Number(countRow.cnt)
+
+    const rows = client
+      .prepare(`SELECT id, data_json, created_at FROM companion_episodes WHERE ${whereClause} ORDER BY created_at DESC, id DESC LIMIT ?`)
+      .all(...params, limit + 1) as Array<{ id: string; data_json: string; created_at: number }>
+
+    const hasMore = rows.length > limit
+    const slice = hasMore ? rows.slice(0, limit) : rows
+    const items = slice.map((r) => JSON.parse(r.data_json))
+
+    let nextCursor: string | null = null
+    if (hasMore && slice.length > 0) {
+      const last = slice[slice.length - 1]
+      nextCursor = Buffer.from(`${last.created_at}:${last.id}`).toString('base64')
+    }
+
+    const mState = state(gameId)
+    return {
+      items,
+      nextCursor,
+      total,
+      memoryEpoch: mState.memoryEpoch,
+      recordingRevision: mState.recordingRevision,
+      coverage: 'full' as const,
+    }
+  }
+
+  return { load, state, commit, manage, query }
 }

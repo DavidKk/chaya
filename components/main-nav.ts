@@ -9,6 +9,7 @@ export const MAIN_NAV = [
   { id: 'edit', labelKey: 'nav.edit' },
   { id: 'translate', labelKey: 'nav.translate' },
   { id: 'assist', labelKey: 'nav.assist' },
+  { id: 'ai', labelKey: 'nav.ai' },
   { id: 'remote', labelKey: 'nav.remotePlay' },
   { id: 'logs', labelKey: 'nav.logs' },
   { id: 'integration', labelKey: 'nav.integration' },

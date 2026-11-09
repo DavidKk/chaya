@@ -1,6 +1,6 @@
 'use client'
 
-import { BellRing, Brain, Check, CircleAlert, Eye, Gift, Hammer, MapPin, MessageSquareText, Route } from 'lucide-react'
+import { BellRing, Brain, Check, ChevronRight, CircleAlert, Eye, Gift, Hammer, MapPin, MessageSquareText, Route } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import type { AgentActivityEvent, AgentThoughtSummary, AgentTokenUsage } from '@/lib/game-agent/activity'
@@ -55,6 +55,9 @@ function activityTiming(events: readonly AgentActivityEvent[]) {
     if (event.type.startsWith('task.') || ['turn.completed', 'turn.stopped', 'turn.failed', 'error'].includes(event.type)) {
       pending.clear()
       modelStart = undefined
+    }
+    if (event.type === 'model.thought' && typeof data.durationMs === 'number' && Number.isFinite(data.durationMs) && data.durationMs >= 0) {
+      durations.set(event.seq, data.durationMs)
     }
     if (event.type !== 'tool.completed' && event.type !== 'model.completed') continue
     const start = event.type === 'model.completed' ? modelStart : pending.get(id)
@@ -130,6 +133,46 @@ export function AgentActivityTimeline({
             if (event.type === 'thought.updated') {
               const text = thoughtText((data.summary || {}) as AgentThoughtSummary)
               return text ? <ActivityRow key={event.seq} icon={<Brain />} text={text} /> : null
+            }
+            if (event.type === 'model.thought') {
+              const model = typeof data.model === 'string' && data.model ? data.model : 'model'
+              const durationMs = typeof data.durationMs === 'number' ? Math.round(data.durationMs) : 0
+              const promptSummary = typeof data.promptSummary === 'string' ? data.promptSummary : ''
+              const thought = typeof data.thought === 'string' ? data.thought : ''
+              const decision = typeof data.decision === 'string' ? data.decision : ''
+              return (
+                <div key={event.seq} className="min-w-0 text-xs">
+                  <details className="group rounded border border-line/50 bg-panel-2 px-2 py-1.5 text-xs" open={false}>
+                    <summary className="flex cursor-pointer select-none items-center justify-between text-ink-soft hover:text-ink list-none">
+                      <div className="flex items-center gap-1.5 truncate">
+                        <span className="text-[11px]" aria-hidden>
+                          🧠
+                        </span>
+                        <span className="font-medium text-ink">思考过程</span>
+                        <span className="text-[10px] opacity-75">
+                          ({durationMs}ms · {model})
+                        </span>
+                      </div>
+                      <ChevronRight size={12} className="shrink-0 opacity-70 transition-transform group-open:rotate-90" aria-hidden />
+                    </summary>
+                    <div className="mt-1.5 space-y-1 font-mono text-[11px] leading-relaxed">
+                      {promptSummary ? (
+                        <div className="text-ink-soft">
+                          <span className="font-semibold text-ink">分析目标：</span>
+                          {promptSummary}
+                        </div>
+                      ) : null}
+                      {thought ? <div className="max-h-36 overflow-y-auto whitespace-pre-wrap rounded border border-line/40 bg-surface-subtle p-2 text-ink">{thought}</div> : null}
+                      {decision ? (
+                        <div className="text-ink-soft">
+                          <span className="font-semibold text-ink">推理结论：</span>
+                          <span className="font-medium text-accent">{decision}</span>
+                        </div>
+                      ) : null}
+                    </div>
+                  </details>
+                </div>
+              )
             }
             if (event.type === 'game.watch.registered') {
               return <ActivityRow key={event.seq} icon={<Eye />} text={`正在等待与当前方案相关的游戏变化（${watchPhaseLabel(String(data.phase || ''))}）。`} muted />
@@ -288,7 +331,7 @@ export function AgentActivityFilterToolbar({ value, onChange }: { value: Activit
 }
 
 function activityCategory(type: string): Exclude<ActivityFilter, 'all'> {
-  if (type === 'agent.observation' || type === 'agent.decision' || type === 'agent.verification' || type === 'thought.updated') return 'decision'
+  if (type === 'agent.observation' || type === 'agent.decision' || type === 'agent.verification' || type === 'thought.updated' || type === 'model.thought') return 'decision'
   if (type.startsWith('game.')) return 'game'
   if (type.startsWith('tool.') || type.startsWith('navigation.')) return 'operation'
   return 'performance'
