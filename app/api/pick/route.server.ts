@@ -17,7 +17,7 @@ export const POST = defineApiRoute('post:/api/pick', async ({ request }) => {
   const result = await pickPath(kind, body.prompt)
 
   if (result.ok) {
-    return apiOk({ path: result.path })
+    return apiOk({ path: result.path, paths: result.paths })
   }
   if ('cancelled' in result && result.cancelled) {
     return apiCancelled()

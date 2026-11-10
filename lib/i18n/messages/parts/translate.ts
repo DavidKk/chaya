@@ -162,7 +162,7 @@ export const translateZh = {
     packInstall: '安装语言包',
     packReinstall: '重新下载',
     packDownload: '下载语言包',
-    bergamotGamePairUnsupported: '当前游戏语言对（{gamePair}）没有可用的 Bergamot 语言包。请按下方列表标注的语向选择下载。',
+    bergamotGamePairUnsupported: '当前游戏语言对（{gamePair}）没有可用的 Bergamot 语言包。这一版只提供英语 → 简体中文，不能翻译本作。',
     bergamotAvailablePacks: '可用离线语言包',
     offlineGuide: '设置指引',
     offlineRecheck: '检测',

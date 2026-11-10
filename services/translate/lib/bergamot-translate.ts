@@ -182,7 +182,7 @@ class BergamotTranslatorClient {
     return measureOperation(
       'translate',
       'bergamot.request',
-      { source: options?.source || 'ja', target: options?.target || 'zh', items: 1, sourceChars: Array.from(text).length },
+      { source: options?.source || 'ja', target: options?.target || 'zh', items: text.split('\n').length, sourceChars: Array.from(text).length },
       async () => {
         const response = await this.request('translate', options, text)
         const result = response.translatedText ?? response.result

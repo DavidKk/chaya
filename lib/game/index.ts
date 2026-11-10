@@ -15,7 +15,7 @@ export {
   type MigrateGameContentResult,
 } from './content-files'
 export { type CatalogEntry, type GameEditCatalog } from './game-edit-catalog-types'
-export { parseLibrarySortMode, sortLibraryEntries } from './library-sort'
+export { orderLibraryEntries, parseLibrarySortMode, reorderLibraryIds, sortLibraryEntries } from './library-sort'
 export { normalizeNwVersion, nwArchiveName, nwDownloadUrl, nwFileKey, type NwFlavor, type NwHostPlatform } from './nw-download-meta'
 export { buildChayaEnvJs, mergeLoaderPluginEntries } from './plugins-merge'
 export { findPluginsJsArraySpan, parsePluginsJs, parsePluginsJsEntries, type PluginsJsEntry, serializePluginsJs } from './plugins-parse'

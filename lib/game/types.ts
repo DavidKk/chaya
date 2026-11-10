@@ -42,8 +42,8 @@ export type LibraryEntry = {
   remote?: boolean
 }
 
-/** 控制台库列表排序：名称（默认）/ 最后打开 / 安装时间 */
-export type LibrarySortMode = 'name' | 'lastOpened' | 'addedAt'
+/** 控制台库列表排序：自定义（数组顺序）/ 名称（默认）/ 最后打开 / 安装时间 */
+export type LibrarySortMode = 'manual' | 'name' | 'lastOpened' | 'addedAt'
 
 /** 控制台库列表展示（含路径健康度与摘要） */
 export type LibraryItemView = LibraryEntry & {

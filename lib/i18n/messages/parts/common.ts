@@ -121,6 +121,8 @@ export const commonZh = {
     pickerUnavailable: '无法打开选择器',
     bindFailed: '绑定失败',
     addedToLibrary: '已加入游戏库',
+    addedMany: '已加入 {count} 个游戏',
+    addedPartial: '已加入 {count} 个游戏，{failed} 个未识别',
     switchedPath: '已切换路径',
     needGamePath: '请填写游戏目录',
     unsupportedEngine: '不支持该引擎（{engine}），目前支持 RPG Maker MV / MZ，以及 VX Ace / VX 的离线数据翻译',

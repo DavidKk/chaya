@@ -162,6 +162,8 @@ export type MessageTree = {
     pickerUnavailable: string
     bindFailed: string
     addedToLibrary: string
+    addedMany: string
+    addedPartial: string
     switchedPath: string
     needGamePath: string
     unsupportedEngine: string
@@ -185,9 +187,11 @@ export type MessageTree = {
     add: string
     close: string
     sort: string
+    sortManual: string
     sortName: string
     sortLastOpened: string
     sortAdded: string
+    reorder: string
     removeTitle: string
     removeDesc: string
     removeConfirm: string

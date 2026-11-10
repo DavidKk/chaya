@@ -162,7 +162,7 @@ export const translateKo = {
     packInstall: '언어 팩 설치',
     packReinstall: '다시 다운로드',
     packDownload: '언어 팩 다운로드',
-    bergamotGamePairUnsupported: '현재 게임 언어 쌍({gamePair})에 맞는 Bergamot 언어 팩이 없습니다. 아래 목록에서 번역 방향을 확인하고 선택하세요.',
+    bergamotGamePairUnsupported: '현재 게임 언어 쌍({gamePair})에 맞는 Bergamot 언어 팩이 없습니다. 이 버전은 영어 → 중국어 간체만 포함하므로 이 게임에는 쓸 수 없습니다.',
     bergamotAvailablePacks: '사용 가능한 오프라인 언어 팩',
     offlineGuide: '설정 안내',
     offlineRecheck: '확인',

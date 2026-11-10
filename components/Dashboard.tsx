@@ -180,14 +180,17 @@ export function Dashboard() {
       const data = (await res.json()) as {
         ok?: boolean
         path?: string
+        paths?: string[]
         cancelled?: boolean
         error?: string
       }
-      if (data.cancelled || !data.ok || !data.path) {
+      const paths = (Array.isArray(data.paths) ? data.paths : []).map((item) => String(item || '').trim()).filter(Boolean)
+      const path = String(data.path || paths[0] || '').trim()
+      if (data.cancelled || !data.ok || !path) {
         notify[data.cancelled ? 'info' : 'error'](data.cancelled ? t('notify.cancelled') : readApiErrorMessage(data, t('notify.pickFailed')))
         return null
       }
-      return data.path
+      return { path, paths: paths.length ? paths : [path] }
     } catch {
       notify.error(t('notify.pickerUnavailable'))
       return null
@@ -201,9 +204,72 @@ export function Dashboard() {
       await cloud.choose()
       return
     }
-    const path = await pick('game')
-    if (!path) return
-    await bindGame(path, { announce: t('notify.addedToLibrary') })
+    const picked = await pick('game')
+    if (!picked) return
+    if (picked.paths.length < 2) {
+      await bindGame(picked.path, { announce: t('notify.addedToLibrary') })
+      return
+    }
+    await addGames(picked.paths)
+  }
+
+  async function addGames(paths: string[]) {
+    const seq = ++bindSeq.current
+    bindAbort.current?.abort()
+    const ac = new AbortController()
+    bindAbort.current = ac
+    const stillCurrent = () => bindAbort.current === ac
+    setBusy(true)
+    applyingGameQuery.current = true
+    try {
+      const res = await fetch('/api/status', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameRoots: paths, shellSource: shellSource || undefined, bindEpoch: seq }),
+        signal: ac.signal,
+      })
+      const data = await res.json()
+      if (typeof data.bindEpoch === 'number' && data.bindEpoch > bindSeq.current) {
+        bindSeq.current = data.bindEpoch
+      }
+      const fresh = await refresh()
+      if (!stillCurrent()) return
+      if (!res.ok) {
+        const engine = readUnsupportedEngine(data)
+        notify.error(engine ? t('notify.unsupportedEngine', { engine }) : readApiErrorMessage(data, t('notify.bindFailed')))
+        clearGameTargetLock()
+        return
+      }
+      if (data.ignoredStaleBind) {
+        clearGameTargetLock()
+        return
+      }
+      const root = String(fresh?.config?.gameRoot || (data.config as { gameRoot?: string } | undefined)?.gameRoot || '')
+      if (root) {
+        setGameRoot(root)
+        const id = libraryIdForRoot((fresh?.library || []) as LibraryItemView[], root)
+        if (id) {
+          lockGameTarget(id)
+          if (searchParams.get('game') !== id) replaceQuery({ game: id })
+        }
+        if (!id || (targetGameId.current === id && (searchParams.get('game') === id || !searchParams.get('game')))) {
+          clearGameTargetLock()
+        }
+      } else {
+        clearGameTargetLock()
+      }
+      const added = Array.isArray(data.added) ? data.added.length : paths.length
+      const failed = Array.isArray(data.failed) ? data.failed.length : 0
+      if (failed) notify.warning(t('notify.addedPartial', { count: added, failed }))
+      else notify.success(added > 1 ? t('notify.addedMany', { count: added }) : t('notify.addedToLibrary'))
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return
+      if (!stillCurrent()) return
+      notify.error(t('notify.bindFailed'))
+      clearGameTargetLock()
+    } finally {
+      if (stillCurrent()) setBusy(false)
+    }
   }
 
   function clearGameTargetLock() {
@@ -385,8 +451,8 @@ export function Dashboard() {
     if (!entry) return
     if (entry.missing) {
       if (busy || !diskOk) return
-      void pick('game').then((path) => {
-        if (path) return bindGame(path, { replaceLibraryId: entry.id, announce: t('notify.switchedPath') })
+      void pick('game').then((picked) => {
+        if (picked) return bindGame(picked.path, { replaceLibraryId: entry.id, announce: t('notify.switchedPath') })
       })
       return
     }
@@ -403,7 +469,7 @@ export function Dashboard() {
     else void bindGameRef.current(entry.gameRoot, { announce: false })
   }
 
-  const { chooseShell, bindShell, copyPath, openPath, saveGameRemark, removeGame, installShell, fetchLatestShell, uninstallShell, injectPlugins, clearPlugins } =
+  const { chooseShell, bindShell, copyPath, openPath, saveGameRemark, removeGame, reorderGames, installShell, fetchLatestShell, uninstallShell, injectPlugins, clearPlugins } =
     useDashboardActions({
       status,
       shellSource,
@@ -523,6 +589,7 @@ export function Dashboard() {
             }}
             onAdd={() => void chooseGame()}
             onRemove={(root) => (browserMode ? cloud.remove(root) : removeGame(root))}
+            onReorder={(ids) => (browserMode ? cloud.reorder(ids) : reorderGames(ids))}
           />
 
           <div className="flex min-h-0 min-w-0 flex-1 flex-col">

@@ -33,6 +33,7 @@ import { forgetCloudLinkToken } from '@/lib/browser/link-token'
 import { requestDownloadCenterOpen } from '@/lib/downloads/store'
 import { formatBytes } from '@/lib/format-bytes'
 import { libraryKindLabel } from '@/lib/game/library-label'
+import { orderLibraryEntries } from '@/lib/game/library-sort'
 import { nwGameDisplayName } from '@/lib/game/nw-window'
 import { countReadyPlugins } from '@/lib/game/plugins-status'
 import { TRACKED_PLUGINS } from '@/lib/game/types'
@@ -61,6 +62,9 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
   const [entries, setEntries] = useState<CloudLibraryEntry[]>([])
   const [loaded, setLoaded] = useState(false)
   const actionInFlight = useRef(false)
+  const entriesRef = useRef(entries)
+  entriesRef.current = entries
+  const reorderQueue = useRef(Promise.resolve())
   const [busy, setBusy] = useState(false)
   const [pickerBusy, setPickerBusy] = useState(false)
   const [directoryCapability, setDirectoryCapability] = useState<DirectoryCapability>({ state: 'available' })
@@ -349,6 +353,31 @@ export function useCloudLibrary(enabled: boolean, queryId: string | null, select
         selectId(entry.item.id)
         setDownloadUrl(undefined)
       }),
+    reorder: (ids: string[]) => {
+      const job = reorderQueue.current.then(async () => {
+        const current = entriesRef.current
+        const next = orderLibraryEntries(
+          current.map((entry) => ({ id: entry.item.id, entry })),
+          ids
+        ).map((row) => row.entry)
+        if (next.length === current.length && next.every((entry, index) => entry === current[index])) return
+        entriesRef.current = next
+        setEntries(next)
+        try {
+          await save(next)
+        } catch (error) {
+          entriesRef.current = current
+          setEntries(current)
+          notify.error(error instanceof Error ? error.message : String(error))
+          throw error
+        }
+      })
+      reorderQueue.current = job.then(
+        () => undefined,
+        () => undefined
+      )
+      return job
+    },
     remove: (root: string) =>
       run(async () => {
         const next = entries.filter((e) => e.item.gameRoot !== root)

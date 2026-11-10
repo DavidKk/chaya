@@ -361,7 +361,7 @@ export function createScheduledSeedSession(
     return sensitiveFlags[id] === 2
   }
   function canFit(id: number, engine: TranslateRunEngine) {
-    const budget = seedEngineBudget(engine, agents)
+    const budget = seedEngineBudget(engine, agents, configs)
     const entries = [...loads].filter(([key]) => (budget ? key === engine : !key.startsWith('agent:')))
     if (!entries.some(([, load]) => load.items)) return true
     const chars = entries.reduce((sum, [, load]) => sum + load.chars, 0)
@@ -503,7 +503,7 @@ export function createScheduledSeedSession(
     while (completed.length < maxBuffer()) {
       let dispatched = false
       for (const engine of engines) {
-        const budget = seedEngineBudget(engine, agents)
+        const budget = seedEngineBudget(engine, agents, configs)
         const ordinary = [...loads].filter(([key]) => !key.startsWith('agent:')).reduce((sum, [, load]) => sum + load.items, 0)
         if (!budget && (ordinary >= cap() || completed.length + ordinary >= MAX_BUFFER)) continue
         const count = loads.get(engine)?.items || 0

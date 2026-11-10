@@ -4,6 +4,7 @@ import path from 'node:path'
 import type { ChayaConfig, LibraryEntry, LibraryItemView } from '@/lib/game'
 import { findEnclosingAppBundle, resolveGame } from '@/lib/game'
 import { libraryKindLabel } from '@/lib/game/library-label'
+import { orderLibraryEntries } from '@/lib/game/library-sort'
 import { nwGameDisplayName } from '@/lib/game/nw-window'
 import { publicGameFiles } from '@/services/storage/game-files'
 
@@ -148,6 +149,13 @@ export function relocateLibraryEntry(library: LibraryEntry[], id: string, gameRo
     throw new Error('New location is already in the game library; choose another location or remove existing record')
   }
   return library.map((item) => (item.id === id ? { ...item, gameRoot: nextRoot, lastOpenedAt: Date.now() } : item))
+}
+
+/** 按 id 重排库数组。顺序未变时返回原数组，避免无意义写盘 */
+export function reorderLibrary(library: LibraryEntry[], ids: readonly string[]): LibraryEntry[] {
+  const next = orderLibraryEntries(library, ids)
+  if (next.length === library.length && next.every((item, index) => item === library[index])) return library
+  return next
 }
 
 export function removeLibraryEntry(library: LibraryEntry[], gameRoot: string): LibraryEntry[] {

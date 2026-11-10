@@ -1,6 +1,6 @@
 import { describe, expect, it } from '@jest/globals'
 
-import { parseLibrarySortMode, sortLibraryEntries } from '@/lib/game/library-sort'
+import { orderLibraryEntries, parseLibrarySortMode, reorderLibraryIds, sortLibraryEntries } from '@/lib/game/library-sort'
 import {
   displayNameFromPath,
   isLibraryEntryId,
@@ -8,6 +8,7 @@ import {
   pathEquals,
   reconcileLibraryConfig,
   relocateLibraryEntry,
+  reorderLibrary,
   sameGameFamily,
   upsertLibraryEntry,
 } from '@/services/game/library'
@@ -83,6 +84,33 @@ describe('library sort', () => {
 
   it('安装时间：新→旧', () => {
     expect(sortLibraryEntries(entries, 'addedAt').map((e) => e.id)).toEqual(['a', 'b', 'c'])
+  })
+
+  it('自定义保持当前数组顺序', () => {
+    expect(parseLibrarySortMode('manual')).toBe('manual')
+    expect(parseLibrarySortMode('nope')).toBe('name')
+    expect(sortLibraryEntries(entries, 'manual').map((e) => e.id)).toEqual(['b', 'a', 'c'])
+  })
+})
+
+describe('library reorder', () => {
+  const entries = [
+    { id: 'a', gameRoot: '/Games/A', name: 'A', lastOpenedAt: 1, addedAt: 1 },
+    { id: 'b', gameRoot: '/Games/B', name: 'B', lastOpenedAt: 2, addedAt: 2 },
+    { id: 'c', gameRoot: '/Games/C', name: 'C', lastOpenedAt: 3, addedAt: 3 },
+  ]
+
+  it('按 id 重排，未知 id 忽略，未列出的条目留在末尾', () => {
+    expect(orderLibraryEntries(entries, ['c', 'a', 'missing']).map((e) => e.id)).toEqual(['c', 'a', 'b'])
+    expect(reorderLibraryIds(['a', 'b', 'c'], 'c', 'a', false)).toEqual(['c', 'a', 'b'])
+    expect(reorderLibraryIds(['a', 'b'], 'a', 'a', true)).toBeNull()
+  })
+
+  it('顺序未变时返回原数组', () => {
+    expect(reorderLibrary(entries, ['a', 'b', 'c'])).toBe(entries)
+    const next = reorderLibrary(entries, ['b', 'c', 'a'])
+    expect(next.map((e) => e.id)).toEqual(['b', 'c', 'a'])
+    expect(next[0]).toBe(entries[1])
   })
 })
 

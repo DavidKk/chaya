@@ -4,7 +4,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { promisify } from 'node:util'
 
-import { escapeAppleScript, isCancelError } from './shared'
+import { escapeAppleScript, isCancelError, pickedPaths } from './shared'
 import type { PickKind, PickPathCapability, PickResult } from './types'
 
 const execFileAsync = promisify(execFile)
@@ -39,13 +39,30 @@ POSIX path of (choose file of type {"com.apple.application-bundle", "app"} with 
 `.trim()
 }
 
-function scriptForFolder(prompt: string): string {
+function scriptForFolder(prompt: string, multiple: boolean): string {
   const p = escapeAppleScript(prompt)
-  return `
+  if (!multiple) {
+    return `
 try
   tell me to activate
 end try
 POSIX path of (choose folder with prompt "${p}")
+`.trim()
+  }
+  return `
+try
+  tell me to activate
+end try
+set picked to choose folder with prompt "${p}" with multiple selections allowed
+set output to ""
+if class of picked is list then
+  repeat with folderRef in picked
+    set output to output & POSIX path of (contents of folderRef) & linefeed
+  end repeat
+else
+  set output to POSIX path of picked
+end if
+return output
 `.trim()
 }
 
@@ -54,15 +71,17 @@ export class OsxPickPath implements PickPathCapability {
 
   defaultPrompt(kind: PickKind): string {
     if (kind === 'app') return '选择干净的 NW.js（.app）作为壳源'
+    if (kind === 'game') return '选择 RPG Maker 游戏目录，可一次多选（含 www、内容根，或已打包的 .app / 发布目录）'
     return '选择 RPG Maker 游戏目录（含 www、内容根，或已打包的 .app / 发布目录）'
   }
 
   async pick(kind: PickKind, prompt?: string): Promise<PickResult> {
     const label = prompt || this.defaultPrompt(kind)
     try {
-      const selected = (kind === 'app' ? await runOsascript(scriptForApp(label)) : await runOsascript(scriptForFolder(label))).replace(/\/$/, '')
+      const stdout = kind === 'app' ? await runOsascript(scriptForApp(label)) : await runOsascript(scriptForFolder(label, kind === 'game'))
+      const selected = pickedPaths(stdout)
       if (!selected) return { ok: false, cancelled: true }
-      return { ok: true, path: selected }
+      return { ok: true, ...selected }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       if (isCancelError(msg)) return { ok: false, cancelled: true }

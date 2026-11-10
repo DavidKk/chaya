@@ -112,10 +112,13 @@ export function useBoundGame({ allowLocalOffline = false }: { allowLocalOffline?
       const pickData = (await pickRes.json()) as {
         ok?: boolean
         path?: string
+        paths?: string[]
         cancelled?: boolean
         error?: string
       }
-      if (pickData.cancelled || !pickData.ok || !pickData.path) {
+      const paths = (Array.isArray(pickData.paths) ? pickData.paths : []).map((item) => String(item || '').trim()).filter(Boolean)
+      const path = String(pickData.path || paths[0] || '').trim()
+      if (pickData.cancelled || !pickData.ok || !path) {
         notify[pickData.cancelled ? 'info' : 'error'](pickData.cancelled ? t('notify.cancelled') : readApiErrorMessage(pickData, t('notify.pickFailed')))
         return
       }
@@ -123,7 +126,7 @@ export function useBoundGame({ allowLocalOffline = false }: { allowLocalOffline?
       const bindRes = await fetch('/api/status', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ gameRoot: pickData.path }),
+        body: JSON.stringify(paths.length > 1 ? { gameRoots: paths } : { gameRoot: path }),
       })
       const bindData = await bindRes.json()
       if (!bindRes.ok) {
@@ -131,7 +134,10 @@ export function useBoundGame({ allowLocalOffline = false }: { allowLocalOffline?
         notify.error(engine ? t('notify.unsupportedEngine', { engine }) : readApiErrorMessage(bindData, t('notify.bindFailed')))
         return
       }
-      notify.success(t('notify.addedToLibrary'))
+      const added = Array.isArray(bindData.added) ? bindData.added.length : 1
+      const failed = Array.isArray(bindData.failed) ? bindData.failed.length : 0
+      if (failed) notify.warning(t('notify.addedPartial', { count: added, failed }))
+      else notify.success(added > 1 ? t('notify.addedMany', { count: added }) : t('notify.addedToLibrary'))
       const res = await fetch('/api/status')
       applyStatus((await res.json()) as StatusLite, true)
     } catch {

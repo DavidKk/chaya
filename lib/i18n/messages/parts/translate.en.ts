@@ -164,7 +164,7 @@ export const translateEn = {
     packInstall: 'Install language pack',
     packReinstall: 'Re-download',
     packDownload: 'Download language pack',
-    bergamotGamePairUnsupported: 'No Bergamot language pack is available for the active game language pair ({gamePair}). Choose a pack by its listed language direction below.',
+    bergamotGamePairUnsupported: 'No Bergamot pack matches this game ({gamePair}). This release only includes English → Simplified Chinese, so it cannot translate this game.',
     bergamotAvailablePacks: 'Available offline language packs',
     offlineGuide: 'Setup guide',
     offlineRecheck: 'Check',

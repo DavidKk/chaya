@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { type DragEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { FaComputer } from 'react-icons/fa6'
 import { IoAddOutline, IoCloseOutline, IoGameControllerOutline, IoTrashOutline } from 'react-icons/io5'
+import { LuGripVertical } from 'react-icons/lu'
 import { MdCloudQueue } from 'react-icons/md'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
@@ -10,12 +11,13 @@ import { useT } from '@/components/i18n/LocaleProvider'
 import { Button, ScrollArea, Select, TruncateText, withTooltip } from '@/components/sk'
 import { controlDisabled } from '@/components/sk/control'
 import type { LibraryItemView, LibrarySortMode } from '@/lib/game'
-import { parseLibrarySortMode, sortLibraryEntries } from '@/lib/game/library-sort'
+import { orderLibraryEntries, parseLibrarySortMode, reorderLibraryIds, sortLibraryEntries } from '@/lib/game/library-sort'
 import { cn } from '@/lib/utils'
 
 const SORT_STORAGE_KEY = 'chaya.librarySort'
 
 const SORT_OPTION_KEYS = [
+  { value: 'manual' as const, labelKey: 'library.sortManual' as const },
   { value: 'name' as const, labelKey: 'library.sortName' as const },
   { value: 'lastOpened' as const, labelKey: 'library.sortLastOpened' as const },
   { value: 'addedAt' as const, labelKey: 'library.sortAdded' as const },
@@ -32,6 +34,8 @@ type Props = {
   onSelect: (gameRoot: string) => void
   onAdd: () => void
   onRemove: (gameRoot: string) => void | Promise<void>
+  /** 拖拽或方向键调整后的 id 顺序；失败时抛错，列表会回到放下之前 */
+  onReorder?: (ids: string[]) => void | Promise<void>
   /** 小屏抽屉是否打开（由父级控制） */
   mobileOpen?: boolean
   onMobileOpenChange?: (open: boolean) => void
@@ -56,6 +60,7 @@ export function LibraryRail({
   onSelect,
   onAdd,
   onRemove,
+  onReorder,
   mobileOpen = false,
   onMobileOpenChange,
 }: Props) {
@@ -64,26 +69,125 @@ export function LibraryRail({
   const confirm = useConfirm()
   const [removing, setRemoving] = useState(false)
   const [sortMode, setSortMode] = useState<LibrarySortMode>('name')
+  const [pendingIds, setPendingIds] = useState<string[] | null>(null)
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+  const [dropTarget, setDropTarget] = useState<{ id: string; edge: 'before' | 'after' } | null>(null)
+  const reorderTicket = useRef(0)
+  const listRef = useRef<HTMLUListElement>(null)
+  const reorderFocusId = useRef<string | null>(null)
   const sortOptions = useMemo(() => SORT_OPTION_KEYS.map((item) => ({ value: item.value, label: t(item.labelKey) })), [t])
 
   useEffect(() => {
     setSortMode(readStoredSort())
   }, [])
 
-  const sorted = useMemo(() => sortLibraryEntries(entries, sortMode), [entries, sortMode])
+  useEffect(() => {
+    if (!pendingIds) return
+    const ids = entries.map((entry) => entry.id)
+    const sameMembers = ids.length === pendingIds.length && pendingIds.every((id) => ids.includes(id))
+    const sameOrder = sameMembers && ids.every((id, index) => id === pendingIds[index])
+    if (!sameMembers || sameOrder) setPendingIds(null)
+  }, [entries, pendingIds])
+
+  const sorted = useMemo(() => {
+    const base = sortLibraryEntries(entries, sortMode)
+    return pendingIds ? orderLibraryEntries(base, pendingIds) : base
+  }, [entries, sortMode, pendingIds])
+  const showReorder = !!onReorder && sorted.length > 1
+  const reorderLocked = busy || removing
+
+  useEffect(() => {
+    const id = reorderFocusId.current
+    if (!id) return
+    reorderFocusId.current = null
+    const handles = listRef.current?.querySelectorAll<HTMLButtonElement>('[data-reorder-id]')
+    if (!handles) return
+    for (const handle of handles) {
+      if (handle.dataset.reorderId === id) {
+        handle.focus()
+        return
+      }
+    }
+  }, [pendingIds])
 
   function closeMobile() {
     onMobileOpenChange?.(false)
   }
 
-  function changeSort(next: string) {
-    const mode = parseLibrarySortMode(next, 'name')
+  function writeSort(mode: LibrarySortMode) {
     setSortMode(mode)
     try {
       window.localStorage.setItem(SORT_STORAGE_KEY, mode)
     } catch {
       /* ignore quota */
     }
+  }
+
+  function changeSort(next: string) {
+    const mode = parseLibrarySortMode(next, 'name')
+    if (mode !== 'manual') setPendingIds(null)
+    writeSort(mode)
+  }
+
+  function clearDrag() {
+    setDraggingId(null)
+    setDropTarget(null)
+  }
+
+  async function commitOrder(ids: string[]) {
+    if (!onReorder) return
+    const mine = ++reorderTicket.current
+    const prevMode = sortMode
+    const prevPending = pendingIds
+    writeSort('manual')
+    setPendingIds(ids)
+    try {
+      await onReorder(ids)
+    } catch {
+      if (mine !== reorderTicket.current) return
+      writeSort(prevMode)
+      setPendingIds(prevPending)
+    }
+  }
+
+  function applyMove(sourceId: string, targetId: string, after: boolean) {
+    const next = reorderLibraryIds(
+      sorted.map((entry) => entry.id),
+      sourceId,
+      targetId,
+      after
+    )
+    if (next) void commitOrder(next)
+  }
+
+  function onDragStart(id: string, event: DragEvent<HTMLButtonElement>) {
+    if (!showReorder || reorderLocked) {
+      event.preventDefault()
+      return
+    }
+    setDraggingId(id)
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', id)
+    const row = event.currentTarget.closest('li')
+    if (row) event.dataTransfer.setDragImage(row, 16, row.getBoundingClientRect().height / 2)
+  }
+
+  function onDragOver(id: string, event: DragEvent<HTMLLIElement>) {
+    if (!showReorder || reorderLocked || !draggingId || draggingId === id) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    const rect = event.currentTarget.getBoundingClientRect()
+    setDropTarget({ id, edge: event.clientY < rect.top + rect.height / 2 ? 'before' : 'after' })
+  }
+
+  function onDrop(id: string, event: DragEvent<HTMLLIElement>) {
+    event.preventDefault()
+    const source = draggingId
+    const rect = event.currentTarget.getBoundingClientRect()
+    const after = event.clientY >= rect.top + rect.height / 2
+    clearDrag()
+    if (!showReorder || reorderLocked || !source || source === id || event.dataTransfer.getData('text/plain') !== source) return
+    applyMove(source, id, after)
   }
 
   async function askRemove(entry: LibraryItemView) {
@@ -180,24 +284,67 @@ export function LibraryRail({
               {t('library.empty')}
             </div>
           ) : (
-            <ul className="m-0 flex list-none flex-col gap-3 p-3">
+            <ul ref={listRef} className="m-0 flex list-none flex-col gap-3 p-3">
               {sorted.map((entry) => {
                 const selected = pathEquals(entry.gameRoot, active)
                 const remote = !!entry.remote
                 const fingerprint = entry.missing ? undefined : entry.fingerprint
+                const label = entry.remark?.trim() || entry.name
                 return (
-                  <li key={entry.id} data-navigation-id={`library:${entry.id}`}>
+                  <li
+                    key={entry.id}
+                    data-navigation-id={`library:${entry.id}`}
+                    className="relative"
+                    onDragOver={(event) => onDragOver(entry.id, event)}
+                    onDragLeave={(event) => {
+                      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropTarget((current) => (current?.id === entry.id ? null : current))
+                    }}
+                    onDrop={(event) => onDrop(entry.id, event)}
+                  >
+                    {dropTarget?.id === entry.id ? (
+                      <span
+                        className={cn('pointer-events-none absolute inset-x-2 z-[2] h-0.5 rounded-full bg-accent', dropTarget.edge === 'before' ? '-top-1.5' : '-bottom-1.5')}
+                      />
+                    ) : null}
                     <div
                       className={cn(
-                        'group relative flex flex-col gap-1 rounded-[0.45rem] border border-line bg-panel px-3 pt-3 pb-2',
-                        'transition-[border-color,background,box-shadow] duration-150',
+                        'group relative flex items-start rounded-[0.45rem] border border-line bg-panel py-3 pr-3',
+                        showReorder ? 'pl-8' : 'pl-3',
+                        'transition-[border-color,background,box-shadow,opacity,transform] duration-150',
                         'hover:border-[color-mix(in_oklab,var(--accent)_28%,var(--line))] hover:bg-[color-mix(in_oklab,var(--panel)_88%,var(--accent))]',
                         selected &&
                           'border-[color-mix(in_oklab,var(--accent)_45%,var(--line))] bg-[color-mix(in_oklab,var(--accent)_12%,var(--panel))] shadow-[0_0_0_1px_color-mix(in_oklab,var(--accent)_18%,transparent)]',
                         entry.missing && 'border-[color-mix(in_oklab,var(--fail)_35%,var(--line))] bg-[color-mix(in_oklab,var(--fail)_8%,var(--panel))]',
-                        remote && 'border-[color-mix(in_oklab,var(--info)_35%,var(--line))] bg-[color-mix(in_oklab,var(--info)_8%,var(--panel))]'
+                        remote && 'border-[color-mix(in_oklab,var(--info)_35%,var(--line))] bg-[color-mix(in_oklab,var(--info)_8%,var(--panel))]',
+                        draggingId === entry.id && 'scale-[0.985] opacity-40'
                       )}
                     >
+                      {showReorder ? (
+                        <Button
+                          variant="plain"
+                          size="mini"
+                          className={cn('absolute top-1/2 left-0 z-[1] h-8 w-8 -translate-y-1/2 text-ink-soft', !reorderLocked && 'cursor-grab active:cursor-grabbing')}
+                          aria-label={t('library.reorder', { name: label })}
+                          disabled={reorderLocked}
+                          draggable={!reorderLocked}
+                          tooltipSuppressed={draggingId !== null}
+                          onDragStart={(event) => onDragStart(entry.id, event)}
+                          onDragEnd={clearDrag}
+                          data-reorder-id={entry.id}
+                          onKeyDown={(event) => {
+                            if (reorderLocked || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return
+                            event.preventDefault()
+                            const ids = sorted.map((item) => item.id)
+                            const index = ids.indexOf(entry.id)
+                            const target = ids[index + (event.key === 'ArrowUp' ? -1 : 1)]
+                            if (!target) return
+                            reorderFocusId.current = entry.id
+                            applyMove(entry.id, target, event.key === 'ArrowDown')
+                          }}
+                        >
+                          <LuGripVertical size={12} aria-hidden />
+                        </Button>
+                      ) : null}
                       {withTooltip(
                         remote ? t('library.remoteTag') : t('library.localTag'),
                         <span
@@ -211,7 +358,7 @@ export function LibraryRail({
                       <button
                         type="button"
                         className={cn(
-                          'm-0 flex w-full cursor-pointer items-center gap-3 border-none bg-transparent py-0 pr-[1.35rem] pl-0 text-left text-inherit',
+                          'm-0 flex min-w-0 flex-1 cursor-pointer items-center gap-3 border-none bg-transparent py-0 pr-[1.35rem] pl-1.5 text-left text-inherit',
                           controlDisabled,
                           'focus-visible:rounded focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color-mix(in_oklab,var(--accent)_50%,transparent)]'
                         )}

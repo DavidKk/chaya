@@ -46454,7 +46454,7 @@ var BergamotTranslatorClient = class {
     return measureOperation(
       "translate",
       "bergamot.request",
-      { source: options?.source || "ja", target: options?.target || "zh", items: 1, sourceChars: Array.from(text4).length },
+      { source: options?.source || "ja", target: options?.target || "zh", items: text4.split("\n").length, sourceChars: Array.from(text4).length },
       async () => {
         const response = await this.request("translate", options, text4);
         const result = response.translatedText ?? response.result;
@@ -48710,9 +48710,9 @@ async function collectResultWindow(completed, options) {
 }
 
 // services/translate/scheduler/seed-engine-budget.ts
-function seedEngineBudget(engine, agents) {
+function seedEngineBudget(engine, agents, configs) {
   if (!engine.startsWith("agent:")) return null;
-  const settings = resolveEngineCapacitySettings(engine, void 0, agents);
+  const settings = resolveEngineCapacitySettings(engine, configs, agents);
   const concurrency = settings.allowConcurrency === false ? 1 : settings.concurrencyLimit ?? 1;
   const maxChars = settings.maxConcurrentChars ?? 3e3;
   return { items: 4096, chars: maxChars * (concurrency + 1) };
@@ -49090,7 +49090,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     return sensitiveFlags[id] === 2;
   }
   function canFit(id, engine) {
-    const budget = seedEngineBudget(engine, agents);
+    const budget = seedEngineBudget(engine, agents, configs);
     const entries2 = [...loads].filter(([key3]) => budget ? key3 === engine : !key3.startsWith("agent:"));
     if (!entries2.some(([, load]) => load.items)) return true;
     const chars = entries2.reduce((sum2, [, load]) => sum2 + load.chars, 0);
@@ -49223,7 +49223,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     while (completed.length < maxBuffer()) {
       let dispatched = false;
       for (const engine of engines) {
-        const budget = seedEngineBudget(engine, agents);
+        const budget = seedEngineBudget(engine, agents, configs);
         const ordinary = [...loads].filter(([key3]) => !key3.startsWith("agent:")).reduce((sum2, [, load]) => sum2 + load.items, 0);
         if (!budget && (ordinary >= cap() || completed.length + ordinary >= MAX_BUFFER)) continue;
         const count2 = loads.get(engine)?.items || 0;

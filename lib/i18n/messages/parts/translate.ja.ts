@@ -162,7 +162,8 @@ export const translateJa = {
     packInstall: '言語パックをインストール',
     packReinstall: '再ダウンロード',
     packDownload: '言語パックをダウンロード',
-    bergamotGamePairUnsupported: '現在のゲーム言語ペア（{gamePair}）に対応する Bergamot 言語パックはありません。下の一覧で翻訳方向を確認して選択してください。',
+    bergamotGamePairUnsupported:
+      '現在のゲーム言語ペア（{gamePair}）に対応する Bergamot 言語パックはありません。この版にあるのは英語 → 簡体字中国語だけで、このゲームには使えません。',
     bergamotAvailablePacks: '利用可能なオフライン言語パック',
     offlineGuide: '設定ガイド',
     offlineRecheck: '確認',

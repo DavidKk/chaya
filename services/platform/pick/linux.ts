@@ -2,7 +2,7 @@ import { execFile } from 'node:child_process'
 import os from 'node:os'
 import { promisify } from 'node:util'
 
-import { isCancelError, normalizeSelected } from './shared'
+import { isCancelError, normalizeSelected, pickedPaths } from './shared'
 import type { PickKind, PickPathCapability, PickResult } from './types'
 
 const execFileAsync = promisify(execFile)
@@ -21,20 +21,24 @@ async function whichLinuxDialog(): Promise<LinuxDialogTool | null> {
   return null
 }
 
-async function linuxPickFolder(tool: LinuxDialogTool, label: string): Promise<string | null> {
+async function linuxPickFolder(tool: LinuxDialogTool, label: string, multiple: boolean): Promise<string | null> {
   try {
     if (tool === 'kdialog') {
-      const { stdout } = await execFileAsync('kdialog', ['--title', 'Chaya', '--getexistingdirectory', os.homedir(), label], {
+      const args = ['--title', 'Chaya', '--getexistingdirectory', os.homedir(), label]
+      if (multiple) args.unshift('--multiple', '--separate-output')
+      const { stdout } = await execFileAsync('kdialog', args, {
         timeout: 180_000,
         maxBuffer: 2 * 1024 * 1024,
       })
-      return normalizeSelected(stdout) || null
+      return String(stdout || '')
     }
-    const { stdout } = await execFileAsync(tool, ['--file-selection', '--directory', `--title=${label}`, `--filename=${os.homedir()}/`], {
+    const args = ['--file-selection', '--directory', `--title=${label}`, `--filename=${os.homedir()}/`]
+    if (multiple) args.push('--multiple', '--separator', '\n')
+    const { stdout } = await execFileAsync(tool, args, {
       timeout: 180_000,
       maxBuffer: 2 * 1024 * 1024,
     })
-    return normalizeSelected(stdout) || null
+    return String(stdout || '')
   } catch (err) {
     const code = typeof err === 'object' && err && 'code' in err ? Number((err as { code?: number }).code) : NaN
     if (code === 1 || code === 2) return null
@@ -69,6 +73,7 @@ export class LinuxPickPath implements PickPathCapability {
 
   defaultPrompt(kind: PickKind): string {
     if (kind === 'app') return '选择干净的 NW.js（nw 可执行文件）作为壳源'
+    if (kind === 'game') return '选择 RPG Maker 游戏目录，可一次多选（含 www、内容根，或已打包的 .app / 发布目录）'
     return '选择 RPG Maker 游戏目录（含 www、内容根，或已打包的 .app / 发布目录）'
   }
 
@@ -83,9 +88,10 @@ export class LinuxPickPath implements PickPathCapability {
     }
 
     try {
-      const selected = kind === 'app' ? await linuxPickShellFile(tool, label) : await linuxPickFolder(tool, label)
+      const stdout = kind === 'app' ? await linuxPickShellFile(tool, label) : await linuxPickFolder(tool, label, kind === 'game')
+      const selected = stdout ? pickedPaths(stdout) : null
       if (!selected) return { ok: false, cancelled: true }
-      return { ok: true, path: selected }
+      return { ok: true, ...selected }
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err)
       if (isCancelError(msg)) return { ok: false, cancelled: true }

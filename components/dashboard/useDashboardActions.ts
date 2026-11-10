@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from 'react'
+import { type Dispatch, type SetStateAction, useRef } from 'react'
 
 import { useConfirm } from '@/components/confirm/ConfirmProvider'
 import { useNotification } from '@/components/notification/useNotification'
@@ -13,16 +13,18 @@ type Options = {
   setShellSource: Dispatch<SetStateAction<string>>
   setBusy: Dispatch<SetStateAction<boolean>>
   refresh: () => Promise<Status | null>
-  pick: (kind: 'folder' | 'app' | 'game') => Promise<string | null>
+  pick: (kind: 'folder' | 'app' | 'game') => Promise<{ path: string; paths: string[] } | null>
 }
 
 export function useDashboardActions({ status, shellSource, setShellSource, setBusy, refresh, pick }: Options) {
   const notify = useNotification()
   const confirm = useConfirm()
+  const reorderQueue = useRef(Promise.resolve())
+  const reorderTicket = useRef(0)
   async function chooseShell() {
-    const path = await pick('app')
-    if (!path) return
-    await bindShell(path)
+    const picked = await pick('app')
+    if (!picked) return
+    await bindShell(picked.path)
   }
 
   async function bindShell(path: string) {
@@ -98,6 +100,28 @@ export function useDashboardActions({ status, shellSource, setShellSource, setBu
     } finally {
       setBusy(false)
     }
+  }
+
+  function reorderGames(ids: string[]) {
+    const ticket = ++reorderTicket.current
+    const job = reorderQueue.current.then(async () => {
+      const res = await fetch('/api/status', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ libraryOrder: ids }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        notify.error(readApiErrorMessage(data, '排序保存失败'))
+        throw new Error('reorder failed')
+      }
+      if (ticket === reorderTicket.current) await refresh()
+    })
+    reorderQueue.current = job.then(
+      () => undefined,
+      () => undefined
+    )
+    return job
   }
 
   async function removeGame(path: string) {
@@ -216,5 +240,5 @@ export function useDashboardActions({ status, shellSource, setShellSource, setBu
     }
   }
 
-  return { chooseShell, bindShell, copyPath, openPath, saveGameRemark, removeGame, installShell, fetchLatestShell, uninstallShell, injectPlugins, clearPlugins }
+  return { chooseShell, bindShell, copyPath, openPath, saveGameRemark, removeGame, reorderGames, installShell, fetchLatestShell, uninstallShell, injectPlugins, clearPlugins }
 }

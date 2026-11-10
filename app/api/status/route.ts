@@ -26,6 +26,7 @@ import {
   recoverOldIfNeeded,
   relocateLibraryEntry,
   removeLibraryEntry,
+  reorderLibrary,
   resolveGame,
   saveConfig,
   toLibraryItemView,
@@ -243,14 +244,108 @@ export const PUT = defineApiRoute('put:/api/status', async ({ request }) => {
     path?: string
     shellSource?: string
     remark?: string | null
+    /** 库条目 id 的新顺序；只改数组位置，不改打开时间 */
+    libraryOrder?: string[]
+    /** 一次加入多个游戏目录；最后一项成为当前游戏 */
+    gameRoots?: string[]
     /** 切换游戏时的客户端序号；过期请求不改 gameRoot */
     bindEpoch?: number
   }
   const input = String(body.gameRoot || body.path || '').trim()
   const replaceLibraryId = String(body.replaceLibraryId || '').trim()
   const hasRemark = Object.prototype.hasOwnProperty.call(body, 'remark')
-  if (!input && body.shellSource === undefined && !hasRemark) {
+  const libraryOrder = Array.isArray(body.libraryOrder) ? body.libraryOrder.filter((id): id is string => typeof id === 'string' && id.trim().length > 0) : null
+  const gameRoots = Array.isArray(body.gameRoots) ? body.gameRoots.map((item) => String(item || '').trim()).filter(Boolean) : []
+  if (!input && body.shellSource === undefined && !hasRemark && !libraryOrder && !gameRoots.length) {
     return apiBadRequest('Missing gameRoot, shellSource, or remark')
+  }
+
+  if (gameRoots.length && !input && !hasRemark && !libraryOrder) {
+    const epochGate = acceptGameBindEpoch(body.bindEpoch)
+    if (!epochGate.ok) {
+      const config = loadConfig()
+      return apiOk({
+        config,
+        resolved: getResolvedFromConfig(),
+        library: config.library.map(toLibraryItemView),
+        ignoredStaleBind: true,
+        bindEpoch: epochGate.latest,
+      })
+    }
+    const prev = loadConfig()
+    const resolved: Array<{ raw: string; check: Extract<ReturnType<typeof resolveGame>, { ok: true }> }> = []
+    const failed: Array<{ path: string; error: string; engine?: string }> = []
+    for (const raw of gameRoots) {
+      const check = resolveGame(raw)
+      if (!check.ok) {
+        failed.push({ path: raw, error: check.error, ...(check.engine ? { engine: check.engine } : {}) })
+        continue
+      }
+      if (resolved.some((item) => pathEquals(item.check.selected, check.selected))) continue
+      resolved.push({ raw, check })
+    }
+    if (!resolved.length) {
+      const first = failed[0]
+      if (first?.engine) return json({ ok: false, error: { code: UNSUPPORTED_ENGINE_CODE, message: first.error, engine: first.engine } }, { status: 400 })
+      return apiBadRequest(first?.error || 'No game selected')
+    }
+    let library = prev.library
+    const added: string[] = []
+    const freshContent: Array<{ contentRoot: string; gameId: string }> = []
+    resolved.forEach((item, index) => {
+      const before = findLibraryEntry(library, item.check.selected)
+      const fingerprint = getGameFingerprint(item.check)
+      const name = resolveDisplayName(item.check.contentRoot, item.raw, fingerprint?.system?.gameTitle)
+      library = upsertLibraryEntry(library, {
+        gameRoot: item.check.selected,
+        name,
+        remote: false,
+        remark: before?.remark ?? null,
+        touchOpen: index === resolved.length - 1,
+      })
+      added.push(item.check.selected)
+      if (!before && item.check.contentRoot) freshContent.push({ contentRoot: item.check.contentRoot, gameId: item.check.selected })
+    })
+    const selected = resolved[resolved.length - 1]!.check.selected
+    if (prev.gameRoot && !pathEquals(prev.gameRoot, selected)) {
+      const prevResolved = resolveGame(prev.gameRoot)
+      if (prevResolved.ok && prevResolved.contentRoot) {
+        await terminateCloudGameInstance({ contentRoot: prevResolved.contentRoot })
+      }
+    }
+    const config = saveConfig({
+      gameRoot: selected,
+      library,
+      ...(body.shellSource !== undefined ? { shellSource: String(body.shellSource || '').trim() } : {}),
+    })
+    for (const item of freshContent) triggerSilentTranslateIfEnabled(item.contentRoot, { gameId: item.gameId })
+    return apiOk({
+      config,
+      resolved: resolveGame(selected),
+      library: config.library.map(toLibraryItemView),
+      bindEpoch: epochGate.epoch,
+      added,
+      failed,
+    })
+  }
+
+  if (libraryOrder && !input && body.shellSource === undefined && !hasRemark) {
+    const prev = loadConfig()
+    const library = reorderLibrary(prev.library, libraryOrder)
+    if (library === prev.library) {
+      return apiOk({
+        config: prev,
+        resolved: getResolvedFromConfig(),
+        library: prev.library.map(toLibraryItemView),
+        unchanged: true,
+      })
+    }
+    const config = saveConfig({ library })
+    return apiOk({
+      config,
+      resolved: getResolvedFromConfig(),
+      library: config.library.map(toLibraryItemView),
+    })
   }
 
   if (hasRemark) {

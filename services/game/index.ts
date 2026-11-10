@@ -16,6 +16,7 @@ export {
   reconcileLibraryConfig,
   relocateLibraryEntry,
   removeLibraryEntry,
+  reorderLibrary,
   sameGameFamily,
   toLibraryItemView,
   touchLibraryOpen,

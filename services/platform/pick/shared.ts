@@ -9,6 +9,25 @@ export function normalizeSelected(raw: string): string {
     .replace(/[\\/]+$/, '')
 }
 
+/** One absolute path per line. Blank lines are ignored; the first path stays `path` for single-select callers. */
+export function splitPickedPaths(raw: string): string[] {
+  const seen = new Set<string>()
+  const paths: string[] = []
+  for (const line of String(raw || '').split(/\r?\n/)) {
+    const selected = normalizeSelected(line)
+    if (!selected || seen.has(selected)) continue
+    seen.add(selected)
+    paths.push(selected)
+  }
+  return paths
+}
+
+export function pickedPaths(raw: string): { path: string; paths: string[] } | null {
+  const paths = splitPickedPaths(raw)
+  const path = paths[0]
+  return path ? { path, paths } : null
+}
+
 export function escapeAppleScript(s: string): string {
   return s.replace(/\\/g, '\\\\').replace(/"/g, '\\"')
 }

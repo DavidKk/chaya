@@ -380,24 +380,6 @@ export function TranslateEngineDetailView({
                     </div>
                   ) : null}
                 </div>
-                {isBergamot && !offlineGuide && systemStatus?.accessReason !== 'management_required' && !isGamePairSupported && systemStatus?.supportedPairs?.length ? (
-                  <div className="mt-3 flex flex-col gap-3">
-                    <span className={itemLabel}>{t('translate.bergamotAvailablePacks')}</span>
-                    {systemStatus.supportedPairs.map((pair) => {
-                      const matchesGame = pair.source === gameSource && pair.target === gameTarget
-                      return (
-                        <div key={`${pair.id}-${packEpoch}`} className="flex flex-col gap-1.5">
-                          {!matchesGame ? (
-                            <span className="text-[0.7rem] text-ink-soft">
-                              {`此离线包仅适用于 ${formatLanguageLabel(pair.source)} → ${formatLanguageLabel(pair.target)}（当前游戏语向为 ${formatLanguageLabel(gameSource)} → ${formatLanguageLabel(gameTarget)}，不可用于本作）`}
-                            </span>
-                          ) : null}
-                          <BergamotPackInstaller source={pair.source} target={pair.target} onInstalled={() => onCheckSystemStatus?.()} />
-                        </div>
-                      )
-                    })}
-                  </div>
-                ) : null}
               </div>
             ) : null}
 
