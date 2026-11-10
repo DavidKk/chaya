@@ -122,3 +122,65 @@ it('fills a 3000-character Agent request across cache shards and sends only the 
     jest.useRealTimers()
   }
 })
+
+it('packs a 3000-character Agent request even when cache scan is unavailable', async () => {
+  jest.useFakeTimers()
+  mockTrace.mockClear()
+  const texts = Array.from({ length: 400 }, (_, id) => `あいうえお${String(id).padStart(4, '0')}`)
+  const inventory: SeedInventoryBundle = {
+    pending: texts,
+    stamp: 'seed',
+    progress: {
+      contentRoot: '/test2',
+      hasSeed: true,
+      total: 400,
+      done: 0,
+      missing: 400,
+      needCount: 400,
+      skipCount: 0,
+      needChars: 3600,
+      skipChars: 0,
+      missingChars: 3600,
+      doneChars: 0,
+      lines: 400,
+      batchSize: 4,
+      batchesLeft: 100,
+    },
+  }
+  const session = createScheduledSeedSession('/test2', mockTrace, { inventory })
+  let releaseFirst!: () => void
+  const firstResponse = new Promise<void>((resolve) => {
+    releaseFirst = resolve
+  })
+  let calls = 0
+  const fetchMock = jest.spyOn(globalThis, 'fetch').mockImplementation(async (_url, init) => {
+    if (++calls === 1) await firstResponse
+    const content = JSON.parse(String(init?.body)).messages.at(-1).content as string
+    const lines = content.split('\n').filter((line) => /^\[\d+\]/.test(line))
+    return new Response(JSON.stringify({ message: { content: lines.map((_, i) => `[${i + 1}] 翻译${i}`).join('\n') } }))
+  })
+  try {
+    const first = session.fill({ limit: 4, onTrace: mockTrace })
+    await tick()
+    // Simulate cache worker failure on startup.
+    mockLane.onError('CACHE_WORKER_MISSING')
+    await tick()
+    await jest.advanceTimersByTimeAsync(0)
+    await jest.advanceTimersByTimeAsync(250)
+    releaseFirst()
+    await tick()
+    await jest.advanceTimersByTimeAsync(250)
+
+    const requests = mockTrace.mock.calls.map(([message]) => message).filter((message) => message.startsWith('Agent request submitted:'))
+    expect(requests).toEqual(['Agent request submitted: items=333, sourceChars=2997', 'Agent request submitted: items=67, sourceChars=603'])
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect((await first).translated).toBeGreaterThan(0)
+  } finally {
+    releaseFirst()
+    session.pause()
+    await jest.advanceTimersByTimeAsync(5000)
+    await session.close()
+    fetchMock.mockRestore()
+    jest.useRealTimers()
+  }
+})

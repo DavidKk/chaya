@@ -224,11 +224,28 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       (typeof body.game === 'string' ? body.game : undefined) ||
       (typeof (body as any).gameId === 'string' ? (body as any).gameId : undefined) ||
       (request.url ? new URL(request.url).searchParams.get('game') || undefined : undefined)
-    const targetContentRoot = gameId ? resolveTranslateContentRoot({ gameId }) : undefined
+    let targetContentRoot: string | undefined
+    if (gameId) {
+      try {
+        targetContentRoot = resolveTranslateContentRoot({ gameId })
+      } catch {
+        targetContentRoot = undefined
+      }
+    }
     const seedJobOpts = targetContentRoot ? { contentRoot: targetContentRoot } : gameId ? { gameId } : undefined
 
+    const resolveRoot = () => {
+      if (targetContentRoot) return targetContentRoot
+      try {
+        return resolveTranslateContentRoot(gameId ? { gameId } : undefined)
+      } catch {
+        return undefined
+      }
+    }
+
     if (body.mode === 'play-settings') {
-      const contentRoot = targetContentRoot || resolveTranslateContentRoot()
+      const contentRoot = resolveRoot()
+      if (!contentRoot) return apiError(400, 'GAME_UNBOUND', 'Please bind a local game in the game library first')
       if (body.settings !== undefined && !pathEquals(body.contentRoot || '', contentRoot)) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload settings')
       const settings = body.settings === undefined ? getTranslationPlaySettings(contentRoot) : setTranslationPlaySettings(contentRoot, body.settings)
       const { looksLikeRgssProject } = await import('@/services/extract/lib/rgss')
@@ -243,8 +260,11 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'job') {
-      if (body.action === 'pause') return apiOk(pauseSeedJob(seedJobOpts))
-      if (body.action === 'start') return apiOk(startSeedJob(seedJobOpts))
+      const root = resolveRoot()
+      if (!root) return apiError(400, 'GAME_UNBOUND', 'Please bind a local game in the game library first')
+      const jobOpts = { contentRoot: root }
+      if (body.action === 'pause') return apiOk(pauseSeedJob(jobOpts))
+      if (body.action === 'start') return apiOk(startSeedJob(jobOpts))
       return apiError(400, 'TRANSLATE_JOB_ACTION', 'Missing action: start | pause')
     }
 
@@ -370,13 +390,14 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
         let seedLang: string | undefined
         try {
-          seedLang = getSeedSourceLanguage(targetContentRoot || resolveTranslateContentRoot())
+          const root = resolveRoot()
+          seedLang = root ? getSeedSourceLanguage(root) : undefined
         } catch {
           seedLang = undefined
         }
         for (const id of ['apple', 'bergamot'] as const) {
           if (body.switches[id] !== true || current.switches[id]) continue
-          const from = seedLang || (id === 'bergamot' ? 'en' : 'ja')
+          const from = seedLang || 'ja'
           const status =
             id === 'apple'
               ? await (await import('@/services/translate/lib/macos-translate')).appleTranslator.checkStatus(from, 'zh')
@@ -411,9 +432,11 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     const session = !hasManagementAccess(request) ? peekLaunchToken(request.headers.get('x-chaya-launch-token')) : null
     const game = session ? resolveGame(session.gameRoot) : null
     if (session && (!game?.ok || game.remote)) return apiError(400, 'GAME_UNAVAILABLE', 'Game path unavailable')
+    const resolveGameOrTargetRoot = () => (game?.ok ? game.contentRoot : resolveRoot())
 
     if (body.mode === 'extract-items') {
-      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
+      const root = resolveGameOrTargetRoot()
+      if (!root) return apiError(400, 'GAME_UNBOUND', 'Please bind a local game in the game library first')
       const sourceLang = typeof body.sourceLang === 'string' ? body.sourceLang : undefined
       const targetLang = typeof body.targetLang === 'string' ? body.targetLang : undefined
       const { pollListExtract, requestListExtract } = await import('@/services/extract/list-extract-prepare')
@@ -446,7 +469,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'import-locales-corpus') {
-      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
+      const root = resolveGameOrTargetRoot()
+      if (!root) return apiError(400, 'GAME_UNBOUND', 'Please bind a local game in the game library first')
       const { importGameLocalesCorpus } = await import('@/services/translate/locales-corpus')
       const limit = typeof body.limit === 'number' ? body.limit : undefined
       const result = importGameLocalesCorpus(root, { limit })
@@ -454,7 +478,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'save-item') {
-      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
+      const root = resolveGameOrTargetRoot()
+      if (!root) return apiError(400, 'GAME_UNBOUND', 'Please bind a local game in the game library first')
       const text = typeof body.text === 'string' ? body.text : ''
       const zh = typeof body.zh === 'string' ? body.zh : ''
       if (!text && !body.localesKey) return apiError(400, 'SAVE_ITEM_EMPTY', 'Missing source text or localesKey')
@@ -478,7 +503,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'rgss-write') {
-      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
+      const root = resolveGameOrTargetRoot()
+      if (!root) return apiError(400, 'GAME_UNBOUND', 'Please bind a local game in the game library first')
       if (body.contentRoot && !pathEquals(body.contentRoot, root)) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload the translation list')
       const translations = body.translations && typeof body.translations === 'object' ? body.translations : null
       if (!translations || Array.isArray(translations)) return apiError(400, 'RGSS_WRITE_INPUT', 'Missing translations')
@@ -499,7 +525,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'rgss-preview') {
-      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
+      const root = resolveGameOrTargetRoot()
+      if (!root) return apiError(400, 'GAME_UNBOUND', 'Please bind a local game in the game library first')
       if (body.contentRoot && !pathEquals(body.contentRoot, root)) return apiError(409, 'GAME_CHANGED', 'Game has changed, please reload the translation page')
       const { describeRgssPreview, setRgssPreviewView } = await import('@/services/translate/rgss-preview')
       if (body.view === undefined) return apiOk({ contentRoot: root, ...describeRgssPreview(root) })
@@ -516,7 +543,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     }
 
     if (body.mode === 'reset-item') {
-      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
+      const root = resolveGameOrTargetRoot()
+      if (!root) return apiError(400, 'GAME_UNBOUND', 'Please bind a local game in the game library first')
       const text = typeof body.text === 'string' ? body.text : ''
       if (!text) return apiError(400, 'RESET_ITEM_EMPTY', 'Missing source text')
       const { resetExtractedItem } = await import('@/services/extract/lib/save-items')
@@ -528,12 +556,12 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
       let seedLang: string | undefined
       try {
-        const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
+        const root = resolveGameOrTargetRoot()
         if (root) seedLang = getSeedSourceLanguage(root)
       } catch {
         seedLang = undefined
       }
-      const source = typeof (body.from ?? body.source) === 'string' ? (body.from ?? body.source) : seedLang || 'en'
+      const source = typeof (body.from ?? body.source) === 'string' ? (body.from ?? body.source) : seedLang || 'ja'
       const target = typeof (body.to ?? body.target) === 'string' ? (body.to ?? body.target) : 'zh-Hans'
       return apiOk({ ...(await appleTranslator.checkStatus(source, target)), source, target })
     }
@@ -546,12 +574,12 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
         let seedLang: string | undefined
         try {
-          const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
+          const root = resolveGameOrTargetRoot()
           if (root) seedLang = getSeedSourceLanguage(root)
         } catch {
           seedLang = undefined
         }
-        const from = source || seedLang || 'en'
+        const from = source || seedLang || 'ja'
         const to = target || 'zh'
         const { bergamotPacks } = await import('@/services/translate/bergamot/catalog')
         const supportedPairs = bergamotPacks.map((p) => ({ source: p.source, target: p.target, id: p.id }))
@@ -572,7 +600,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       if (!text.trim()) return apiError(400, 'TRANSLATE_CACHE_INPUT', 'Missing query text')
       let root: string | null = null
       try {
-        root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
+        root = resolveGameOrTargetRoot() || null
       } catch {
         root = null
       }
@@ -629,11 +657,12 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       })
     }
     if (body.mode === 'realtime') {
-      const root = game?.ok ? game.contentRoot : targetContentRoot || resolveTranslateContentRoot()
+      const root = resolveGameOrTargetRoot()
+      if (!root) return apiError(400, 'GAME_UNBOUND', 'Please bind a local game in the game library first')
       return apiOk(await translateDialogue(root, texts, request.signal))
     }
     const { items, contentRoot, engines } = await liveTranslateTexts(texts, {
-      contentRoot: game?.ok ? game.contentRoot : targetContentRoot || undefined,
+      contentRoot: resolveGameOrTargetRoot() || undefined,
       force: Boolean(body.force),
       persist: body.persist !== false,
       engines: Array.isArray(body.engines) ? body.engines : undefined,
@@ -646,7 +675,17 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
     const okCount = items.filter((i) => i.zh).length
     return apiOk({ items, translated: okCount, total: items.length, contentRoot, engines }, { headers: { 'Access-Control-Allow-Origin': '*' } })
   } catch (err) {
-    return apiError(500, 'TRANSLATE_FAILED', err instanceof Error ? err.message : String(err))
+    const message = err instanceof Error ? err.message : String(err)
+    if (
+      message.includes('Please bind a local game') ||
+      message.includes('Game not found in library') ||
+      message.includes('Remote games must be bound') ||
+      message.includes('路径不存在') ||
+      message.includes('指定的游戏不在游戏库中')
+    ) {
+      return apiError(400, 'GAME_UNBOUND', message)
+    }
+    return apiError(500, 'TRANSLATE_FAILED', message)
   }
 })
 

@@ -103,12 +103,17 @@ function scheduleHandoff(rt: Runtime) {
   rt.handoffTimer.unref?.()
 }
 
-function resolveBoundRoot(opts?: { gameId?: string; contentRoot?: string }): string {
+function resolveBoundRoot(opts?: { gameId?: string; contentRoot?: string }): string | null {
   if (opts?.contentRoot) return opts.contentRoot
   const resolved = getResolvedFromConfig(opts?.gameId ? { gameId: opts.gameId } : undefined)
-  if (!resolved.ok) throw new Error('Please bind a local game in the game library first')
-  if (resolved.remote) throw new Error('Remote games must be bound locally before translating')
+  if (!resolved.ok || resolved.remote) return null
   return resolved.contentRoot
+}
+
+function requireBoundRoot(opts?: { gameId?: string; contentRoot?: string }): string {
+  const root = resolveBoundRoot(opts)
+  if (!root) throw new Error('Please bind a local game in the game library first')
+  return root
 }
 
 function getRuntime(contentRoot: string): Runtime {
@@ -181,7 +186,7 @@ async function runLoop(contentRoot: string) {
   rt.liveSamples = [{ at: Date.now(), chars: 0 }]
   rt.state.performance = null
   const initialSessionDone = rt.state.sessionDone
-  const isBatchEngine = rt.state.engines.length > 0 && rt.state.engines.every((e) => e === 'apple' || e.startsWith('agent:'))
+  const isBatchEngine = rt.state.engines.length > 0 && rt.state.engines.some((e) => e === 'apple' || e.startsWith('agent:'))
   const budget = createSeedBatchBudget(isBatchEngine ? 40 : 4)
   const trace = (message: string) => {
     const previousLogSeq = rt.logSeq
@@ -383,6 +388,13 @@ function ensureLoop(contentRoot: string) {
  */
 export function getSeedJobSnapshot(opts?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
   const contentRoot = resolveBoundRoot(opts)
+  if (!contentRoot) {
+    return {
+      ...emptySeedProgress(''),
+      job: idleSeedJob(''),
+      stale: false,
+    }
+  }
   const rt = getRuntime(contentRoot)
   if (rt.handoffPending && !rt.running) {
     rt.handoffPending = false
@@ -454,6 +466,13 @@ function applyInventoryBundle(rt: Runtime, bundle: import('./scheduler/seed-prep
 /** Explicit full inventory (button). Starts a worker; polls see `preparing` until ready. */
 export function refreshSeedJobProgress(opts?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
   const contentRoot = resolveBoundRoot(opts)
+  if (!contentRoot) {
+    return {
+      ...emptySeedProgress(''),
+      job: idleSeedJob(''),
+      stale: false,
+    }
+  }
   const rt = getRuntime(contentRoot)
   if (rt.running) return getSeedJobSnapshot()
 
@@ -552,7 +571,7 @@ function beginSeedLoop(contentRoot: string, inventory: import('./scheduler/seed-
 
 /** Start or resume the server-side fill loop. Inventory runs single-flight off the HTTP return path. */
 export function startSeedJob(opts?: { gameId?: string; contentRoot?: string; engines?: string[] }): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot(opts)
+  const contentRoot = requireBoundRoot(opts)
   const current = getRuntime(contentRoot)
   if (current.running) return getSeedJobSnapshot(opts)
 
@@ -616,7 +635,7 @@ export function startSeedJob(opts?: { gameId?: string; contentRoot?: string; eng
 
 /** Pause after the current segment finishes. */
 export function pauseSeedJob(opts?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot(opts)
+  const contentRoot = requireBoundRoot(opts)
   const rt = getRuntime(contentRoot)
   rt.handoffPending = false
   if (rt.state.status !== 'running') {

@@ -222,6 +222,13 @@ it('reuses a running game without applying changed preferences or rewriting its 
   expect(recordGameLaunch).not.toHaveBeenCalled()
 })
 
+it('does not treat crashpad or helper processes without a matched contentRoot as already-running', async () => {
+  jest.mocked(gameProcesses.findRunningGameProcesses).mockReturnValueOnce([{ pid: 12345, command: 'chrome_crashpad_handler', isMain: false }] as never)
+  const response = await launch()
+  expect(response.status).toBe(200)
+  expect(diskOps.launchShellWithContent).toHaveBeenCalled()
+})
+
 it('does not swallow corrupted settings as an empty launch request', async () => {
   jest.mocked(readRemotePlayHostSettings).mockImplementationOnce(() => {
     throw new SyntaxError('Invalid saved JSON')

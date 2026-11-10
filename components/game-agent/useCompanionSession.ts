@@ -76,10 +76,11 @@ export function useCompanionSession(input: {
   character: CompanionCharacter
   profileId: string
   model: string
+  thinking?: boolean
   request: GameAgentRequest
   onProfiles?: (status: AgentStatus) => void
 }) {
-  const { gameId, visible, locale, character, profileId, model, request, onProfiles } = input
+  const { gameId, visible, locale, character, profileId, model, thinking, request, onProfiles } = input
   const call = useCompanionClient(gameId, request)
   const consumerIdRef = useRef(crypto.randomUUID())
   const conversationIdRef = useRef(crypto.randomUUID())
@@ -123,7 +124,7 @@ export function useCompanionSession(input: {
   const [cancelUnknown, setCancelUnknown] = useState(false)
   const [conversationId, setConversationId] = useState(conversationIdRef.current)
 
-  const selection = useCallback((): CompanionSelection => ({ profileId, model, locale, character }), [character, locale, model, profileId])
+  const selection = useCallback((): CompanionSelection => ({ profileId, model, locale, character, thinking }), [character, locale, model, profileId, thinking])
 
   const append = useCallback((line: ChatLine) => {
     messagesRef.current = [...messagesRef.current, line].slice(-MAX_MESSAGES)
@@ -172,8 +173,16 @@ export function useCompanionSession(input: {
         cancelUnknownRef.current = false
         setCancelUnknown(false)
       }
+      if (event.kind === 'completed' && event.thought) {
+        recordActivity({
+          type: 'model.completed',
+          text: event.text || '',
+          thought: event.thought,
+          durationMs: event.metrics?.generationMs || 0,
+        } as TurnEvent)
+      }
     },
-    [character, gameId]
+    [character, gameId, recordActivity]
   )
 
   const abortChat = useCallback((reason: string) => {

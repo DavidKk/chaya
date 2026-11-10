@@ -2,7 +2,7 @@
 import fs from 'node:fs'
 
 import { gameContentReadPath, localGameContentFile } from '@/lib/game/content-files'
-import { detectCacheLang } from '@/lib/translate/cache-lang'
+import { DEFAULT_CACHE_SRC_LANG, detectCacheLang } from '@/lib/translate/cache-lang'
 import { createNumericLabelIndex, numericLabelFamily } from '@/lib/translate/dynamic-template'
 import type { SeedProgress, TranslationWindowReason } from '@/lib/translate/runtime-api'
 import { detectSourceLanguage } from '@/lib/translate/source-text'
@@ -43,12 +43,18 @@ export type FillMissingResult = SeedProgress & {
 type Scan = { progress: SeedProgress; missingKeys: string[]; signature: string }
 const scans = new Map<string, Scan>()
 
-export function resolveTranslateContentRoot(options?: { gameId?: string; contentRoot?: string }): string {
-  if (options?.contentRoot) return options.contentRoot
+export function tryResolveTranslateContentRoot(options?: { gameId?: string; contentRoot?: string }): { ok: true; contentRoot: string } | { ok: false; error: string } {
+  if (options?.contentRoot) return { ok: true, contentRoot: options.contentRoot }
   const resolved = getResolvedFromConfig(options?.gameId ? { gameId: options.gameId } : undefined)
-  if (!resolved.ok) throw new Error('Please bind a local game in the game library first')
-  if (resolved.remote) throw new Error('Remote games must be bound locally before translating')
-  return resolved.contentRoot
+  if (!resolved.ok) return { ok: false, error: resolved.error || 'Please bind a local game in the game library first' }
+  if (resolved.remote) return { ok: false, error: 'Remote games must be bound locally before translating' }
+  return { ok: true, contentRoot: resolved.contentRoot }
+}
+
+export function resolveTranslateContentRoot(options?: { gameId?: string; contentRoot?: string }): string {
+  const result = tryResolveTranslateContentRoot(options)
+  if (!result.ok) throw new Error(result.error)
+  return result.contentRoot
 }
 
 function loadSeedKeys(contentRoot: string): string[] {
@@ -62,8 +68,21 @@ function loadSeedKeys(contentRoot: string): string[] {
   )
 }
 
-export function getSeedSourceLanguage(contentRoot = resolveTranslateContentRoot()) {
-  return detectSourceLanguage(loadSeedKeys(contentRoot))
+export function getSeedSourceLanguage(contentRoot = resolveTranslateContentRoot()): string {
+  const seedKeys = loadSeedKeys(contentRoot)
+  if (seedKeys.length) return detectSourceLanguage(seedKeys)
+  try {
+    const extractFile = localGameContentFile(contentRoot, 'extractStrings')
+    if (extractFile && fs.existsSync(extractFile)) {
+      const parsed = JSON.parse(fs.readFileSync(extractFile, 'utf8'))
+      if (parsed?.meta?.sourceLanguage && typeof parsed.meta.sourceLanguage === 'string') {
+        return parsed.meta.sourceLanguage
+      }
+    }
+  } catch {
+    /* ignore parse errors */
+  }
+  return DEFAULT_CACHE_SRC_LANG
 }
 
 /** Verify only the selected slice; progress polling must not scan the whole corpus. */

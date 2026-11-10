@@ -151,10 +151,29 @@ export function applyCompanionMessageEvent(state: CompanionEventApplyState, even
 
   if (event.kind === 'completed') {
     let messages: ChatLine[] | null = null
-    if (event.text) {
+    const thoughtObj = event.thought
+      ? {
+          id: crypto.randomUUID(),
+          model: '',
+          durationMs: event.metrics?.generationMs || 0,
+          thought: event.thought,
+          at: Date.now(),
+        }
+      : undefined
+    if (event.text || thoughtObj) {
+      const linePatch: Partial<ChatLine> = {
+        text: event.text || '',
+        ...(thoughtObj ? { thought: thoughtObj } : {}),
+      }
       messages = state.messages.some((line) => line.id === event.messageId)
-        ? patchLine(state.messages, event.messageId, { text: event.text })
-        : withLine(state.messages, { id: event.messageId, role: 'chaya', text: event.text, character: state.character })
+        ? patchLine(state.messages, event.messageId, linePatch)
+        : withLine(state.messages, {
+            id: event.messageId,
+            role: 'chaya',
+            text: event.text || '',
+            character: state.character,
+            ...(thoughtObj ? { thought: thoughtObj } : {}),
+          })
     }
     if (event.requestId === state.chatRequestId) {
       return { ...base, afterSeq, messages, chatRequestId: '', chatBusy: false, chatProgress: '', activeReplyId: '' }

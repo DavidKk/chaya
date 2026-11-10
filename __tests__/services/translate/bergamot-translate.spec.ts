@@ -123,6 +123,12 @@ it('does not use an installed English pack to report Japanese readiness', async 
   expect(spawn).not.toHaveBeenCalled()
 })
 
+it('defaults checkEngineStatus to Japanese source language (ja -> zh)', async () => {
+  jest.mocked(findPack).mockReturnValueOnce(undefined)
+  const status = await bergamotTranslator.checkEngineStatus()
+  expect(status).toMatchObject({ source: 'ja', target: 'zh', installed: false, status: 'unsupported' })
+})
+
 it('kills a hung daemon and ignores its late exit after restarting', async () => {
   const result = bergamotTranslator.translate('Hello')
   const rejected = expect(result).rejects.toThrow('5000ms')

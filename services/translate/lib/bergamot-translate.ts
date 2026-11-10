@@ -171,7 +171,7 @@ class BergamotTranslatorClient {
   }
 
   /** Readiness always describes the requested pair, never another installed model. */
-  async checkEngineStatus(source = 'en', target = 'zh') {
+  async checkEngineStatus(source = 'ja', target = 'zh') {
     source = bergamotLanguage(source)
     target = bergamotLanguage(target)
     return { ...(await this.checkStatus(source, target)), source, target }

@@ -378,6 +378,7 @@ export class CompanionChatSlot {
         model: input.selection.model,
         purpose: 'chat',
         signal: controller.signal,
+        think: input.selection.thinking,
         conversationKey: conversationKeyOf(input.selection, input.conversationId, facts.stamp.scope.runtimeInstanceId),
         // Do not force JSON format for every turn; grounded replies self-describe as JSON.
         onDelta: (chunk) => {
@@ -426,7 +427,7 @@ export class CompanionChatSlot {
       }
 
       this.deps.ledger.appendChat(input.conversationId, { role: 'assistant', content: text, at: this.now() })
-      publish('completed', { text, metrics: includeCompanionContext(message.companionMetrics, contextMs) })
+      publish('completed', { text, thought: message.thought, metrics: includeCompanionContext(message.companionMetrics, contextMs) })
     } catch (error) {
       if (generation !== this.generation) return
       const aborted = controller.signal.aborted

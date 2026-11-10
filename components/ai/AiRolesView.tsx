@@ -443,6 +443,26 @@ export function AiRolesView({ roleId, onNavigate, onOpenWorkspace, request }: Pr
                 </div>
               </div>
 
+              <div className={formFieldInlineWideLabel}>
+                <div className="col-start-1 row-span-2 flex flex-col justify-center gap-0.5">
+                  <span className={formTitle}>{isZh ? '思考过程' : 'Thinking Process'}</span>
+                  <span className={formDesc}>
+                    {isZh ? '激活大模型深度思考过程，展示推理逻辑与分析细节' : 'Enable model reasoning / thinking process and display thought chain'}
+                  </span>
+                </div>
+                <div className={formControlInlineStart}>
+                  <SegmentedNav
+                    aria-label={isZh ? '思考过程' : 'Thinking Process'}
+                    value={draft.thinking ? 'on' : 'off'}
+                    items={[
+                      { id: 'off', label: isZh ? '关闭' : 'Off' },
+                      { id: 'on', label: isZh ? '开启' : 'On' },
+                    ]}
+                    onChange={(v) => setDraft({ ...draft, thinking: v === 'on' })}
+                  />
+                </div>
+              </div>
+
               {/* 人设描述：上下结构 + PlainTextEditor */}
               <div className="flex flex-col gap-2 p-4">
                 <div className="flex flex-col gap-0.5">

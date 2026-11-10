@@ -81,6 +81,7 @@ export type AiRole = {
   description: string
   provider: GameAgentProvider
   model: string
+  thinking?: boolean
   lines: CompanionDialogueLine[]
   idleLineGeneration: boolean
   verbosity?: CompanionVerbosity

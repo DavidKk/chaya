@@ -9,6 +9,7 @@ export type CompanionSelection = {
   model: string
   locale: string
   character: string
+  thinking?: boolean
 }
 
 export type CompanionHostRequest =
@@ -59,6 +60,7 @@ export type CompanionMessageEvent = {
   consumerId?: string
   stamp: ContextStamp
   text?: string
+  thought?: string
   cue?: Cue
   error?: CompanionError
   metrics?: CompanionModelMetrics

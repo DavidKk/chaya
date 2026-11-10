@@ -42911,7 +42911,11 @@ function getResolvedFromConfig(options) {
   let targetRoot = options?.gameRoot;
   if (!targetRoot && options?.gameId) {
     const entry2 = config.library.find((item) => item.id === options.gameId);
-    if (entry2) targetRoot = entry2.gameRoot;
+    if (entry2) {
+      targetRoot = entry2.gameRoot;
+    } else {
+      return { ok: false, error: "\u6307\u5B9A\u7684\u6E38\u620F\u4E0D\u5728\u6E38\u620F\u5E93\u4E2D", config };
+    }
   }
   if (!targetRoot) targetRoot = config.gameRoot;
   if (!targetRoot) {
@@ -46440,7 +46444,7 @@ var BergamotTranslatorClient = class {
     }
   }
   /** Readiness always describes the requested pair, never another installed model. */
-  async checkEngineStatus(source = "en", target2 = "zh") {
+  async checkEngineStatus(source = "ja", target2 = "zh") {
     source = bergamotLanguage(source);
     target2 = bergamotLanguage(target2);
     return { ...await this.checkStatus(source, target2), source, target: target2 };
@@ -49092,8 +49096,11 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     const chars = entries2.reduce((sum2, [, load]) => sum2 + load.chars, 0);
     return chars + charCount(inventory.pending[id]) <= (budget?.chars ?? options.maxChars ?? 3e3);
   }
+  const hasAgentEngine = () => engines.some((engine) => engine.startsWith("agent:"));
+  const maxBuffer = () => hasAgentEngine() ? 4096 : MAX_BUFFER;
+  const maxCachePending = () => hasAgentEngine() ? 4096 : MAX_CACHE_PENDING;
   const batchScope = {
-    waitForMore: () => !paused && !closed && cacheAvailable && !cacheWorkExhausted() && completed.length < MAX_BUFFER && [...loads].filter(([engine]) => engine.startsWith("agent:")).every(([, load]) => load.items < 4096)
+    waitForMore: () => !paused && !closed && hasPending() && (pendingCount > active2.size || misses.length > 0 || cachePending.size > 0 || cacheInFlight.size > 0) && [...loads].filter(([engine]) => engine.startsWith("agent:")).every(([, load]) => load.items < 4096)
   };
   function nextTask(engine) {
     return takeSeedEngineTask(engine, {
@@ -49213,7 +49220,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       });
       return;
     }
-    while (completed.length < MAX_BUFFER) {
+    while (completed.length < maxBuffer()) {
       let dispatched = false;
       for (const engine of engines) {
         const budget = seedEngineBudget(engine, agents);
@@ -49233,7 +49240,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       }
     }
     if (!active2.size) {
-      for (let id = 0; id < states.length && completed.length < MAX_BUFFER; id++) {
+      for (let id = 0; id < states.length && completed.length < maxBuffer(); id++) {
         if ((states[id] === UNKNOWN || states[id] === MISS) && !inCacheWindow(id) && !options.exclude?.has(inventory.pending[id]) && !engines.some((engine) => !sensitive(id) || engineAcceptsSensitive(engine))) {
           failOrWait(id, { src: inventory.pending[id], zh: null, error: "No eligible translation engines are enabled" });
         }
@@ -49270,8 +49277,8 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
   }
   function cacheNext() {
     if (paused || closed) return [];
-    if (completed.length >= MAX_BUFFER) return [];
-    while (cachePending.size < MAX_CACHE_PENDING && scanCursor < states.length) {
+    if (completed.length >= maxBuffer()) return [];
+    while (cachePending.size < maxCachePending() && scanCursor < states.length) {
       const id = scanCursor++;
       if (!cacheSeen[id] && states[id] !== DONE && states[id] !== FAILED && states[id] !== RECHECK && !options.exclude?.has(inventory.pending[id])) {
         cachePending.add(id);
@@ -49447,7 +49454,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
         pump,
         cacheWorkExhausted,
         terminal: () => !active2.size && (paused || !hasPending()),
-        flush: () => paused || closed || !cacheAvailable,
+        flush: () => paused || closed,
         notify,
         wait: async () => {
           await new Promise((resolve3) => {
@@ -49798,9 +49805,13 @@ function scheduleHandoff(rt) {
 function resolveBoundRoot(opts) {
   if (opts?.contentRoot) return opts.contentRoot;
   const resolved = getResolvedFromConfig(opts?.gameId ? { gameId: opts.gameId } : void 0);
-  if (!resolved.ok) throw new Error("Please bind a local game in the game library first");
-  if (resolved.remote) throw new Error("Remote games must be bound locally before translating");
+  if (!resolved.ok || resolved.remote) return null;
   return resolved.contentRoot;
+}
+function requireBoundRoot(opts) {
+  const root = resolveBoundRoot(opts);
+  if (!root) throw new Error("Please bind a local game in the game library first");
+  return root;
 }
 function getRuntime(contentRoot) {
   let rt = runtimes.get(contentRoot);
@@ -49863,7 +49874,7 @@ async function runLoop(contentRoot) {
   rt.liveSamples = [{ at: Date.now(), chars: 0 }];
   rt.state.performance = null;
   const initialSessionDone = rt.state.sessionDone;
-  const isBatchEngine = rt.state.engines.length > 0 && rt.state.engines.every((e) => e === "apple" || e.startsWith("agent:"));
+  const isBatchEngine = rt.state.engines.length > 0 && rt.state.engines.some((e) => e === "apple" || e.startsWith("agent:"));
   const budget = createSeedBatchBudget(isBatchEngine ? 40 : 4);
   const trace = (message) => {
     const previousLogSeq = rt.logSeq;
@@ -50037,6 +50048,13 @@ function ensureLoop(contentRoot) {
 }
 function getSeedJobSnapshot(opts) {
   const contentRoot = resolveBoundRoot(opts);
+  if (!contentRoot) {
+    return {
+      ...emptySeedProgress(""),
+      job: idleSeedJob(""),
+      stale: false
+    };
+  }
   const rt = getRuntime(contentRoot);
   if (rt.handoffPending && !rt.running) {
     rt.handoffPending = false;
@@ -50101,6 +50119,13 @@ function applyInventoryBundle(rt, bundle) {
 }
 function refreshSeedJobProgress(opts) {
   const contentRoot = resolveBoundRoot(opts);
+  if (!contentRoot) {
+    return {
+      ...emptySeedProgress(""),
+      job: idleSeedJob(""),
+      stale: false
+    };
+  }
   const rt = getRuntime(contentRoot);
   if (rt.running) return getSeedJobSnapshot();
   const peeked = peekSeedInventory(contentRoot);
@@ -50190,7 +50215,7 @@ function beginSeedLoop(contentRoot, inventory, overrideEngines) {
   ensureLoop(contentRoot);
 }
 function startSeedJob(opts) {
-  const contentRoot = resolveBoundRoot(opts);
+  const contentRoot = requireBoundRoot(opts);
   const current = getRuntime(contentRoot);
   if (current.running) return getSeedJobSnapshot(opts);
   let engines = [];
@@ -50245,7 +50270,7 @@ function startSeedJob(opts) {
   };
 }
 function pauseSeedJob(opts) {
-  const contentRoot = resolveBoundRoot(opts);
+  const contentRoot = requireBoundRoot(opts);
   const rt = getRuntime(contentRoot);
   rt.handoffPending = false;
   if (rt.state.status !== "running") {

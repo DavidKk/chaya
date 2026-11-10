@@ -49,3 +49,44 @@ test.each([
   expect(result.chatProgress).toBeNull()
   expect(result.messages).toBeNull()
 })
+
+test('completed event with thought attaches thinking process to chat message', () => {
+  const event: CompanionMessageEvent = {
+    seq: 2,
+    at: 200,
+    kind: 'completed',
+    requestId: 'route-1',
+    messageId: 'msg-1',
+    conversationId: 'conversation',
+    stamp: status().stamp,
+    text: '这是一条回复',
+    thought: '模型思考分析中，推导最优对话...',
+    metrics: { generationMs: 1500 } as never,
+  }
+  const result = applyCompanionMessageEvent(state(), event)
+  expect(result.messages).toHaveLength(1)
+  expect(result.messages![0].text).toBe('这是一条回复')
+  expect(result.messages![0].thought).toEqual(
+    expect.objectContaining({
+      thought: '模型思考分析中，推导最优对话...',
+      durationMs: 1500,
+    })
+  )
+})
+
+test('completed event with thought but empty text preserves thought without dropping message', () => {
+  const event: CompanionMessageEvent = {
+    seq: 3,
+    at: 300,
+    kind: 'completed',
+    requestId: 'route-1',
+    messageId: 'msg-2',
+    conversationId: 'conversation',
+    stamp: status().stamp,
+    thought: '仅有深度思考，暂未产生正文',
+  }
+  const result = applyCompanionMessageEvent(state(), event)
+  expect(result.messages).toHaveLength(1)
+  expect(result.messages![0].text).toBe('')
+  expect(result.messages![0].thought?.thought).toBe('仅有深度思考，暂未产生正文')
+})

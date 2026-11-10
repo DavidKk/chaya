@@ -164,6 +164,7 @@ function CompanionPanelBody({ gameId, open, observe: _observe, request }: Props)
     character: (COMPANION_CHARACTERS.includes(activeRole?.id as CompanionCharacter) ? activeRole?.id : settings.companionCharacter) as CompanionCharacter,
     profileId,
     model,
+    thinking: Boolean(activeRole?.thinking),
     request,
   })
 

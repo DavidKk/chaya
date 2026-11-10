@@ -28,7 +28,11 @@ export function getResolvedFromConfig(options?: { gameId?: string; gameRoot?: st
   let targetRoot = options?.gameRoot
   if (!targetRoot && options?.gameId) {
     const entry = config.library.find((item) => item.id === options.gameId)
-    if (entry) targetRoot = entry.gameRoot
+    if (entry) {
+      targetRoot = entry.gameRoot
+    } else {
+      return { ok: false, error: '指定的游戏不在游戏库中', config }
+    }
   }
   if (!targetRoot) targetRoot = config.gameRoot
   if (!targetRoot) {

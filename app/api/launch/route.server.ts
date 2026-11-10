@@ -94,9 +94,9 @@ export const POST = defineApiRoute('post:/api/launch', async ({ request }) => {
   const runningProcesses = findRunningGameProcesses()
   const targetContentRoot = resolved.ok ? resolved.contentRoot : undefined
   const targetShellApp = resolved.ok ? resolved.shellApp : ''
-  const isSameGameRunning = runningProcesses.some((p) => !targetContentRoot || !p.contentRoot || pathEquals(p.contentRoot, targetContentRoot))
+  const isSameGameRunning = runningProcesses.some((p) => p.isMain !== false && Boolean(targetContentRoot && p.contentRoot && pathEquals(p.contentRoot, targetContentRoot)))
   const presence = getGamePresence()
-  const isSamePresenceOnline = presence.online && (!targetContentRoot || !presence.contentRoot || pathEquals(presence.contentRoot, targetContentRoot))
+  const isSamePresenceOnline = presence.online && Boolean(targetContentRoot && presence.contentRoot && pathEquals(presence.contentRoot, targetContentRoot))
 
   // If the game process or WebRTC connection is already active, return ready without launching duplicate instances
   if (isSameGameRunning || anyWebConnected() || isSamePresenceOnline) {

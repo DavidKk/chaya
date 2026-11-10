@@ -179,7 +179,7 @@ export function createTranslationRuntime(contentRoot: string, options: { mods?: 
       await store.load()
       const status = await translator.systemStatus(
         body.mode === 'apple-status' ? 'apple' : 'bergamot',
-        typeof body.from === 'string' ? body.from : detectSourceLanguage(Object.keys(store.seed())),
+        typeof body.from === 'string' && body.from ? body.from : Object.keys(store.seed()).length ? detectSourceLanguage(Object.keys(store.seed())) : 'ja',
         signal || lifetime.signal,
         typeof body.to === 'string' ? body.to : 'zh'
       )

@@ -368,13 +368,16 @@ export function createScheduledSeedSession(
     return chars + charCount(inventory.pending[id]) <= (budget?.chars ?? options.maxChars ?? 3000)
   }
 
+  const hasAgentEngine = () => engines.some((engine) => engine.startsWith('agent:'))
+  const maxBuffer = () => (hasAgentEngine() ? 4096 : MAX_BUFFER)
+  const maxCachePending = () => (hasAgentEngine() ? 4096 : MAX_CACHE_PENDING)
+
   const batchScope: AgentBatchScope = {
     waitForMore: () =>
       !paused &&
       !closed &&
-      cacheAvailable &&
-      !cacheWorkExhausted() &&
-      completed.length < MAX_BUFFER &&
+      hasPending() &&
+      (pendingCount > active.size || misses.length > 0 || cachePending.size > 0 || cacheInFlight.size > 0) &&
       [...loads].filter(([engine]) => engine.startsWith('agent:')).every(([, load]) => load.items < 4096),
   }
   function nextTask(engine: TranslateRunEngine) {
@@ -497,7 +500,7 @@ export function createScheduledSeedSession(
       })
       return
     }
-    while (completed.length < MAX_BUFFER) {
+    while (completed.length < maxBuffer()) {
       let dispatched = false
       for (const engine of engines) {
         const budget = seedEngineBudget(engine, agents)
@@ -517,7 +520,7 @@ export function createScheduledSeedSession(
       }
     }
     if (!active.size) {
-      for (let id = 0; id < states.length && completed.length < MAX_BUFFER; id++) {
+      for (let id = 0; id < states.length && completed.length < maxBuffer(); id++) {
         if (
           (states[id] === UNKNOWN || states[id] === MISS) &&
           !inCacheWindow(id) &&
@@ -562,9 +565,9 @@ export function createScheduledSeedSession(
 
   function cacheNext(): CacheScanBatch[] {
     if (paused || closed) return []
-    if (completed.length >= MAX_BUFFER) return []
+    if (completed.length >= maxBuffer()) return []
     // Top up the cache-first window from the stable cursor.
-    while (cachePending.size < MAX_CACHE_PENDING && scanCursor < states.length) {
+    while (cachePending.size < maxCachePending() && scanCursor < states.length) {
       const id = scanCursor++
       if (!cacheSeen[id] && states[id] !== DONE && states[id] !== FAILED && states[id] !== RECHECK && !options.exclude?.has(inventory.pending[id])) {
         cachePending.add(id)
@@ -746,7 +749,7 @@ export function createScheduledSeedSession(
         pump,
         cacheWorkExhausted,
         terminal: () => !active.size && (paused || !hasPending()),
-        flush: () => paused || closed || !cacheAvailable,
+        flush: () => paused || closed,
         notify,
         wait: async () => {
           await new Promise<void>((resolve) => {

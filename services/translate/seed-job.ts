@@ -68,12 +68,17 @@ function legacyRuntimeDrained(): Promise<void> {
   })
 }
 
-function resolveBoundRoot(options?: { gameId?: string; contentRoot?: string }): string {
+function resolveBoundRoot(options?: { gameId?: string; contentRoot?: string }): string | null {
   if (options?.contentRoot) return options.contentRoot
   const resolved = getResolvedFromConfig(options?.gameId ? { gameId: options.gameId } : undefined)
-  if (!resolved.ok) throw new Error('Please bind a local game in the game library first')
-  if (resolved.remote) throw new Error('Remote games must be bound locally before translating')
+  if (!resolved.ok || resolved.remote) return null
   return resolved.contentRoot
+}
+
+function requireBoundRoot(options?: { gameId?: string; contentRoot?: string }): string {
+  const root = resolveBoundRoot(options)
+  if (!root) throw new Error('Please bind a local game in the game library first')
+  return root
 }
 
 /** Cheap existence check — no storage IPC / Atomics.wait. */
@@ -133,12 +138,26 @@ function diskSnapshot(contentRoot: string): SeedJobSnapshot {
  */
 export function getSeedJobSnapshot(options?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
   const contentRoot = resolveBoundRoot(options)
+  if (!contentRoot) {
+    return {
+      ...emptySeedProgress(''),
+      job: idleSeedJob(''),
+      stale: false,
+    }
+  }
   return diskSnapshot(contentRoot)
 }
 
 /** Explicit refresh: the worker rescans inventory without blocking Next.js. */
 export function refreshSeedJobProgress(options?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
   const contentRoot = resolveBoundRoot(options)
+  if (!contentRoot) {
+    return {
+      ...emptySeedProgress(''),
+      job: idleSeedJob(''),
+      stale: false,
+    }
+  }
   const snapshot = diskSnapshot(contentRoot)
   pendingCommands.set(contentRoot, { command: 'refresh', at: Date.now() })
   const clear = () => clearPendingCommand(contentRoot, 'refresh')
@@ -151,7 +170,7 @@ export function refreshSeedJobProgress(options?: { gameId?: string; contentRoot?
 
 /** Start or resume the fill loop inside the worker. */
 export function startSeedJob(options?: { gameId?: string; contentRoot?: string; engines?: string[] }): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot(options)
+  const contentRoot = requireBoundRoot(options)
   const snapshot = diskSnapshot(contentRoot)
   const state = readSeedJobState(contentRoot)
   if (state?.status === 'running' && state.inventoryPreparing) return { ...snapshot, preparing: true }
@@ -184,7 +203,7 @@ export function startSeedJob(options?: { gameId?: string; contentRoot?: string; 
 
 /** Pause after the worker finishes its current batch. */
 export function pauseSeedJob(options?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
-  const contentRoot = resolveBoundRoot(options)
+  const contentRoot = requireBoundRoot(options)
   const snapshot = diskSnapshot(contentRoot)
   const explicitRoot = options?.contentRoot || (options?.gameId ? contentRoot : undefined)
   void legacyRuntimeDrained()
