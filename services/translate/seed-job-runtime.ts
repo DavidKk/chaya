@@ -2,6 +2,7 @@
 import fs from 'node:fs'
 
 import { formatCompactCount } from '@/lib/format-compact-count'
+import type { TranslateRunEngine } from '@/lib/translate/engines'
 import {
   freshTranslationPerformance,
   type LiveTranslationSample,
@@ -45,6 +46,8 @@ type Runtime = {
   running: boolean
   logSeq: number
   session?: ReturnType<typeof createSeedFillSession>
+  /** Set only when start named a fixed engine list. Otherwise each batch re-reads the saved switches. */
+  fixedEngines?: string[]
   samples?: TranslationSample[]
   liveSamples?: LiveTranslationSample[]
   progress?: SeedProgress
@@ -221,11 +224,22 @@ async function runLoop(contentRoot: string) {
         persist(rt)
         return
       }
-      rt.session = createSeedFillSession(contentRoot, trace, { nonBlocking: true, inventory: peeked })
+      rt.session = createSeedFillSession(contentRoot, trace, {
+        nonBlocking: true,
+        inventory: peeked,
+        ...(rt.fixedEngines?.length ? { engines: rt.fixedEngines as TranslateRunEngine[] } : {}),
+      })
     }
     rt.progress = rt.session.progress
     let measuredAt = performance.now()
     while (!rt.stopRequested) {
+      if (!rt.fixedEngines?.length) {
+        try {
+          rt.state.engines = getTranslateEngineSwitches(contentRoot).enabled
+        } catch {
+          /* keep the list captured at start */
+        }
+      }
       rt.state.liveStatus = '正在翻译…'
       persist(rt)
 
@@ -509,7 +523,7 @@ export function refreshSeedJobProgress(opts?: { gameId?: string; contentRoot?: s
   }
 }
 
-function beginSeedLoop(contentRoot: string, inventory: import('./scheduler/seed-prepare').SeedInventoryBundle, overrideEngines?: string[]) {
+function beginSeedLoop(contentRoot: string, inventory: import('./scheduler/seed-prepare').SeedInventoryBundle, fixedEngines?: string[]) {
   const progress = inventory.progress
   const rt = getRuntime(contentRoot)
   if (rt.running) return
@@ -530,10 +544,9 @@ function beginSeedLoop(contentRoot: string, inventory: import('./scheduler/seed-
     persist(rt)
     return
   }
-  let engines: string[] = []
-  if (Array.isArray(overrideEngines) && overrideEngines.length > 0) {
-    engines = overrideEngines
-  } else {
+  const fixed = fixedEngines?.length ? fixedEngines : undefined
+  let engines: string[] = fixed ?? []
+  if (!fixed) {
     try {
       engines = getTranslateEngineSwitches(contentRoot).enabled
     } catch {
@@ -554,6 +567,7 @@ function beginSeedLoop(contentRoot: string, inventory: import('./scheduler/seed-
   rt.state.performance = null
   rt.state.startedAt = resume && rt.state.startedAt ? rt.state.startedAt : Date.now()
   rt.state.error = null
+  rt.fixedEngines = fixed
   rt.state.engines = engines
   rt.state.liveStatus = resume ? '继续翻译…' : '开始翻译…'
   if (!resume) {
@@ -564,7 +578,11 @@ function beginSeedLoop(contentRoot: string, inventory: import('./scheduler/seed-
   }
   pushLog(rt, 'info', `${resume ? 'Resume' : 'Start'} translation · engines ${engines.map(shortEngine).join('+')}`)
   persist(rt)
-  rt.session = createSeedFillSession(contentRoot, undefined, { nonBlocking: true, inventory, engines: engines as any })
+  rt.session = createSeedFillSession(contentRoot, undefined, {
+    nonBlocking: true,
+    inventory,
+    ...(fixed ? { engines: fixed as TranslateRunEngine[] } : {}),
+  })
   rt.progress = rt.session.progress
   ensureLoop(contentRoot)
 }
@@ -575,10 +593,9 @@ export function startSeedJob(opts?: { gameId?: string; contentRoot?: string; eng
   const current = getRuntime(contentRoot)
   if (current.running) return getSeedJobSnapshot(opts)
 
-  let engines: string[] = []
-  if (Array.isArray(opts?.engines) && opts.engines.length > 0) {
-    engines = opts.engines
-  } else {
+  const fixedEngines = Array.isArray(opts?.engines) && opts.engines.length > 0 ? opts.engines : undefined
+  let engines: string[] = fixedEngines ?? []
+  if (!fixedEngines) {
     try {
       engines = getTranslateEngineSwitches(contentRoot).enabled
     } catch {
@@ -590,7 +607,7 @@ export function startSeedJob(opts?: { gameId?: string; contentRoot?: string; eng
   const peeked = peekSeedInventory(contentRoot)
   const seedStampNow = seedFileStamp(contentRoot)
   if (peeked && peeked.stamp === seedStampNow && peeked.progressStamp === seedProgressStamp(contentRoot)) {
-    beginSeedLoop(contentRoot, peeked, engines)
+    beginSeedLoop(contentRoot, peeked, fixedEngines)
     const rt = getRuntime(contentRoot)
     return { ...(rt.progress ?? peeked.progress), job: visibleSeedJobState(rt.state) }
   }
@@ -615,7 +632,7 @@ export function startSeedJob(opts?: { gameId?: string; contentRoot?: string; eng
         persist(live)
         return
       }
-      beginSeedLoop(contentRoot, bundle, engines)
+      beginSeedLoop(contentRoot, bundle, fixedEngines)
     })
     .catch((error) => {
       const live = getRuntime(contentRoot)

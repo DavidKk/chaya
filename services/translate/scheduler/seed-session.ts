@@ -11,14 +11,13 @@ import {
   translationFallbackOrder,
 } from '@/lib/translate/engines'
 import { isCacheResult } from '@/lib/translate/result-sources'
-import type { SentencePlan } from '@/lib/translate/sentence-plan'
 
 import type { AgentBatchScope } from '../agent-translate'
 import { getTranslateEngineSwitches } from '../engine-switches'
 import type { FillMissingResult, SeedFillOptions } from '../fill-missing'
 import { getGameCacheContext } from '../game-cache-context'
 import { gameTranslationFiles } from '../game-records'
-import { type LiveTranslateItem, liveTranslateTexts } from '../live-translate'
+import { type LiveTranslateItem } from '../live-translate'
 import { recordSeedFailure } from '../seed-failures'
 import { isSensitiveForCloud } from '../sensitive-text'
 import { openSharedCache } from '../shared-cache'
@@ -29,6 +28,7 @@ import type { CacheScanResult } from './cache-scan'
 import { engineConfiguredCapacity } from './engine-capacity'
 import { followsOwnedStampChain } from './owned-stamps'
 import { collectResultWindow, type Completed } from './result-window'
+import { createSeedDispatcher, type SeedAttempt as Attempt } from './seed-dispatch'
 import { seedEngineBudget } from './seed-engine-budget'
 import { DONE, FAILED, MISS, RECHECK, RUNNING, takeSeedEngineTask, UNKNOWN, WAIT_CACHE } from './seed-engine-queue'
 import { readSeedInventory, seedFileStamp } from './seed-inventory'
@@ -44,7 +44,6 @@ const CACHE_CLASSIFY_WINDOW_MS = 1_500
 const CACHE_ADMISSION_TIMEOUT_MS = 1_500
 const CACHE_STALL_FALLBACK_MS = 1_500
 
-type Attempt = { order: TranslateRunEngine[]; next: number; tried: Set<TranslateRunEngine>; errors: string[]; engineWork?: boolean; interrupted?: boolean }
 type Active = { engine: TranslateRunEngine; controller: AbortController; work: Promise<void> }
 
 export { followsOwnedStampChain } from './owned-stamps'
@@ -361,6 +360,11 @@ export function createScheduledSeedSession(
     return sensitiveFlags[id] === 2
   }
   function canFit(id: number, engine: TranslateRunEngine) {
+    if (engine === 'apple') {
+      const load = loads.get('apple')
+      if (!load?.items) return true
+      return load.chars + charCount(inventory.pending[id]) <= 40_000
+    }
     const budget = seedEngineBudget(engine, agents, configs)
     const entries = [...loads].filter(([key]) => (budget ? key === engine : !key.startsWith('agent:')))
     if (!entries.some(([, load]) => load.items)) return true
@@ -381,7 +385,7 @@ export function createScheduledSeedSession(
       [...loads].filter(([engine]) => engine.startsWith('agent:')).every(([, load]) => load.items < 4096),
   }
   function nextTask(engine: TranslateRunEngine) {
-    return takeSeedEngineTask(engine, {
+    const id = takeSeedEngineTask(engine, {
       states,
       misses,
       retries,
@@ -397,9 +401,26 @@ export function createScheduledSeedSession(
       },
       canFit: (id) => canFit(id, engine),
       sensitive,
-      inCacheWindow,
-      canClaimUnknown: canEngineClaimUnknown,
+      inCacheWindow: (id) => (engine === 'apple' ? cacheInFlight.has(id) : inCacheWindow(id)),
+      canClaimUnknown: () => engine === 'apple' || canEngineClaimUnknown(),
     })
+    if (id === undefined && engine === 'apple') {
+      for (let i = 0; i < states.length; i++) {
+        if (states[i] !== UNKNOWN && states[i] !== MISS) continue
+        if (cacheInFlight.has(i) || retries.has(i)) continue
+        if (!canFit(i, 'apple')) continue
+        cachePending.delete(i)
+        cacheEnteredAt[i] = 0
+        const missAt = misses.indexOf(i)
+        if (missAt >= 0) misses.splice(missAt, 1)
+        return i
+      }
+    }
+    if (id !== undefined && engine === 'apple') {
+      cachePending.delete(id)
+      cacheEnteredAt[id] = 0
+    }
+    return id
   }
   function refreshAttempt(attempt: Attempt, id: number) {
     const candidates = [...attempt.order, ...engines.filter((engine) => !attempt.order.includes(engine))]
@@ -409,86 +430,7 @@ export function createScheduledSeedSession(
     attempt.next = 0
   }
 
-  function dispatch(id: number, engine: TranslateRunEngine) {
-    dispatchedSinceYield++
-    const src = inventory.pending[id]
-    const sourceChars = charCount(src)
-    const prepared = ready.get(id)
-    ready.delete(id)
-    const plan: SentencePlan | undefined = prepared && valid(prepared) ? prepared.plan : undefined
-    if (plan) rememberBackfill(prepared?.records)
-    const attempt: Attempt = retries.get(id) || {
-      order: translationFallbackOrder([engine, ...engines.filter((value) => value !== engine && (!sensitive(id) || engineAcceptsSensitive(value)))]),
-      next: 0,
-      tried: new Set<TranslateRunEngine>(),
-      errors: [],
-    }
-    retries.set(id, attempt)
-    states[id] = RUNNING
-    const controller = new AbortController()
-    const ownGeneration = generation
-    if (!plan) counters.cacheBypassed++
-    const work = Promise.resolve().then(async () => {
-      try {
-        const result = await liveTranslateTexts([src], {
-          contentRoot,
-          engines: [engine],
-          sharedCache: cache,
-          cacheMode: plan ? undefined : 'bypass',
-          preparedPlan: plan,
-          local: { signal: controller.signal, batchScope },
-          itemTimeoutMs: engine.startsWith('agent:') ? 5 * 60 * 1000 : 15000,
-          onTrace: trace,
-          onEngineDispatch: (actualEngine) => {
-            attempt.engineWork = true
-            counters.engineSubmitted++
-            submittedEngines.add(actualEngine)
-          },
-          onDuplicateInFlight: () => {
-            attempt.engineWork = true
-            counters.duplicateInFlight++
-          },
-        })
-        if (closed || ownGeneration !== generation || states[id] === DONE || states[id] === RECHECK) return
-        const item = result.items[0] || { src, zh: null, error: 'No translation result returned' }
-        attempt.engineWork ||= item.engineWork
-        if (item.zh != null && !item.error && item.status !== 'partial') finish(id, item)
-        else {
-          attempt.errors.push(item.error || 'Translation failed')
-          attempt.tried.add(engine)
-          refreshAttempt(attempt, id)
-          retries.delete(id)
-          retries.set(id, attempt)
-          if (!paused && attempt.next < attempt.order.length) states[id] = MISS
-          else failOrWait(id, { src, zh: null, error: attempt.errors.join('; ') })
-        }
-      } catch (error) {
-        if (!closed && ownGeneration === generation && states[id] !== DONE && states[id] !== RECHECK) {
-          attempt.errors.push(error instanceof Error ? error.message : String(error))
-          attempt.tried.add(engine)
-          refreshAttempt(attempt, id)
-          retries.delete(id)
-          retries.set(id, attempt)
-          if (!paused && attempt.next < attempt.order.length) states[id] = MISS
-          else failOrWait(id, { src, zh: null, error: attempt.errors.join('; ') })
-        }
-      } finally {
-        active.delete(id)
-        const load = loads.get(engine)!
-        load.items--
-        load.chars -= sourceChars
-        if (!closed && ownGeneration === generation) {
-          pump()
-          if (!active.size) notify()
-        }
-      }
-    })
-    active.set(id, { engine, controller, work })
-    const load = loads.get(engine) || { items: 0, chars: 0 }
-    load.items++
-    load.chars += sourceChars
-    loads.set(engine, load)
-  }
+  let dispatch = (_id: number, _engine: TranslateRunEngine) => {}
 
   function pump() {
     if (paused || closed || !started || pumpTimer) return
@@ -502,10 +444,11 @@ export function createScheduledSeedSession(
     }
     while (completed.length < maxBuffer()) {
       let dispatched = false
-      for (const engine of engines) {
+      const ordered = engines.includes('apple') ? (['apple', ...engines.filter((engine) => engine !== 'apple')] as TranslateRunEngine[]) : engines
+      for (const engine of ordered) {
         const budget = seedEngineBudget(engine, agents, configs)
         const ordinary = [...loads].filter(([key]) => !key.startsWith('agent:')).reduce((sum, [, load]) => sum + load.items, 0)
-        if (!budget && (ordinary >= cap() || completed.length + ordinary >= MAX_BUFFER)) continue
+        if (engine !== 'apple' && !budget && (ordinary >= cap() || completed.length + ordinary >= MAX_BUFFER)) continue
         const count = loads.get(engine)?.items || 0
         if (count >= (budget?.items ?? engineConfiguredCapacity(engine, resolveEngineCapacitySettings(engine, configs, agents)))) continue
         const id = nextTask(engine)
@@ -646,6 +589,42 @@ export function createScheduledSeedSession(
     flushTimer = undefined
   }
 
+  dispatch = createSeedDispatcher({
+    contentRoot,
+    pending: () => inventory.pending,
+    states,
+    loads,
+    ready,
+    retries,
+    active,
+    completedCount: () => completed.length,
+    engines: () => engines,
+    agents: () => agents,
+    configs: () => configs,
+    cache,
+    batchScope,
+    counters,
+    submittedEngines,
+    generation: () => generation,
+    closed: () => closed,
+    paused: () => paused,
+    cap,
+    maxBuffer,
+    trace,
+    nextTask,
+    valid,
+    rememberBackfill,
+    finish,
+    failOrWait,
+    refreshAttempt,
+    sensitive,
+    pump,
+    notify,
+    addYield: (count) => {
+      dispatchedSinceYield += count
+    },
+  }).dispatch
+
   return {
     get progress() {
       return { ...progress }
@@ -658,6 +637,7 @@ export function createScheduledSeedSession(
       started = false
       if (deadlineTimer) clearTimeout(deadlineTimer)
       deadlineTimer = undefined
+      for (const entry of active.values()) entry.controller.abort()
       for (const [id, item] of waitingCache) finish(id, item)
       // The old lease may still finish in the worker, but its results are no
       // longer owned by this session. Requeue those tasks for the next lease.

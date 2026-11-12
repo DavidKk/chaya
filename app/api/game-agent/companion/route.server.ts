@@ -22,6 +22,14 @@ export const POST = defineApiRoute('post:/api/game-agent/companion', async ({ re
     return apiOk({ result })
   } catch (error) {
     const failure = error as Error & { code?: string; retryable?: boolean }
+    // The game process is unchanged. A missing bridge is an offline read, not a gateway failure.
+    if (failure.code === 'GAME_OFFLINE' || failure.code === 'GAME_AMBIGUOUS') {
+      if (message.type === 'agent.companion.status') return apiOk({ result: null, offline: true })
+      if (message.type === 'agent.companion.events') {
+        return apiOk({ result: { events: [], lastSeq: message.afterSeq, gap: false, status: null }, offline: true })
+      }
+      return apiError(409, failure.code, failure.message || String(error))
+    }
     return apiError(
       failure.code === 'CONTROL_BUSY' || failure.code === 'REQUEST_CONFLICT' ? 409 : 502,
       failure.code || 'COMPANION_REQUEST_FAILED',

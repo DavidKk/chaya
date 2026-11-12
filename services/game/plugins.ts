@@ -61,6 +61,17 @@ function stripLegacyIndexScriptTags(contentRoot: string) {
   }
 }
 
+/** Remove one plugin script. Never follows `..` and never deletes a directory or anything outside `js/plugins`. */
+function unlinkPluginScript(pluginsDir: string, name: string) {
+  if (!name || name !== path.basename(name)) return
+  const file = path.resolve(pluginsDir, `${name}.js`)
+  if (path.dirname(file) !== path.resolve(pluginsDir)) return
+  if (!fs.existsSync(file)) return
+  const stat = fs.statSync(file)
+  if (!stat.isFile()) return
+  fs.unlinkSync(file)
+}
+
 const digestCache = new Map<string, { mtimeMs: number; size: number; digest: string }>()
 
 function fileDigest(file: string): string | null {
@@ -150,8 +161,7 @@ export function injectTrackedPlugins(contentRoot: string): InjectPluginsResult {
   }
 
   for (const legacy of [...LEGACY_PLUGIN_RUNTIME_NAMES, ...LEGACY_PLUGIN_TRANS_NAMES, ...LEGACY_PLUGIN_EDIT_NAMES, ...LEGACY_PLUGIN_BOOST_NAMES]) {
-    const file = path.join(pluginsDir, `${legacy}.js`)
-    if (fs.existsSync(file)) fs.unlinkSync(file)
+    unlinkPluginScript(pluginsDir, legacy)
   }
 
   // 旧第三方翻译加载器曾硬编码进 index.html；文件已删会导致脚本 404，顺手清掉
@@ -249,10 +259,10 @@ export function clearTrackedPlugins(contentRoot: string, opts?: { alsoEnv?: bool
 
   const removedFiles: string[] = []
   for (const name of names) {
-    const file = path.join(pluginsDir, `${name}.js`)
-    if (!fs.existsSync(file)) continue
-    fs.unlinkSync(file)
-    removedFiles.push(name)
+    const file = path.resolve(pluginsDir, `${name}.js`)
+    if (path.dirname(file) !== path.resolve(pluginsDir) || !fs.existsSync(file)) continue
+    unlinkPluginScript(pluginsDir, name)
+    if (!fs.existsSync(file)) removedFiles.push(name)
   }
 
   const pluginsJs = path.join(root, 'js/plugins.js')

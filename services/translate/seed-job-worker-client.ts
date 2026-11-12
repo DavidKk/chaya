@@ -31,6 +31,24 @@ type Client = {
 
 const globalStore = globalThis as typeof globalThis & {
   __chayaSeedJobWorkerClient?: Client
+  __chayaSeedWorkerBundleStamp?: string
+}
+
+function bundleStamp(): string | null {
+  try {
+    if (typeof fs.statSync !== 'function') return null
+    const stat = fs.statSync(SEED_JOB_WORKER_PATH)
+    return `${stat.mtimeMs}:${stat.size}`
+  } catch {
+    return null
+  }
+}
+
+/** True when a live worker was loaded from an older bundle. A missing stamp counts as stale. */
+export function seedWorkerBundleStale(): boolean {
+  const stamp = bundleStamp()
+  const existing = globalStore.__chayaSeedJobWorkerClient
+  return !!stamp && !!existing && existing.status !== 'stopped' && globalStore.__chayaSeedWorkerBundleStamp !== stamp
 }
 
 const COMMAND_TIMEOUT_MS = 30_000
@@ -100,10 +118,18 @@ function spawn(): Client {
   return client
 }
 
-function ensureClient(): Client {
+async function ensureClient(): Promise<Client> {
+  const stamp = bundleStamp()
   const existing = globalStore.__chayaSeedJobWorkerClient
-  if (existing && existing.status !== 'stopped') return existing
-  return spawn()
+  if (existing && existing.status !== 'stopped') {
+    if (!stamp || globalStore.__chayaSeedWorkerBundleStamp === stamp) return existing
+    const worker = existing.worker
+    stop(existing, new Error('Seed translation worker reloaded'))
+    await worker.terminate().catch(() => undefined)
+  }
+  const client = spawn()
+  if (stamp) globalStore.__chayaSeedWorkerBundleStamp = stamp
+  return client
 }
 
 export function seedJobWorkerAlive(): boolean {
@@ -127,7 +153,7 @@ export async function commandSeedJobWorker(command: SeedJobWorkerCommand, conten
   let sentAt = 0
   let remote: SeedJobWorkerMessage['timing']
   try {
-    const client = ensureClient()
+    const client = await ensureClient()
     await client.ready
     readyMs = timing.elapsedMs()
     if (command === 'start') client.jobStarted = true
@@ -188,4 +214,5 @@ export function resetSeedJobWorkerClientForTests() {
     client.pending.clear()
   }
   globalStore.__chayaSeedJobWorkerClient = undefined
+  globalStore.__chayaSeedWorkerBundleStamp = undefined
 }

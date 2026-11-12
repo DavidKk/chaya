@@ -97,12 +97,35 @@ describe('independent seed cache and engine scheduling', () => {
     mockGameStamp = 'game-v1'
     mockAuthorityVersion = 'authority-v1'
     pending = new Map()
-    mockTranslate.mockImplementation(
-      (texts: string[]) =>
-        new Promise((resolve, reject) => {
-          pending.set(texts[0], { resolve: (item) => resolve({ items: [item], engines: mockEngines, contentRoot: root }), reject })
-        })
-    )
+    mockTranslate.mockImplementation((texts: string[], opts?: { onItem?: (item: LiveTranslateItem) => void }) => {
+      let left = texts.length
+      let settled = false
+      const items = new Map<string, LiveTranslateItem>()
+      return new Promise((resolve, reject) => {
+        const fail = (error: Error) => {
+          if (settled) return
+          settled = true
+          reject(error)
+        }
+        const done = () => {
+          if (settled || left > 0) return
+          settled = true
+          resolve({ items: texts.map((src) => items.get(src)), engines: mockEngines, contentRoot: root })
+        }
+        for (const src of texts) {
+          pending.set(src, {
+            resolve: (item) => {
+              const settledItem = item.src ? item : { ...item, src }
+              items.set(settledItem.src, settledItem)
+              opts?.onItem?.(settledItem)
+              left--
+              done()
+            },
+            reject: fail,
+          })
+        }
+      })
+    })
   })
   afterEach(() => {
     jest.useRealTimers()
@@ -572,15 +595,76 @@ describe('independent seed cache and engine scheduling', () => {
     mockLane.onError('Cache worker timed out')
     await jest.advanceTimersByTimeAsync(10)
     const appleCalls = () => mockTranslate.mock.calls.filter(([, opts]) => opts.engines[0] === 'apple')
-    expect(mockTranslate.mock.calls.filter(([, opts]) => opts.engines[0] === 'agent:a').length).toBeGreaterThan(64)
+    const agentCalls = mockTranslate.mock.calls.filter(([, opts]) => opts.engines[0] === 'agent:a').length
+    expect(agentCalls).toBeGreaterThan(0)
+    expect(agentCalls).toBeLessThanOrEqual(48)
     const before = appleCalls().length
-    const src = appleCalls()[0][0][0]
-    pending.get(src)!.resolve({ src, zh: '译文', engine: 'apple' })
+    expect(appleCalls()[0][0].length).toBeGreaterThan(1)
+    for (const src of appleCalls()[0][0]) pending.get(src)!.resolve({ src, zh: '译文', engine: 'apple' })
     await tick()
     await jest.advanceTimersByTimeAsync(10)
-    expect(appleCalls()).toHaveLength(before + 1)
+    expect(appleCalls().length).toBeGreaterThan(before)
     await stop()
     await running
+  })
+
+  it('starts the next Apple segment before a slow line in the current segment finishes', async () => {
+    mockEngines = ['agent:a', 'apple']
+    const running = create(80).fill({ limit: 4 })
+    await tick()
+    mockLane.next('lease-1')
+    mockLane.onError('Cache worker timed out')
+    await jest.advanceTimersByTimeAsync(10)
+    const appleCalls = () => mockTranslate.mock.calls.filter(([, opts]) => opts.engines[0] === 'apple')
+    const first = appleCalls()[0][0] as string[]
+    expect(first.length).toBeGreaterThan(1)
+    const slow = first[0]
+    for (const src of first.slice(1)) pending.get(src)!.resolve({ src, zh: '译文', engine: 'apple' })
+    await tick()
+    expect(appleCalls().length).toBeGreaterThan(1)
+    expect(pending.get(slow)).toBeDefined()
+    const agentStillPending = mockTranslate.mock.calls.some(([texts, opts]) => opts.engines[0] === 'agent:a' && pending.has(texts[0]))
+    expect(agentStillPending).toBe(true)
+    await stop()
+    await running
+  })
+
+  it('keeps a finished Apple line when another line in the same segment fails', async () => {
+    mockEngines = ['apple']
+    const running = create(4).fill({ limit: 4 })
+    await tick()
+    mockLane.next('lease-1')
+    mockLane.onError('Cache worker timed out')
+    await jest.advanceTimersByTimeAsync(10)
+    const texts = mockTranslate.mock.calls.find(([, opts]) => opts.engines[0] === 'apple')![0] as string[]
+    expect(texts.length).toBeGreaterThan(1)
+    pending.get(texts[0])!.resolve({ src: texts[0], zh: '好', engine: 'apple' })
+    pending.get(texts[1])!.resolve({ src: texts[1], zh: null, error: 'Apple failed', engine: 'apple' })
+    await tick()
+    await jest.advanceTimersByTimeAsync(250)
+    const result = await running
+    expect(result.items.some((item) => item.src === texts[0] && item.zh === '好')).toBe(true)
+    expect(result.items.some((item) => item.src === texts[0] && item.error)).toBe(false)
+    expect(result.translated).toBeGreaterThanOrEqual(1)
+    await stop()
+  })
+
+  it('does not discard Apple lines that finished before the segment failed', async () => {
+    mockEngines = ['apple']
+    const running = create(3).fill({ limit: 4 })
+    await tick()
+    mockLane.next('lease-1')
+    mockLane.onError('Cache worker timed out')
+    await jest.advanceTimersByTimeAsync(10)
+    const texts = mockTranslate.mock.calls.find(([, opts]) => opts.engines[0] === 'apple')![0] as string[]
+    expect(texts.length).toBeGreaterThan(1)
+    pending.get(texts[0])!.resolve({ src: texts[0], zh: '好', engine: 'apple' })
+    pending.get(texts[1])!.reject(new Error('segment aborted'))
+    await tick()
+    await jest.advanceTimersByTimeAsync(250)
+    const result = await running
+    expect(result.items.some((item) => item.src === texts[0] && item.zh === '好' && !item.error)).toBe(true)
+    await stop()
   })
 
   it('bounds failed backlog even when the cache has already marked the whole job missing', async () => {

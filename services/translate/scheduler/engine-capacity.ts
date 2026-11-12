@@ -13,10 +13,12 @@ export function engineCapacity(engine: TranslateRunEngine): number {
 
 export function engineConfiguredCapacity(engine: TranslateRunEngine, customSettings?: EngineCapacitySettings): number {
   if (customSettings?.allowConcurrency === false) return 1
+  // One Apple request is a segment of up to 40 source lines. Saved limits of 1 or 2 must not
+  // shrink that segment back into a cold start per line.
+  if (engine === 'apple') return 40
   if (typeof customSettings?.concurrencyLimit === 'number' && customSettings.concurrencyLimit > 0) {
     return Math.max(1, Math.min(40, Math.floor(customSettings.concurrencyLimit)))
   }
-  if (engine === 'apple') return 40
   if (engine === 'bergamot' || engine === 'ollama') return 1
   return engineGroup(engine) === 'agent' ? 1 : 4
 }

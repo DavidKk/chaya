@@ -21,7 +21,7 @@ import {
   visibleSeedJobState,
   writeSeedJobState,
 } from './seed-job-state'
-import { commandSeedJobWorker, seedJobWorkerAlive, seedJobWorkerStarted } from './seed-job-worker-client'
+import { commandSeedJobWorker, seedJobWorkerAlive, seedJobWorkerStarted, seedWorkerBundleStale } from './seed-job-worker-client'
 
 export type { SeedJobLogEntry, SeedJobLogLevel, SeedJobSnapshot, SeedJobState, SeedJobStatus }
 
@@ -138,6 +138,11 @@ function diskSnapshot(contentRoot: string): SeedJobSnapshot {
  */
 export function getSeedJobSnapshot(options?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
   const contentRoot = resolveBoundRoot(options)
+  // The fill loop lives in a long-lived worker. A rebuilt bundle does not replace it until the next command.
+  if (contentRoot && seedWorkerBundleStale() && !pendingCommands.has(contentRoot) && readSeedJobState(contentRoot)?.status === 'running') {
+    pendingCommands.set(contentRoot, { command: 'start', at: Date.now() })
+    void commandSeedJobWorker('start', contentRoot).catch(() => undefined)
+  }
   if (!contentRoot) {
     return {
       ...emptySeedProgress(''),

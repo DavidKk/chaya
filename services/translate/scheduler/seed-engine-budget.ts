@@ -6,5 +6,8 @@ export function seedEngineBudget(engine: TranslateRunEngine, agents: TranslateAg
   const settings = resolveEngineCapacitySettings(engine, configs, agents)
   const concurrency = settings.allowConcurrency === false ? 1 : (settings.concurrencyLimit ?? 1)
   const maxChars = settings.maxConcurrentChars ?? 3000
-  return { items: 4096, chars: maxChars * (concurrency + 1) }
+  // Only reserve what this agent can actually run. A multi-thousand reservation pins the
+  // inventory to a slow model and leaves Apple with a handful of one-line requests.
+  const items = Math.min(48, Math.max(8, concurrency * 4))
+  return { items, chars: maxChars * (concurrency + 1) }
 }

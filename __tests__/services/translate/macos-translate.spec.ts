@@ -51,6 +51,7 @@ describe('Apple native batch protocol', () => {
   let daemon: EventEmitter & { stdin: PassThrough; stdout: PassThrough; kill: jest.Mock }
   let requests: Array<{ id: string; type: string; items: Array<{ id: string; text: string }>; source: string }>
   beforeEach(() => {
+    jest.useFakeTimers()
     requests = []
     daemon = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(), kill: jest.fn() })
     daemon.stdin.on('data', (line: Buffer) => requests.push(JSON.parse(line.toString())))
@@ -59,9 +60,12 @@ describe('Apple native batch protocol', () => {
     jest.spyOn(appleTranslator, 'isSupportedPlatform').mockReturnValue(true)
     jest.mocked(spawn).mockReturnValue(daemon as unknown as ReturnType<typeof spawn>)
   })
-  afterEach(() => appleTranslator.stopDaemon())
+  afterEach(() => {
+    appleTranslator.stopDaemon()
+    jest.useRealTimers()
+  })
   const flush = async () => {
-    await new Promise<void>((resolve) => queueMicrotask(resolve))
+    await jest.advanceTimersByTimeAsync(50)
   }
   function respond(id: string, body: object) {
     daemon.stdout.write(JSON.stringify({ id, ...body }) + '\n')

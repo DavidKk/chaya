@@ -209,8 +209,8 @@ export function useCompanionSession(input: {
 
   const refreshHostStatus = useCallback(async () => {
     try {
-      const status = await call<CompanionHostStatus>({ type: 'agent.companion.status', requestId: crypto.randomUUID() }, pollAbortRef.current?.signal)
-      setHostStatus(status)
+      const status = await call<CompanionHostStatus | null>({ type: 'agent.companion.status', requestId: crypto.randomUUID() }, pollAbortRef.current?.signal)
+      if (status) setHostStatus(status)
       setHostMissing(false)
     } catch (error) {
       if (isCompanionAbortError(error)) return
@@ -276,7 +276,7 @@ export function useCompanionSession(input: {
           pollAbortRef.current?.signal
         )
         if (generation !== generationRef.current) return
-        setHostStatus(batch.status)
+        if (batch.status) setHostStatus(batch.status)
         setHostMissing(false)
         setGap(Boolean(batch.gap))
         afterSeqRef.current = Math.max(afterSeqRef.current, batch.lastSeq || afterSeqRef.current)

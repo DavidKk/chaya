@@ -65,7 +65,11 @@ class AppleTranslatorClient {
   private batches = new Map<string, Set<string>>()
   private batchTimings = new Map<string, { started: number; items: number; failed: number; first: boolean; operation: TimedOperation }>()
   private batchQueue: DaemonRequest[] = []
-  private batchScheduled = false
+  private batchTimer: NodeJS.Timeout | null = null
+  private batchArmedAt = 0
+  /** Hold a short burst of already-pending lines. A single line still leaves after batchWaitMs. */
+  private readonly batchWaitMs = 50
+  private readonly batchMaxWaitMs = 120
   private binaryStamp = ''
   private reqSeq = 0
   private idleTimer: NodeJS.Timeout | null = null
@@ -207,6 +211,10 @@ class AppleTranslatorClient {
       clearTimeout(this.idleTimer)
       this.idleTimer = null
     }
+    if (this.batchTimer) {
+      clearTimeout(this.batchTimer)
+      this.batchTimer = null
+    }
     if (this.process) {
       this.process.kill()
       this.cleanupProcess()
@@ -215,65 +223,86 @@ class AppleTranslatorClient {
 
   private enqueueTranslation(payload: DaemonRequest) {
     this.batchQueue.push(payload)
-    if (this.batchScheduled) return
-    this.batchScheduled = true
-    queueMicrotask(() => {
-      this.batchScheduled = false
-      const queue = this.batchQueue.filter((item) => this.pendingRequests.has(item.id))
-      this.batchQueue = []
-      const groups = new Map<string, DaemonRequest[]>()
-      for (const item of queue) {
-        const key = JSON.stringify([item.source, item.target])
-        groups.set(key, [...(groups.get(key) || []), item])
-      }
-      for (const items of groups.values()) {
-        let batch: DaemonRequest[] = []
-        let chars = 0
-        const flush = () => {
-          if (!batch.length) return
-          const batchId = `batch:${batch[0].id}`
-          this.batches.set(batchId, new Set(batch.map((item) => item.id)))
-          const operation = startOperation('translate', 'apple.native.batch', {
-            nativeId: batchId,
-            nativePid: this.process?.pid,
-            items: batch.length,
-            sourceChars: batch.reduce((sum, item) => sum + Array.from(item.text || '').length, 0),
-            source: batch[0].source,
-            target: batch[0].target,
-          })
-          this.batchTimings.set(batchId, { started: performance.now(), items: batch.length, failed: 0, first: false, operation })
-          if (process.env.CHAYA_TRANSLATE_DEBUG === '1')
-            console.info(
-              `[apple-timing] Batch dispatched: id=${batchId}, atMs=${Date.now()}, pid=${this.process?.pid ?? 'unknown'}, items=${batch.length}, sourceChars=${batch.reduce((sum, item) => sum + Array.from(item.text || '').length, 0)}, from=${batch[0].source}, to=${batch[0].target}`
-            )
-          try {
-            if (!this.process?.stdin || this.process.stdin.destroyed) throw new Error('Translator process is unavailable')
-            this.process.stdin.write(
-              JSON.stringify({
-                id: batchId,
-                type: 'batch',
-                source: batch[0].source,
-                target: batch[0].target,
-                items: batch.map((item) => ({ id: item.id, text: item.text })),
-              }) + '\n'
-            )
-            const listeners = new Set(batch.map((item) => this.pendingRequests.get(item.id)?.onTrace).filter((listener) => listener != null))
-            const chars = batch.reduce((sum, item) => sum + Array.from(item.text || '').length, 0)
-            for (const listener of listeners) listener(`Apple request submitted: items=${batch.length}, sourceChars=${chars}`)
-          } catch (error) {
-            for (const item of batch) this.finishRequest(item.id, undefined, error instanceof Error ? error : new Error(String(error)))
-          }
-          batch = []
-          chars = 0
+    const queued = this.batchQueue.filter((item) => this.pendingRequests.has(item.id))
+    const queuedChars = queued.reduce((sum, item) => sum + (item.text?.length || 0), 0)
+    if (queued.length >= 40 || queuedChars >= 40_000) {
+      this.flushTranslations()
+      return
+    }
+    if (!this.batchArmedAt) this.batchArmedAt = Date.now()
+    const elapsed = Date.now() - this.batchArmedAt
+    const delay = this.batchTimer ? 20 : this.batchWaitMs
+    this.armBatch(Math.min(delay, Math.max(0, this.batchMaxWaitMs - elapsed)))
+  }
+
+  private armBatch(delay: number) {
+    if (this.batchTimer) clearTimeout(this.batchTimer)
+    this.batchTimer = setTimeout(() => {
+      this.batchTimer = null
+      this.flushTranslations()
+    }, delay)
+  }
+
+  private flushTranslations() {
+    if (this.batchTimer) {
+      clearTimeout(this.batchTimer)
+      this.batchTimer = null
+    }
+    this.batchArmedAt = 0
+    const queue = this.batchQueue.filter((item) => this.pendingRequests.has(item.id))
+    this.batchQueue = []
+    const groups = new Map<string, DaemonRequest[]>()
+    for (const item of queue) {
+      const key = JSON.stringify([item.source, item.target])
+      groups.set(key, [...(groups.get(key) || []), item])
+    }
+    for (const items of groups.values()) {
+      let batch: DaemonRequest[] = []
+      let chars = 0
+      const flush = () => {
+        if (!batch.length) return
+        const batchId = `batch:${batch[0].id}`
+        this.batches.set(batchId, new Set(batch.map((item) => item.id)))
+        const operation = startOperation('translate', 'apple.native.batch', {
+          nativeId: batchId,
+          nativePid: this.process?.pid,
+          items: batch.length,
+          sourceChars: batch.reduce((sum, item) => sum + Array.from(item.text || '').length, 0),
+          source: batch[0].source,
+          target: batch[0].target,
+        })
+        this.batchTimings.set(batchId, { started: performance.now(), items: batch.length, failed: 0, first: false, operation })
+        if (process.env.CHAYA_TRANSLATE_DEBUG === '1')
+          console.info(
+            `[apple-timing] Batch dispatched: id=${batchId}, atMs=${Date.now()}, pid=${this.process?.pid ?? 'unknown'}, items=${batch.length}, sourceChars=${batch.reduce((sum, item) => sum + Array.from(item.text || '').length, 0)}, from=${batch[0].source}, to=${batch[0].target}`
+          )
+        try {
+          if (!this.process?.stdin || this.process.stdin.destroyed) throw new Error('Translator process is unavailable')
+          this.process.stdin.write(
+            JSON.stringify({
+              id: batchId,
+              type: 'batch',
+              source: batch[0].source,
+              target: batch[0].target,
+              items: batch.map((item) => ({ id: item.id, text: item.text })),
+            }) + '\n'
+          )
+          const listeners = new Set(batch.map((item) => this.pendingRequests.get(item.id)?.onTrace).filter((listener) => listener != null))
+          const chars = batch.reduce((sum, item) => sum + Array.from(item.text || '').length, 0)
+          for (const listener of listeners) listener(`Apple request submitted: items=${batch.length}, sourceChars=${chars}`)
+        } catch (error) {
+          for (const item of batch) this.finishRequest(item.id, undefined, error instanceof Error ? error : new Error(String(error)))
         }
-        for (const item of items) {
-          if (batch.length >= 40 || chars + (item.text?.length || 0) > 40_000) flush()
-          batch.push(item)
-          chars += item.text?.length || 0
-        }
-        flush()
+        batch = []
+        chars = 0
       }
-    })
+      for (const item of items) {
+        if (batch.length >= 40 || chars + (item.text?.length || 0) > 40_000) flush()
+        batch.push(item)
+        chars += item.text?.length || 0
+      }
+      flush()
+    }
   }
 
   private async sendRequest(req: Omit<DaemonRequest, 'id'>, timeoutMs = 15_000, signal?: AbortSignal, onTrace?: (message: string) => void): Promise<DaemonResponse> {

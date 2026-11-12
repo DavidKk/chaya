@@ -168,19 +168,23 @@ async function main() {
 
   function fullReload(reason?: string): boolean {
     try {
-      seedFile = seedCandidates.find((file) => fs.existsSync(file))
-      seedMtimeMs = seedFile ? fs.statSync(seedFile).mtimeMs : 0
-      lookup = Object.create(null) as TransLookup
-      if (seedFile) {
+      const nextSeed = seedCandidates.find((file) => fs.existsSync(file))
+      const nextSeedMtime = nextSeed ? fs.statSync(nextSeed).mtimeMs : 0
+      // Build beside the live table. A read error must not blank translations already in the game.
+      let next = Object.create(null) as TransLookup
+      let seedOk = !nextSeed
+      if (nextSeed) {
         try {
-          lookup = loadJsonObject(seedFile)
+          next = loadJsonObject(nextSeed)
+          seedOk = true
         } catch (err) {
-          seedMtimeMs = 0
           log.warn('Source text index unavailable; continuing to load incremental translations', errMsg(err))
         }
       }
-      const loaded = loadNdjsonFull(cacheFile.file, lookup)
+      const loaded = loadNdjsonFull(cacheFile.file, next)
       lookup = loaded.lookup
+      seedFile = nextSeed
+      seedMtimeMs = seedOk ? nextSeedMtime : 0
       fileSize = loaded.bytes
       const stat = fs.statSync(cacheFile.file)
       fileMtimeMs = stat.mtimeMs

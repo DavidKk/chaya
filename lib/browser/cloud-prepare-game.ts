@@ -207,6 +207,7 @@ export async function clearCloudPlugins(game: CloudGame): Promise<void> {
   if (await dirExists(js, 'plugins')) {
     const plugins = await getDir(js, 'plugins')
     for (const name of names) {
+      if (!name || name !== name.split(/[\\/]/).pop()) continue
       try {
         await plugins.removeEntry(`${name}.js`)
       } catch (e) {

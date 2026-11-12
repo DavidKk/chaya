@@ -8,6 +8,7 @@ const mockFill = jest.fn()
 const mockProgress = jest.fn()
 const mockPeek = jest.fn()
 const mockSwitches = jest.fn(() => ({ enabled: ['google'] }))
+const mockSessionOpts = jest.fn()
 const progress = () => ({ contentRoot: mockRoot, hasSeed: true, total: 2, needCount: 2, done: 0, missing: 2 })
 jest.mock('@/constants/paths', () => ({
   get TRANSLATE_JOBS_DIR() {
@@ -25,12 +26,15 @@ jest.mock('node:fs', () => {
 })
 jest.mock('@/services/game/binding', () => ({ getResolvedFromConfig: () => ({ ok: true, contentRoot: mockRoot }) }))
 jest.mock('@/services/translate/fill-missing', () => ({
-  createSeedFillSession: (root: string) => ({
-    get progress() {
-      return mockProgress(root)
-    },
-    fill: (opts: object) => mockFill({ contentRoot: root, ...opts }),
-  }),
+  createSeedFillSession: (root: string, _onTrace?: unknown, opts?: { engines?: string[] }) => {
+    mockSessionOpts(opts)
+    return {
+      get progress() {
+        return mockProgress(root)
+      },
+      fill: (fillOpts: object) => mockFill({ contentRoot: root, ...fillOpts }),
+    }
+  },
   getSeedTranslateProgress: (...args: unknown[]) => mockProgress(...args),
 }))
 jest.mock('@/services/translate/engine-switches', () => ({ getTranslateEngineSwitches: (...args: unknown[]) => mockSwitches(...(args as [])) }))
@@ -80,6 +84,8 @@ describe('seed job failures', () => {
     mockJobs = path.join(dir, 'jobs')
     mockRoot = path.join(dir, 'A')
     mockFill.mockReset()
+    mockSessionOpts.mockReset()
+    mockSwitches.mockReset().mockReturnValue({ enabled: ['google'] })
     mockPeek.mockReset().mockReturnValue(null)
     mockProgress.mockReset().mockImplementation(progress)
     mockPrepare.mockReset().mockImplementation(async (root: string) => ({
@@ -106,6 +112,21 @@ describe('seed job failures', () => {
   afterEach(() => {
     jest.useRealTimers()
     fs.rmSync(dir, { recursive: true, force: true })
+  })
+
+  it('does not freeze the saved engine list into the translation session', async () => {
+    mockSwitches.mockReturnValue({ enabled: ['apple', 'google'] })
+    await startSeedJobReady()
+    expect(mockSessionOpts.mock.calls.at(-1)?.[0]).toEqual(expect.objectContaining({ nonBlocking: true }))
+    expect(mockSessionOpts.mock.calls.at(-1)?.[0].engines).toBeUndefined()
+    expect(getSeedJobSnapshot().job.engines).toEqual(['apple', 'google'])
+  })
+
+  it('keeps an explicit engine list when start names one', async () => {
+    startSeedJob({ engines: ['bergamot'] })
+    await Promise.resolve()
+    await jest.runAllTimersAsync()
+    expect(mockSessionOpts.mock.calls.at(-1)?.[0].engines).toEqual(['bergamot'])
   })
 
   it.each(['start', 'refresh'])('reprepares stale translation progress on %s even when the seed has not changed', async (action) => {

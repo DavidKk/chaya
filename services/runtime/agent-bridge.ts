@@ -108,18 +108,26 @@ export async function pollAgentCommands(roomId: string, input: { info?: AgentGam
   return input.signal?.aborted ? [] : s.queue.splice(0)
 }
 
-export class AgentBridgeError extends Error {}
+export class AgentBridgeError extends Error {
+  code?: string
+
+  constructor(message: string, code?: string) {
+    super(message)
+    this.name = 'AgentBridgeError'
+    this.code = code
+  }
+}
 
 /** Resolve the target game: explicit id, or the only connected one. */
 export function resolveAgentGame(gameId?: string): string {
   const live = listAgentGames()
   if (gameId) {
-    if (!live.some((g) => g.gameId === gameId)) throw new AgentBridgeError(`游戏 ${gameId} 未连接（需已安装 ChayaAgent 插件并从 Chaya 启动）`)
+    if (!live.some((g) => g.gameId === gameId)) throw new AgentBridgeError(`游戏 ${gameId} 未连接（需已安装 ChayaAgent 插件并从 Chaya 启动）`, 'GAME_OFFLINE')
     return gameId
   }
   if (live.length === 1) return live[0].gameId
-  if (!live.length) throw new AgentBridgeError('没有已连接的游戏：请从 Chaya 启动游戏，并确认已加载 ChayaAgent 插件')
-  throw new AgentBridgeError(`有 ${live.length} 个游戏在线，请传 gameId：${live.map((g) => `${g.gameId}(${g.name || '?'})`).join(', ')}`)
+  if (!live.length) throw new AgentBridgeError('没有已连接的游戏：请从 Chaya 启动游戏，并确认已加载 ChayaAgent 插件', 'GAME_OFFLINE')
+  throw new AgentBridgeError(`有 ${live.length} 个游戏在线，请传 gameId：${live.map((g) => `${g.gameId}(${g.name || '?'})`).join(', ')}`, 'GAME_AMBIGUOUS')
 }
 
 /** MCP side: queue a command for the game and wait for its result. */

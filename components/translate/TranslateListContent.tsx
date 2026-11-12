@@ -143,6 +143,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
         if (data.switches.apple) list.push({ id: 'apple', label: t('translate.engineApple'), group: 'system' })
         if (data.switches.bergamot) list.push({ id: 'bergamot', label: t('translate.engineBergamot'), group: 'system' })
         setAvailableEngines(list)
+        setSelectedScheme((current) => (current === 'all' || current === 'cache' || list.some((engine) => engine.id === current) ? current : 'all'))
       }
     } catch {
       // ignore
@@ -231,6 +232,22 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
         .catch(() => setRgssEngine(null))
     }
   }, [loadEngines, loadData])
+
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const refresh = () => {
+      if (document.visibilityState === 'hidden') return
+      clearTimeout(timer)
+      timer = setTimeout(() => void loadEngines(), 50)
+    }
+    document.addEventListener('visibilitychange', refresh)
+    window.addEventListener('focus', refresh)
+    return () => {
+      clearTimeout(timer)
+      document.removeEventListener('visibilitychange', refresh)
+      window.removeEventListener('focus', refresh)
+    }
+  }, [loadEngines])
 
   const filteredItems = useMemo(
     () => filterTranslationListItems(items, { nature: natureFilter, category: categoryFilter, status: statusFilter, query: filterQuery }),

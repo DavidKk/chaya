@@ -48,6 +48,7 @@ describe('seed job worker client', () => {
     mockWorker.emit('message', { type: 'ready', version: 1 })
 
     await Promise.resolve()
+    await Promise.resolve()
     expect(mockWorker.postMessage).toHaveBeenCalledWith(expect.objectContaining({ type: 'request', id: 1, command: 'snapshot' }))
     mockWorker.emit('message', { type: 'response', id: 1, ok: false, error: 'snapshot unavailable' })
     await expect(command).rejects.toThrow('snapshot unavailable')

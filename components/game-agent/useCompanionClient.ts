@@ -35,7 +35,8 @@ export function isCapabilityUnsupported(error: unknown) {
 }
 
 export function isAgentRuntimeUnavailable(error: unknown) {
-  return Boolean(error && typeof error === 'object' && 'code' in error && (error as { code?: unknown }).code === 'AGENT_RUNTIME_UNAVAILABLE')
+  const code = error && typeof error === 'object' && 'code' in error ? (error as { code?: unknown }).code : ''
+  return code === 'AGENT_RUNTIME_UNAVAILABLE' || code === 'GAME_OFFLINE' || code === 'GAME_AMBIGUOUS'
 }
 
 export function isAgentRuntimeUnavailableReason(reason?: string | null) {

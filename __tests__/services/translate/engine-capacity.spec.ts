@@ -56,14 +56,21 @@ it.each(['google', 'apple', 'agent:a'] as const)('allows ten full character batc
 
   const finishes: Array<(value: string) => void> = []
   const work = jest.fn(() => new Promise<string>((resolve) => finishes.push(resolve)))
+  expect(engineConfiguredCapacity('apple', { concurrencyLimit: 1 })).toBe(40)
+  expect(engineConfiguredCapacity('apple', { concurrencyLimit: 2 })).toBe(40)
+  expect(engineConfiguredCapacity('apple', { allowConcurrency: false, concurrencyLimit: 40 })).toBe(1)
+
   const settings = { concurrencyLimit: 10, maxConcurrentChars: 4000, chars: 4000 }
+  const slots = engineConfiguredCapacity(engine, settings)
   const requests = Array.from({ length: 11 }, () => withEngineCapacity(engine, `test:chars:${engine}`, work, undefined, settings))
   await tick()
-  expect(work).toHaveBeenCalledTimes(10)
-  finishes[0]('a')
-  await requests[0]
-  await tick()
-  expect(work).toHaveBeenCalledTimes(11)
+  expect(work).toHaveBeenCalledTimes(Math.min(11, slots))
+  if (slots < 11) {
+    finishes[0]('a')
+    await requests[0]
+    await tick()
+    expect(work).toHaveBeenCalledTimes(11)
+  }
   for (const finish of finishes) finish('done')
   await Promise.all(requests)
 })

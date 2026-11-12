@@ -1,4 +1,5 @@
 import { findRunningGameProcesses, terminateAllRunningGameProcesses } from '@/services/game/game-process'
+import { listAgentGames } from '@/services/runtime/agent-bridge'
 import { checkAndReclaimIdleInstances, DEFAULT_IDLE_TIMEOUT_SECONDS, listCloudGameInstances } from '@/services/runtime/game-instance-manager'
 import { resetSignalingRoom } from '@/services/runtime/webrtc-signaling'
 
@@ -13,7 +14,7 @@ jest.mock('@/services/game/library', () => ({
   findLibraryEntry: () => undefined,
 }))
 jest.mock('@/services/game/rgss-runtime', () => ({ rgssRuntimeStatus: () => ({}) }))
-jest.mock('@/services/runtime/agent-bridge', () => ({ listAgentGames: () => [] }))
+jest.mock('@/services/runtime/agent-bridge', () => ({ listAgentGames: jest.fn(() => []) }))
 
 jest.mock('@/services/runtime/game-preview', () => ({ clearGamePreviews: jest.fn() }))
 jest.mock('@/services/runtime/playable-games', () => ({ gameRunMode: (proc: { pid: number }) => (proc.pid === 101 ? 'cloud' : 'local') }))
@@ -50,6 +51,14 @@ it('reclaims expired cloud games while preserving local games without a remote c
   expect(terminateAllRunningGameProcesses).toHaveBeenCalledTimes(1)
   expect(terminateAllRunningGameProcesses).toHaveBeenCalledWith('/Games/Cloud')
   expect(resetSignalingRoom).toHaveBeenCalledTimes(1)
+})
+
+it('keeps a cloud game when its plugin is still connected after the page drops', async () => {
+  jest.mocked(listAgentGames).mockReturnValue([{ gameId: 'agent-1', contentRoot: '/Games/Cloud', lastSeenMs: 0, toolCount: 0 }])
+  await checkAndReclaimIdleInstances()
+  jest.advanceTimersByTime((DEFAULT_IDLE_TIMEOUT_SECONDS + 1) * 1000)
+  await expect(checkAndReclaimIdleInstances()).resolves.toEqual({ reclaimed: [] })
+  expect(terminateAllRunningGameProcesses).not.toHaveBeenCalled()
 })
 
 it('disables reclamation when idle timeout is configured to 0', async () => {

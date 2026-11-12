@@ -656,11 +656,28 @@ async function loop() {
   schedule(linkOpen ? POLL_LINKED_MS : POLL_IDLE_MS)
 }
 
+type LiveLink = { stop: () => void; open: () => boolean }
+const LIVE_LINK = '__chayaGameLinkLive'
+
 /** Start game-side link (idempotent); wait for ChayaEnv room id to avoid default-room desync */
 export function startGameLink() {
   if (started) return
-  const host = globalThis as typeof globalThis & { __chayaStopGameLink?: () => void }
-  host.__chayaStopGameLink?.()
+  const host = globalThis as typeof globalThis & { __chayaStopGameLink?: () => void; [LIVE_LINK]?: LiveLink }
+  const live = host[LIVE_LINK]
+  // A plugin reload must not drop a connected game. Adopt the open link instead of closing it.
+  if (live?.open()) {
+    started = true
+    host.__chayaStopGameLink = () => {
+      live.stop()
+      started = false
+    }
+    return
+  }
+  try {
+    live?.stop()
+  } catch {
+    /* A failed previous link must not block the next one. */
+  }
   host.__chayaStopGameLink = stopGameLink
   started = true
 
@@ -678,6 +695,15 @@ export function startGameLink() {
       ChayaLog.info('ChayaLink', `Waiting for web connection (room=${maskRoom(id)}, api=${resolveApiBase()})`)
     }
     void loop()
+  }
+  const slot: LiveLink = {
+    stop: stopGameLink,
+    open: () => linkOpen && started,
+  }
+  host[LIVE_LINK] = slot
+  host.__chayaStopGameLink = () => {
+    slot.stop()
+    if (host[LIVE_LINK] === slot) delete host[LIVE_LINK]
   }
   boot(0)
 }

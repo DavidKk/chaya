@@ -19,6 +19,7 @@ jest.mock('@/services/translate/seed-job-worker-client', () => ({
   commandSeedJobWorker: (...args: unknown[]) => mockCommand(...args),
   seedJobWorkerAlive: () => mockWorkerAlive,
   seedJobWorkerStarted: () => mockWorkerStarted,
+  seedWorkerBundleStale: () => false,
 }))
 
 import { getSeedJobSnapshot, refreshSeedJobProgress, startSeedJob } from '@/services/translate/seed-job'

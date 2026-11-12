@@ -177,7 +177,19 @@ export async function checkAndReclaimIdleInstances(timeoutOverride?: number): Pr
   if (!instances.length) return { reclaimed: [] }
 
   const reclaimed: number[] = []
+  const playing = new Set<string>()
+  for (const game of listAgentGames()) {
+    playing.add(game.gameId)
+    if (game.contentRoot) playing.add(path.resolve(game.contentRoot))
+  }
   for (const inst of instances) {
+    // A page or dev reload drops the web connection. The game stays while its plugin is still polling.
+    const pluginAlive = (inst.libraryId && playing.has(inst.libraryId)) || (inst.contentRoot && playing.has(path.resolve(inst.contentRoot))) || false
+    if (pluginAlive) {
+      const state = getStateStore().get(inst.contentRoot || String(inst.pid))
+      if (state) state.lastClientConnectedAt = Date.now()
+      continue
+    }
     if (inst.runMode === 'cloud' && inst.idleTimeoutSeconds > 0 && inst.idleSeconds >= inst.idleTimeoutSeconds) {
       process.emitWarning(`[GameInstanceManager] Reclaiming idle game instance (PID: ${inst.pid}, root: ${inst.contentRoot || 'unknown'}, idle: ${inst.idleSeconds}s)`)
       const res = await terminateAllRunningGameProcesses(inst.contentRoot)

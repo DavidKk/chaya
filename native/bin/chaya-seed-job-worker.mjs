@@ -46525,7 +46525,11 @@ var AppleTranslatorClient = class {
     this.batches = /* @__PURE__ */ new Map();
     this.batchTimings = /* @__PURE__ */ new Map();
     this.batchQueue = [];
-    this.batchScheduled = false;
+    this.batchTimer = null;
+    this.batchArmedAt = 0;
+    /** Hold a short burst of already-pending lines. A single line still leaves after batchWaitMs. */
+    this.batchWaitMs = 50;
+    this.batchMaxWaitMs = 120;
     this.binaryStamp = "";
     this.reqSeq = 0;
     this.idleTimer = null;
@@ -46652,6 +46656,10 @@ var AppleTranslatorClient = class {
       clearTimeout(this.idleTimer);
       this.idleTimer = null;
     }
+    if (this.batchTimer) {
+      clearTimeout(this.batchTimer);
+      this.batchTimer = null;
+    }
     if (this.process) {
       this.process.kill();
       this.cleanupProcess();
@@ -46659,65 +46667,84 @@ var AppleTranslatorClient = class {
   }
   enqueueTranslation(payload) {
     this.batchQueue.push(payload);
-    if (this.batchScheduled) return;
-    this.batchScheduled = true;
-    queueMicrotask(() => {
-      this.batchScheduled = false;
-      const queue3 = this.batchQueue.filter((item) => this.pendingRequests.has(item.id));
-      this.batchQueue = [];
-      const groups = /* @__PURE__ */ new Map();
-      for (const item of queue3) {
-        const key3 = JSON.stringify([item.source, item.target]);
-        groups.set(key3, [...groups.get(key3) || [], item]);
-      }
-      for (const items of groups.values()) {
-        let batch = [];
-        let chars = 0;
-        const flush = () => {
-          if (!batch.length) return;
-          const batchId = `batch:${batch[0].id}`;
-          this.batches.set(batchId, new Set(batch.map((item) => item.id)));
-          const operation = startOperation("translate", "apple.native.batch", {
-            nativeId: batchId,
-            nativePid: this.process?.pid,
-            items: batch.length,
-            sourceChars: batch.reduce((sum2, item) => sum2 + Array.from(item.text || "").length, 0),
-            source: batch[0].source,
-            target: batch[0].target
-          });
-          this.batchTimings.set(batchId, { started: performance.now(), items: batch.length, failed: 0, first: false, operation });
-          if (process.env.CHAYA_TRANSLATE_DEBUG === "1")
-            console.info(
-              `[apple-timing] Batch dispatched: id=${batchId}, atMs=${Date.now()}, pid=${this.process?.pid ?? "unknown"}, items=${batch.length}, sourceChars=${batch.reduce((sum2, item) => sum2 + Array.from(item.text || "").length, 0)}, from=${batch[0].source}, to=${batch[0].target}`
-            );
-          try {
-            if (!this.process?.stdin || this.process.stdin.destroyed) throw new Error("Translator process is unavailable");
-            this.process.stdin.write(
-              JSON.stringify({
-                id: batchId,
-                type: "batch",
-                source: batch[0].source,
-                target: batch[0].target,
-                items: batch.map((item) => ({ id: item.id, text: item.text }))
-              }) + "\n"
-            );
-            const listeners3 = new Set(batch.map((item) => this.pendingRequests.get(item.id)?.onTrace).filter((listener) => listener != null));
-            const chars2 = batch.reduce((sum2, item) => sum2 + Array.from(item.text || "").length, 0);
-            for (const listener of listeners3) listener(`Apple request submitted: items=${batch.length}, sourceChars=${chars2}`);
-          } catch (error) {
-            for (const item of batch) this.finishRequest(item.id, void 0, error instanceof Error ? error : new Error(String(error)));
-          }
-          batch = [];
-          chars = 0;
-        };
-        for (const item of items) {
-          if (batch.length >= 40 || chars + (item.text?.length || 0) > 4e4) flush();
-          batch.push(item);
-          chars += item.text?.length || 0;
+    const queued = this.batchQueue.filter((item) => this.pendingRequests.has(item.id));
+    const queuedChars = queued.reduce((sum2, item) => sum2 + (item.text?.length || 0), 0);
+    if (queued.length >= 40 || queuedChars >= 4e4) {
+      this.flushTranslations();
+      return;
+    }
+    if (!this.batchArmedAt) this.batchArmedAt = Date.now();
+    const elapsed = Date.now() - this.batchArmedAt;
+    const delay = this.batchTimer ? 20 : this.batchWaitMs;
+    this.armBatch(Math.min(delay, Math.max(0, this.batchMaxWaitMs - elapsed)));
+  }
+  armBatch(delay) {
+    if (this.batchTimer) clearTimeout(this.batchTimer);
+    this.batchTimer = setTimeout(() => {
+      this.batchTimer = null;
+      this.flushTranslations();
+    }, delay);
+  }
+  flushTranslations() {
+    if (this.batchTimer) {
+      clearTimeout(this.batchTimer);
+      this.batchTimer = null;
+    }
+    this.batchArmedAt = 0;
+    const queue3 = this.batchQueue.filter((item) => this.pendingRequests.has(item.id));
+    this.batchQueue = [];
+    const groups = /* @__PURE__ */ new Map();
+    for (const item of queue3) {
+      const key3 = JSON.stringify([item.source, item.target]);
+      groups.set(key3, [...groups.get(key3) || [], item]);
+    }
+    for (const items of groups.values()) {
+      let batch = [];
+      let chars = 0;
+      const flush = () => {
+        if (!batch.length) return;
+        const batchId = `batch:${batch[0].id}`;
+        this.batches.set(batchId, new Set(batch.map((item) => item.id)));
+        const operation = startOperation("translate", "apple.native.batch", {
+          nativeId: batchId,
+          nativePid: this.process?.pid,
+          items: batch.length,
+          sourceChars: batch.reduce((sum2, item) => sum2 + Array.from(item.text || "").length, 0),
+          source: batch[0].source,
+          target: batch[0].target
+        });
+        this.batchTimings.set(batchId, { started: performance.now(), items: batch.length, failed: 0, first: false, operation });
+        if (process.env.CHAYA_TRANSLATE_DEBUG === "1")
+          console.info(
+            `[apple-timing] Batch dispatched: id=${batchId}, atMs=${Date.now()}, pid=${this.process?.pid ?? "unknown"}, items=${batch.length}, sourceChars=${batch.reduce((sum2, item) => sum2 + Array.from(item.text || "").length, 0)}, from=${batch[0].source}, to=${batch[0].target}`
+          );
+        try {
+          if (!this.process?.stdin || this.process.stdin.destroyed) throw new Error("Translator process is unavailable");
+          this.process.stdin.write(
+            JSON.stringify({
+              id: batchId,
+              type: "batch",
+              source: batch[0].source,
+              target: batch[0].target,
+              items: batch.map((item) => ({ id: item.id, text: item.text }))
+            }) + "\n"
+          );
+          const listeners3 = new Set(batch.map((item) => this.pendingRequests.get(item.id)?.onTrace).filter((listener) => listener != null));
+          const chars2 = batch.reduce((sum2, item) => sum2 + Array.from(item.text || "").length, 0);
+          for (const listener of listeners3) listener(`Apple request submitted: items=${batch.length}, sourceChars=${chars2}`);
+        } catch (error) {
+          for (const item of batch) this.finishRequest(item.id, void 0, error instanceof Error ? error : new Error(String(error)));
         }
-        flush();
+        batch = [];
+        chars = 0;
+      };
+      for (const item of items) {
+        if (batch.length >= 40 || chars + (item.text?.length || 0) > 4e4) flush();
+        batch.push(item);
+        chars += item.text?.length || 0;
       }
-    });
+      flush();
+    }
   }
   async sendRequest(req, timeoutMs = 15e3, signal, onTrace) {
     if (req.type === "translate") return this.sendRequestOnce(req, timeoutMs, signal, onTrace);
@@ -47488,10 +47515,10 @@ function logTranslationEvent(level, message, meta) {
 init_operation();
 function engineConfiguredCapacity(engine, customSettings) {
   if (customSettings?.allowConcurrency === false) return 1;
+  if (engine === "apple") return 40;
   if (typeof customSettings?.concurrencyLimit === "number" && customSettings.concurrencyLimit > 0) {
     return Math.max(1, Math.min(40, Math.floor(customSettings.concurrencyLimit)));
   }
-  if (engine === "apple") return 40;
   if (engine === "bergamot" || engine === "ollama") return 1;
   return engineGroup(engine) === "agent" ? 1 : 4;
 }
@@ -48709,13 +48736,17 @@ async function collectResultWindow(completed, options) {
   }
 }
 
+// services/translate/scheduler/seed-dispatch.ts
+init_text_classify();
+
 // services/translate/scheduler/seed-engine-budget.ts
 function seedEngineBudget(engine, agents, configs) {
   if (!engine.startsWith("agent:")) return null;
   const settings = resolveEngineCapacitySettings(engine, configs, agents);
   const concurrency = settings.allowConcurrency === false ? 1 : settings.concurrencyLimit ?? 1;
   const maxChars = settings.maxConcurrentChars ?? 3e3;
-  return { items: 4096, chars: maxChars * (concurrency + 1) };
+  const items = Math.min(48, Math.max(8, concurrency * 4));
+  return { items, chars: maxChars * (concurrency + 1) };
 }
 
 // services/translate/scheduler/seed-engine-queue.ts
@@ -48798,6 +48829,152 @@ function takeSeedEngineTask(engine, queue3) {
     if (states[id] === MISS && attempt.order[attempt.next] === engine && canFit(id)) return id;
   }
   return void 0;
+}
+
+// services/translate/scheduler/seed-dispatch.ts
+function createSeedDispatcher(deps) {
+  function noteLoad(current, engine) {
+    const load = deps.loads.get(engine) || { items: 0, chars: 0 };
+    load.items++;
+    load.chars += charCount(deps.pending()[current]);
+    deps.loads.set(engine, load);
+  }
+  function takeAppleSegment(first) {
+    const ids = [first];
+    noteLoad(first, "apple");
+    deps.states[first] = RUNNING;
+    const budget = seedEngineBudget("apple", deps.agents(), deps.configs());
+    const slots = budget?.items ?? engineConfiguredCapacity("apple", resolveEngineCapacitySettings("apple", deps.configs(), deps.agents()));
+    while (ids.length < 40) {
+      const load = deps.loads.get("apple");
+      if ((load?.items || 0) >= slots || (load?.chars || 0) >= 4e4) break;
+      const next = deps.nextTask("apple");
+      if (next === void 0) break;
+      ids.push(next);
+      noteLoad(next, "apple");
+      deps.states[next] = RUNNING;
+    }
+    return ids;
+  }
+  function dispatch(id, engine) {
+    const ids = engine === "apple" ? takeAppleSegment(id) : [id];
+    if (engine !== "apple") noteLoad(id, engine);
+    deps.addYield(ids.length);
+    const plans = ids.map((current) => {
+      const prepared = deps.ready.get(current);
+      deps.ready.delete(current);
+      const plan = prepared && deps.valid(prepared) ? prepared.plan : void 0;
+      if (plan) deps.rememberBackfill(prepared?.records);
+      return plan;
+    });
+    const engines = deps.engines();
+    for (let index2 = 0; index2 < ids.length; index2++) {
+      const current = ids[index2];
+      const attempt = deps.retries.get(current) || {
+        order: translationFallbackOrder([engine, ...engines.filter((value) => value !== engine && (!deps.sensitive(current) || engineAcceptsSensitive(value)))]),
+        next: 0,
+        tried: /* @__PURE__ */ new Set(),
+        errors: []
+      };
+      deps.retries.set(current, attempt);
+      deps.states[current] = RUNNING;
+      if (!plans[index2]) deps.counters.cacheBypassed++;
+    }
+    const controller = new AbortController();
+    const ownGeneration = deps.generation();
+    const singlePlan = ids.length === 1 ? plans[0] : void 0;
+    const released = /* @__PURE__ */ new Set();
+    const work = Promise.resolve().then(async () => {
+      const settle = (current, item) => {
+        if (deps.closed() || deps.generation() !== ownGeneration || deps.states[current] === DONE || deps.states[current] === RECHECK) return;
+        const attempt = deps.retries.get(current);
+        if (!attempt) return;
+        attempt.engineWork ||= item.engineWork;
+        if (item.zh != null && !item.error && item.status !== "partial") deps.finish(current, item);
+        else {
+          attempt.errors.push(item.error || "Translation failed");
+          attempt.tried.add(engine);
+          deps.refreshAttempt(attempt, current);
+          deps.retries.delete(current);
+          deps.retries.set(current, attempt);
+          if (!deps.paused() && attempt.next < attempt.order.length) deps.states[current] = MISS;
+          else deps.failOrWait(current, { src: deps.pending()[current], zh: null, error: attempt.errors.join("; ") });
+        }
+      };
+      const release = (current) => {
+        if (released.has(current)) return;
+        released.add(current);
+        deps.active.delete(current);
+        const load = deps.loads.get(engine);
+        if (load) {
+          load.items = Math.max(0, load.items - 1);
+          load.chars = Math.max(0, load.chars - charCount(deps.pending()[current]));
+        }
+      };
+      const settleSrc = (src, item) => {
+        let changed = false;
+        for (const current of ids) {
+          if (released.has(current) || deps.pending()[current] !== src) continue;
+          settle(current, item);
+          release(current);
+          changed = true;
+        }
+        if (changed && !deps.closed() && deps.generation() === ownGeneration) deps.pump();
+      };
+      try {
+        const result = await liveTranslateTexts(
+          ids.map((current) => deps.pending()[current]),
+          {
+            contentRoot: deps.contentRoot,
+            engines: [engine],
+            sharedCache: deps.cache,
+            cacheMode: singlePlan ? void 0 : "bypass",
+            preparedPlan: singlePlan,
+            local: { signal: controller.signal, batchScope: deps.batchScope },
+            itemTimeoutMs: engine.startsWith("agent:") ? 5 * 60 * 1e3 : 15e3,
+            onTrace: deps.trace,
+            onItem: (item) => {
+              if (item.src) settleSrc(item.src, item);
+            },
+            onEngineDispatch: (actualEngine) => {
+              for (const current of ids) {
+                const attempt = deps.retries.get(current);
+                if (attempt) attempt.engineWork = true;
+              }
+              deps.counters.engineSubmitted++;
+              deps.submittedEngines.add(actualEngine);
+            },
+            onDuplicateInFlight: () => {
+              for (const current of ids) {
+                const attempt = deps.retries.get(current);
+                if (attempt) attempt.engineWork = true;
+              }
+              deps.counters.duplicateInFlight++;
+            }
+          }
+        );
+        for (const current of ids) {
+          if (released.has(current)) continue;
+          const src = deps.pending()[current];
+          settleSrc(src, result.items.find((item) => item.src === src) || { src, zh: null, error: "No translation result returned" });
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        for (const current of ids) {
+          if (released.has(current)) continue;
+          settleSrc(deps.pending()[current], { src: deps.pending()[current], zh: null, error: message });
+        }
+      } finally {
+        for (const current of ids) release(current);
+        if (!deps.closed() && deps.generation() === ownGeneration) {
+          deps.pump();
+          if (!deps.active.size) deps.notify();
+        }
+      }
+    });
+    for (const current of ids) deps.active.set(current, { engine, controller, work });
+  }
+  return { dispatch };
 }
 
 // services/translate/scheduler/seed-session.ts
@@ -49090,6 +49267,11 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     return sensitiveFlags[id] === 2;
   }
   function canFit(id, engine) {
+    if (engine === "apple") {
+      const load = loads.get("apple");
+      if (!load?.items) return true;
+      return load.chars + charCount(inventory.pending[id]) <= 4e4;
+    }
     const budget = seedEngineBudget(engine, agents, configs);
     const entries2 = [...loads].filter(([key3]) => budget ? key3 === engine : !key3.startsWith("agent:"));
     if (!entries2.some(([, load]) => load.items)) return true;
@@ -49103,25 +49285,42 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     waitForMore: () => !paused && !closed && hasPending() && (pendingCount > active2.size || misses.length > 0 || cachePending.size > 0 || cacheInFlight.size > 0) && [...loads].filter(([engine]) => engine.startsWith("agent:")).every(([, load]) => load.items < 4096)
   };
   function nextTask(engine) {
-    return takeSeedEngineTask(engine, {
+    const id = takeSeedEngineTask(engine, {
       states,
       misses,
       retries,
       deferred,
       cursors: freshCursors,
       maxPending: seedEngineBudget(engine, agents) ? 4096 : MAX_BUFFER,
-      excluded: (id) => Boolean(options.exclude?.has(inventory.pending[id])),
-      exclude: (id) => {
-        if (states[id] === UNKNOWN || states[id] === MISS) {
-          states[id] = FAILED;
+      excluded: (id2) => Boolean(options.exclude?.has(inventory.pending[id2])),
+      exclude: (id2) => {
+        if (states[id2] === UNKNOWN || states[id2] === MISS) {
+          states[id2] = FAILED;
           pendingCount--;
         }
       },
-      canFit: (id) => canFit(id, engine),
+      canFit: (id2) => canFit(id2, engine),
       sensitive,
-      inCacheWindow,
-      canClaimUnknown: canEngineClaimUnknown
+      inCacheWindow: (id2) => engine === "apple" ? cacheInFlight.has(id2) : inCacheWindow(id2),
+      canClaimUnknown: () => engine === "apple" || canEngineClaimUnknown()
     });
+    if (id === void 0 && engine === "apple") {
+      for (let i = 0; i < states.length; i++) {
+        if (states[i] !== UNKNOWN && states[i] !== MISS) continue;
+        if (cacheInFlight.has(i) || retries.has(i)) continue;
+        if (!canFit(i, "apple")) continue;
+        cachePending.delete(i);
+        cacheEnteredAt[i] = 0;
+        const missAt = misses.indexOf(i);
+        if (missAt >= 0) misses.splice(missAt, 1);
+        return i;
+      }
+    }
+    if (id !== void 0 && engine === "apple") {
+      cachePending.delete(id);
+      cacheEnteredAt[id] = 0;
+    }
+    return id;
   }
   function refreshAttempt(attempt, id) {
     const candidates2 = [...attempt.order, ...engines.filter((engine) => !attempt.order.includes(engine))];
@@ -49130,86 +49329,8 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     );
     attempt.next = 0;
   }
-  function dispatch(id, engine) {
-    dispatchedSinceYield++;
-    const src = inventory.pending[id];
-    const sourceChars = charCount(src);
-    const prepared = ready.get(id);
-    ready.delete(id);
-    const plan = prepared && valid(prepared) ? prepared.plan : void 0;
-    if (plan) rememberBackfill(prepared?.records);
-    const attempt = retries.get(id) || {
-      order: translationFallbackOrder([engine, ...engines.filter((value) => value !== engine && (!sensitive(id) || engineAcceptsSensitive(value)))]),
-      next: 0,
-      tried: /* @__PURE__ */ new Set(),
-      errors: []
-    };
-    retries.set(id, attempt);
-    states[id] = RUNNING;
-    const controller = new AbortController();
-    const ownGeneration = generation;
-    if (!plan) counters.cacheBypassed++;
-    const work = Promise.resolve().then(async () => {
-      try {
-        const result = await liveTranslateTexts([src], {
-          contentRoot,
-          engines: [engine],
-          sharedCache: cache2,
-          cacheMode: plan ? void 0 : "bypass",
-          preparedPlan: plan,
-          local: { signal: controller.signal, batchScope },
-          itemTimeoutMs: engine.startsWith("agent:") ? 5 * 60 * 1e3 : 15e3,
-          onTrace: trace,
-          onEngineDispatch: (actualEngine) => {
-            attempt.engineWork = true;
-            counters.engineSubmitted++;
-            submittedEngines.add(actualEngine);
-          },
-          onDuplicateInFlight: () => {
-            attempt.engineWork = true;
-            counters.duplicateInFlight++;
-          }
-        });
-        if (closed || ownGeneration !== generation || states[id] === DONE || states[id] === RECHECK) return;
-        const item = result.items[0] || { src, zh: null, error: "No translation result returned" };
-        attempt.engineWork ||= item.engineWork;
-        if (item.zh != null && !item.error && item.status !== "partial") finish(id, item);
-        else {
-          attempt.errors.push(item.error || "Translation failed");
-          attempt.tried.add(engine);
-          refreshAttempt(attempt, id);
-          retries.delete(id);
-          retries.set(id, attempt);
-          if (!paused && attempt.next < attempt.order.length) states[id] = MISS;
-          else failOrWait(id, { src, zh: null, error: attempt.errors.join("; ") });
-        }
-      } catch (error) {
-        if (!closed && ownGeneration === generation && states[id] !== DONE && states[id] !== RECHECK) {
-          attempt.errors.push(error instanceof Error ? error.message : String(error));
-          attempt.tried.add(engine);
-          refreshAttempt(attempt, id);
-          retries.delete(id);
-          retries.set(id, attempt);
-          if (!paused && attempt.next < attempt.order.length) states[id] = MISS;
-          else failOrWait(id, { src, zh: null, error: attempt.errors.join("; ") });
-        }
-      } finally {
-        active2.delete(id);
-        const load2 = loads.get(engine);
-        load2.items--;
-        load2.chars -= sourceChars;
-        if (!closed && ownGeneration === generation) {
-          pump();
-          if (!active2.size) notify();
-        }
-      }
-    });
-    active2.set(id, { engine, controller, work });
-    const load = loads.get(engine) || { items: 0, chars: 0 };
-    load.items++;
-    load.chars += sourceChars;
-    loads.set(engine, load);
-  }
+  let dispatch = (_id, _engine) => {
+  };
   function pump() {
     if (paused || closed || !started || pumpTimer) return;
     if (dispatchedSinceYield >= 32) {
@@ -49222,10 +49343,11 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     }
     while (completed.length < maxBuffer()) {
       let dispatched = false;
-      for (const engine of engines) {
+      const ordered = engines.includes("apple") ? ["apple", ...engines.filter((engine) => engine !== "apple")] : engines;
+      for (const engine of ordered) {
         const budget = seedEngineBudget(engine, agents, configs);
         const ordinary = [...loads].filter(([key3]) => !key3.startsWith("agent:")).reduce((sum2, [, load]) => sum2 + load.items, 0);
-        if (!budget && (ordinary >= cap() || completed.length + ordinary >= MAX_BUFFER)) continue;
+        if (engine !== "apple" && !budget && (ordinary >= cap() || completed.length + ordinary >= MAX_BUFFER)) continue;
         const count2 = loads.get(engine)?.items || 0;
         if (count2 >= (budget?.items ?? engineConfiguredCapacity(engine, resolveEngineCapacitySettings(engine, configs, agents)))) continue;
         const id = nextTask(engine);
@@ -49354,6 +49476,41 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     pumpTimer = void 0;
     flushTimer = void 0;
   }
+  dispatch = createSeedDispatcher({
+    contentRoot,
+    pending: () => inventory.pending,
+    states,
+    loads,
+    ready,
+    retries,
+    active: active2,
+    completedCount: () => completed.length,
+    engines: () => engines,
+    agents: () => agents,
+    configs: () => configs,
+    cache: cache2,
+    batchScope,
+    counters,
+    submittedEngines,
+    generation: () => generation,
+    closed: () => closed,
+    paused: () => paused,
+    cap,
+    maxBuffer,
+    trace,
+    nextTask,
+    valid,
+    rememberBackfill,
+    finish,
+    failOrWait,
+    refreshAttempt,
+    sensitive,
+    pump,
+    notify,
+    addYield: (count2) => {
+      dispatchedSinceYield += count2;
+    }
+  }).dispatch;
   return {
     get progress() {
       return { ...progress };
@@ -49366,6 +49523,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       started = false;
       if (deadlineTimer) clearTimeout(deadlineTimer);
       deadlineTimer = void 0;
+      for (const entry of active2.values()) entry.controller.abort();
       for (const [id, item] of waitingCache) finish(id, item);
       for (const id of [...cacheInFlight]) {
         cacheInFlight.delete(id);
@@ -49905,11 +50063,21 @@ async function runLoop(contentRoot) {
         persist(rt);
         return;
       }
-      rt.session = createSeedFillSession(contentRoot, trace, { nonBlocking: true, inventory: peeked });
+      rt.session = createSeedFillSession(contentRoot, trace, {
+        nonBlocking: true,
+        inventory: peeked,
+        ...rt.fixedEngines?.length ? { engines: rt.fixedEngines } : {}
+      });
     }
     rt.progress = rt.session.progress;
     let measuredAt = performance.now();
     while (!rt.stopRequested) {
+      if (!rt.fixedEngines?.length) {
+        try {
+          rt.state.engines = getTranslateEngineSwitches(contentRoot).enabled;
+        } catch {
+        }
+      }
       rt.state.liveStatus = "\u6B63\u5728\u7FFB\u8BD1\u2026";
       persist(rt);
       let result;
@@ -50155,7 +50323,7 @@ function refreshSeedJobProgress(opts) {
     job: visibleSeedJobState(rt.state)
   };
 }
-function beginSeedLoop(contentRoot, inventory, overrideEngines) {
+function beginSeedLoop(contentRoot, inventory, fixedEngines) {
   const progress = inventory.progress;
   const rt = getRuntime(contentRoot);
   if (rt.running) return;
@@ -50176,10 +50344,9 @@ function beginSeedLoop(contentRoot, inventory, overrideEngines) {
     persist(rt);
     return;
   }
-  let engines = [];
-  if (Array.isArray(overrideEngines) && overrideEngines.length > 0) {
-    engines = overrideEngines;
-  } else {
+  const fixed = fixedEngines?.length ? fixedEngines : void 0;
+  let engines = fixed ?? [];
+  if (!fixed) {
     try {
       engines = getTranslateEngineSwitches(contentRoot).enabled;
     } catch {
@@ -50200,6 +50367,7 @@ function beginSeedLoop(contentRoot, inventory, overrideEngines) {
   rt.state.performance = null;
   rt.state.startedAt = resume && rt.state.startedAt ? rt.state.startedAt : Date.now();
   rt.state.error = null;
+  rt.fixedEngines = fixed;
   rt.state.engines = engines;
   rt.state.liveStatus = resume ? "\u7EE7\u7EED\u7FFB\u8BD1\u2026" : "\u5F00\u59CB\u7FFB\u8BD1\u2026";
   if (!resume) {
@@ -50210,7 +50378,11 @@ function beginSeedLoop(contentRoot, inventory, overrideEngines) {
   }
   pushLog(rt, "info", `${resume ? "Resume" : "Start"} translation \xB7 engines ${engines.map(shortEngine).join("+")}`);
   persist(rt);
-  rt.session = createSeedFillSession(contentRoot, void 0, { nonBlocking: true, inventory, engines });
+  rt.session = createSeedFillSession(contentRoot, void 0, {
+    nonBlocking: true,
+    inventory,
+    ...fixed ? { engines: fixed } : {}
+  });
   rt.progress = rt.session.progress;
   ensureLoop(contentRoot);
 }
@@ -50218,10 +50390,9 @@ function startSeedJob(opts) {
   const contentRoot = requireBoundRoot(opts);
   const current = getRuntime(contentRoot);
   if (current.running) return getSeedJobSnapshot(opts);
-  let engines = [];
-  if (Array.isArray(opts?.engines) && opts.engines.length > 0) {
-    engines = opts.engines;
-  } else {
+  const fixedEngines = Array.isArray(opts?.engines) && opts.engines.length > 0 ? opts.engines : void 0;
+  let engines = fixedEngines ?? [];
+  if (!fixedEngines) {
     try {
       engines = getTranslateEngineSwitches(contentRoot).enabled;
     } catch {
@@ -50232,7 +50403,7 @@ function startSeedJob(opts) {
   const peeked = peekSeedInventory(contentRoot);
   const seedStampNow = seedFileStamp(contentRoot);
   if (peeked && peeked.stamp === seedStampNow && peeked.progressStamp === seedProgressStamp(contentRoot)) {
-    beginSeedLoop(contentRoot, peeked, engines);
+    beginSeedLoop(contentRoot, peeked, fixedEngines);
     const rt2 = getRuntime(contentRoot);
     return { ...rt2.progress ?? peeked.progress, job: visibleSeedJobState(rt2.state) };
   }
@@ -50254,7 +50425,7 @@ function startSeedJob(opts) {
       persist(live);
       return;
     }
-    beginSeedLoop(contentRoot, bundle, engines);
+    beginSeedLoop(contentRoot, bundle, fixedEngines);
   }).catch((error) => {
     const live = getRuntime(contentRoot);
     live.state.inventoryPreparing = false;

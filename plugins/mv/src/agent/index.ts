@@ -8,7 +8,7 @@ import { PLUGIN_AGENT_NAME } from '@/constants/brand'
 import type { McpGatewayControl } from '@/lib/integration/mcp-gateway'
 import type { AgentCommand, AgentGameInfo, AgentPollRequest, AgentPollResponse, AgentResult } from '@/lib/runtime/agent-protocol'
 
-import { chayaPostJson, createLogger, detectGameIdentity, gameRoomId } from '../helpers'
+import { chayaFetch, chayaPostJson, createLogger, detectGameIdentity, gameRoomId } from '../helpers'
 import { listPluginToolMetas } from '../helpers/plugin-tools'
 import { pluginStorageCall } from '../helpers/storage/client'
 import { startGameGateway } from './gateway'
@@ -65,7 +65,7 @@ async function execute(cmd: AgentCommand): Promise<AgentResult> {
   }
 }
 
-async function start(): Promise<AgentGlobal> {
+async function start(): Promise<AgentGlobal & { runPoll: () => void }> {
   const identity = detectGameIdentity()
   if (!identity) throw new Error('Agent requires a verified local game')
   const storage = await pluginStorageCall<{ gameId: string }>('game.mount', [identity.contentRoot])
@@ -77,49 +77,82 @@ async function start(): Promise<AgentGlobal> {
   const stopReactionTracking = startReactionTracking()
   const stopRenderedTextCapture = startRenderedTextCapture()
   const tasks = createGameAgentRuntime(storage.gameId)
+  let pollAbort = new AbortController()
+  let polling = false
+  let disposed = false
+  let resolveStopped = () => {}
+  let stopped: Promise<void> = Promise.resolve()
 
-  void (async () => {
-    let pending: AgentResult[] = []
-    let retry = RETRY_MIN_MS
-    let warned = false
-    while (running) {
+  const disposeRuntime = () => {
+    if (disposed) return
+    disposed = true
+    stopHistory()
+    stopInputTracking()
+    stopReactionTracking()
+    stopRenderedTextCapture()
+    tasks.dispose()
+    void gateway.stop()
+  }
+
+  const runPoll = () => {
+    if (polling) return
+    polling = true
+    stopped = new Promise((resolve) => {
+      resolveStopped = resolve
+    })
+    void (async () => {
+      let pending: AgentResult[] = []
+      let retry = RETRY_MIN_MS
+      let warned = false
       try {
-        const body: AgentPollRequest = { roomId: gameRoomId(), info: gameInfo(), results: pending }
-        const res = await chayaPostJson('/api/runtime/agent', body)
-        if (res.status === 404) {
-          if (!warned) log.info('Local Agent bridge unavailable in browser mode; Agent tools are provided through the game connection (WebMCP)')
-          warned = true
-          await sleep(DISABLED_RETRY_MS)
-          continue
+        while (running) {
+          pollAbort = new AbortController()
+          try {
+            const body: AgentPollRequest = { roomId: gameRoomId(), info: gameInfo(), results: pending }
+            const res = await chayaFetch('/api/runtime/agent', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(body),
+              signal: pollAbort.signal,
+            })
+            if (!running) break
+            if (res.status === 404) {
+              if (!warned) log.info('Local Agent bridge unavailable in browser mode; Agent tools are provided through the game connection (WebMCP)')
+              warned = true
+              await sleep(DISABLED_RETRY_MS)
+              continue
+            }
+            if (!res.ok) throw new Error(`HTTP ${res.status}`)
+            pending = []
+            retry = RETRY_MIN_MS
+            const { commands } = (await res.json()) as AgentPollResponse
+            if (commands?.length) {
+              pending = await Promise.all(commands.map(execute))
+              handled += commands.length
+            }
+            if (!running) break
+          } catch (err) {
+            if (!running) break
+            log.warn(`Agent bridge connection failed; retrying in ${Math.round(retry / 1000)}s: ${err instanceof Error ? err.message : String(err)}`)
+            await sleep(retry)
+            retry = Math.min(retry * 2, RETRY_MAX_MS)
+          }
         }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        pending = []
-        retry = RETRY_MIN_MS
-        const { commands } = (await res.json()) as AgentPollResponse
-        // Stopped by a reload while polling: the new loop never reports these results, so leave them.
-        if (!running) break
-        if (commands?.length) {
-          pending = await Promise.all(commands.map(execute))
-          handled += commands.length
+        if (pending.length) {
+          await chayaPostJson('/api/runtime/agent', { roomId: gameRoomId(), info: gameInfo(), results: pending }).catch(() => undefined)
         }
-      } catch (err) {
-        if (!running) break
-        log.warn(`Agent bridge connection failed; retrying in ${Math.round(retry / 1000)}s: ${err instanceof Error ? err.message : String(err)}`)
-        await sleep(retry)
-        retry = Math.min(retry * 2, RETRY_MAX_MS)
+      } finally {
+        resolveStopped()
       }
-    }
-  })()
+    })()
+  }
 
   return {
+    runPoll,
     stop: () => {
       running = false
-      stopHistory()
-      stopInputTracking()
-      stopReactionTracking()
-      stopRenderedTextCapture()
-      tasks.dispose()
-      void gateway.stop()
+      pollAbort.abort()
+      return stopped.then(disposeRuntime)
     },
     status: () => ({ running, roomId: gameRoomId(), handled }),
     run: async (cmd) => {
@@ -133,26 +166,34 @@ async function start(): Promise<AgentGlobal> {
   }
 }
 
-try {
-  window.__chayaStopAgent?.()
-} catch (err) {
-  // A previous build that fails to stop must not block the replacement.
-  log.warn(`Previous Agent failed to stop: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
-}
-let cancelled = false
-window.__chayaStopAgent = () => {
-  cancelled = true
-}
+// Hot reload and a failed boot must leave the running game and its previous agent in place.
+const bootToken = {}
+const bootHost = window as Window & { __chayaAgentBoot?: object }
+bootHost.__chayaAgentBoot = bootToken
 void start()
-  .then((agent) => {
-    if (cancelled) {
-      agent.stop()
+  .then(async (agent) => {
+    if (bootHost.__chayaAgentBoot !== bootToken) {
+      await agent.stop()
       return
     }
+    const previous = window.ChayaAgent
     window.ChayaAgent = agent
-    window.__chayaStopAgent = agent.stop
+    window.__chayaStopAgent = () => {
+      void agent.stop()
+    }
+    try {
+      await previous?.stop()
+    } catch (err) {
+      log.warn(`Previous Agent failed to stop: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
+    }
+    if (bootHost.__chayaAgentBoot !== bootToken) {
+      await agent.stop()
+      return
+    }
+    agent.runPoll()
     log.ok('Agent bridge started: local MCP (/api/mcp) or browser WebMCP can control the game')
   })
   .catch((err: unknown) => {
+    if (bootHost.__chayaAgentBoot !== bootToken) return
     log.fail(`Agent bridge failed to start: ${err instanceof Error ? (err.stack ?? err.message) : String(err)}`)
   })
