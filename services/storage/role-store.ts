@@ -11,7 +11,7 @@ const safe = (id: string) => {
 
 export class RoleRevisionConflictError extends Error {
   constructor(roleId: string, expected: number, actual: number) {
-    super(`角色版本冲突：${roleId} 预期版本为 ${expected}，当前实际版本为 ${actual}`)
+    super(`Role revision conflict for ${roleId}: expected ${expected}, current ${actual}`)
     this.name = 'RoleRevisionConflictError'
   }
 }

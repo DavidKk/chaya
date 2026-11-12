@@ -440,6 +440,7 @@ export type MessageTree = {
     engineOn: string
     engineOff: string
     enginesLoadFailed: string
+    pluginNotReady: string
     enginesSaveFailed: string
     backToEngines: string
     engineConfigName: string

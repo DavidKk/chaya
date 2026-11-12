@@ -447,6 +447,7 @@ export const cht: MessageTree = {
     engineOn: '{name} 已开',
     engineOff: '{name} 已关',
     enginesLoadFailed: '无法读取引擎开关',
+    pluginNotReady: '遊戲翻譯插件未就緒，請更新插件後重新開啟遊戲',
     enginesSaveFailed: '无法儲存引擎开关',
     backToEngines: '返回翻譯工具清單',
     engineConfigName: '設定 {name}',

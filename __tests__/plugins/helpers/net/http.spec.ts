@@ -66,8 +66,7 @@ describe('helpers/http', () => {
     delete (globalThis as { fetch?: unknown }).fetch
     const prev = (globalThis as { require?: unknown }).require
     delete (globalThis as { require?: unknown }).require
-    // Must match production Chinese error text
-    await expect(chayaFetch('/x')).rejects.toThrow(/无 fetch/)
+    await expect(chayaFetch('/x')).rejects.toThrow(/no fetch or require/)
     if (prev !== undefined) (globalThis as { require?: unknown }).require = prev
   })
 })

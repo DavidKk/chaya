@@ -114,6 +114,7 @@ export const translateZh = {
     engineOn: '{name} 已开',
     engineOff: '{name} 已关',
     enginesLoadFailed: '无法读取引擎开关',
+    pluginNotReady: '游戏翻译插件未就绪，请更新插件后重新打开游戏',
     enginesSaveFailed: '无法保存引擎开关',
     backToEngines: '返回翻译工具列表',
     engineConfigName: '配置 {name}',

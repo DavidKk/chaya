@@ -7,7 +7,7 @@ type Meta = { port: number; authToken: string }
 
 function runtime() {
   const req = tryNodeRequire()
-  if (!req) throw new Error('本机存储需要 Node 游戏宿主')
+  if (!req) throw new Error('Local storage requires a Node game host')
   const fs = req('fs') as typeof import('node:fs')
   const path = req('path') as typeof import('node:path')
   const os = req('os') as typeof import('node:os')
@@ -18,7 +18,7 @@ function runtime() {
     /* Explicit environment is also supported by development launchers. */
   }
   const dataDir = process.env.CHAYA_DATA_DIR || locator?.dataDir
-  if (!dataDir) throw new Error('请先启动本机 Chaya App，以初始化公共存储服务')
+  if (!dataDir) throw new Error('Start the Chaya app once so the shared storage service can initialize')
   return { req, fs, path, locator, dataDir }
 }
 
@@ -47,7 +47,7 @@ async function metadata(): Promise<Meta> {
   }
   const current = read()
   if (current) return current
-  if (!locator || !fs.existsSync(locator.entry)) throw new Error('本机存储服务尚未启动，请打开 Chaya App')
+  if (!locator || !fs.existsSync(locator.entry)) throw new Error('Local storage service is not running; open the Chaya app')
   const child = (req('child_process') as typeof import('node:child_process')).spawn(locator.executable, [locator.entry], {
     detached: true,
     stdio: 'ignore',
@@ -64,7 +64,7 @@ async function metadata(): Promise<Meta> {
     if (value) return value
     await new Promise((resolve) => setTimeout(resolve, 100))
   }
-  throw new Error('本机存储服务启动超时')
+  throw new Error('Local storage service did not start in time')
 }
 
 /** Node HTTP keeps credentials on loopback, independently of the console's Local/Cloud URL. */

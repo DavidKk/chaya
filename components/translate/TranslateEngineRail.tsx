@@ -16,7 +16,7 @@ import { type EngineDetailDraft, TranslateEngineDetailView } from '@/components/
 import { TranslateEngineRow } from '@/components/translate/TranslateEngineRow'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
 import { useTranslateAgentProfiles } from '@/components/translate/useTranslateAgentProfiles'
-import { readApiErrorMessage } from '@/lib/api-error'
+import { readApiErrorMessage, thrownMessage } from '@/lib/api-error'
 import type { MessageKey } from '@/lib/i18n'
 import { LOCALE_HTML_LANG } from '@/lib/i18n/locales'
 import {
@@ -184,7 +184,7 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
         for (const id of ['apple', 'bergamot'] as const) void checkSystemStatus(id, controller.signal)
         publishEvent(next)
       } catch (err) {
-        if (!cancelled) reportError(err instanceof Error ? err.message : t('translate.enginesLoadFailed'))
+        if (!cancelled) reportError(thrownMessage(err, t, t('translate.enginesLoadFailed')))
       } finally {
         if (!cancelled) setLoading(false)
       }
@@ -221,7 +221,7 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
       if (okMsg) notify.success(okMsg)
       return true
     } catch (err) {
-      notify.error(err instanceof Error ? err.message : t('translate.enginesSaveFailed'))
+      notify.error(thrownMessage(err, t, t('translate.enginesSaveFailed')))
       return false
     } finally {
       setSaving(false)

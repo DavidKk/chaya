@@ -6,7 +6,7 @@ import { useT } from '@/components/i18n/LocaleProvider'
 import { useNotification } from '@/components/notification/useNotification'
 import { Switch } from '@/components/sk'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
-import { readApiErrorMessage } from '@/lib/api-error'
+import { readApiErrorMessage, thrownMessage } from '@/lib/api-error'
 import type { RgssPreviewView } from '@/lib/translate/rgss-preview'
 
 type PreviewState = {
@@ -31,7 +31,7 @@ export function TranslateRgssPreviewSwitch() {
         body: JSON.stringify({ mode: 'rgss-preview' }),
       })
       const data = (await res.json()) as PreviewState & { ok?: boolean; error?: unknown }
-      if (!res.ok) throw new Error(readApiErrorMessage(data))
+      if (!res.ok) throw new Error(readApiErrorMessage(data, t('translate.requestFailed')))
       if (!data.isRgss) {
         setState(null)
         return
@@ -44,7 +44,7 @@ export function TranslateRgssPreviewSwitch() {
     } catch {
       setState(null)
     }
-  }, [translationFetch])
+  }, [t, translationFetch])
 
   useEffect(() => {
     void load()
@@ -71,7 +71,7 @@ export function TranslateRgssPreviewSwitch() {
               body: JSON.stringify({ mode: 'rgss-preview', view, contentRoot: state.contentRoot }),
             })
             const data = (await res.json()) as PreviewState & { error?: unknown }
-            if (!res.ok) throw new Error(readApiErrorMessage(data))
+            if (!res.ok) throw new Error(readApiErrorMessage(data, t('translate.requestFailed')))
             setState({
               view: data.view === 'original' ? 'original' : 'translated',
               isRgss: true,
@@ -79,7 +79,7 @@ export function TranslateRgssPreviewSwitch() {
             })
             notify.info(view === 'original' ? t('translate.rgssPreviewSwitchedOriginal') : t('translate.rgssPreviewSwitchedTranslated'))
           } catch (err) {
-            notify.error(err instanceof Error ? err.message : t('notify.saveFailed'))
+            notify.error(thrownMessage(err, t, t('notify.saveFailed')))
           } finally {
             setPending(false)
           }

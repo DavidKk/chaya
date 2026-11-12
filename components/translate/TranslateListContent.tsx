@@ -18,7 +18,7 @@ import { TranslateListSkeleton } from '@/components/translate/TranslateRunSkelet
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
 import { useSyncNames } from '@/components/translate/useSyncNames'
 import { useTranslateListSave } from '@/components/translate/useTranslateListSave'
-import { readApiErrorMessage } from '@/lib/api-error'
+import { readApiErrorMessage, thrownMessage } from '@/lib/api-error'
 import { filterTranslationListItems } from '@/lib/translate/list-search'
 import { detectSourceLanguage } from '@/lib/translate/source-text'
 import { isManualTranslation } from '@/lib/translate/translation-source'
@@ -181,7 +181,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
             error?: unknown
           }
           if (!res.ok || data.ok === false) {
-            notify.error(t('translate.listFetchExtractFailed', { error: readApiErrorMessage(data) }))
+            notify.error(t('translate.listFetchExtractFailed', { error: readApiErrorMessage(data, t('translate.requestFailed')) }))
             return
           }
           if (data.preparing) {
@@ -203,12 +203,12 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
               if (!targetLang && data.locales.currentTargetLang) setTargetLang(data.locales.currentTargetLang)
             } else if (!sourceLang) setSourceLang(detectSourceLanguage(data.items.map((item) => item.src)))
           } else {
-            notify.error(t('translate.listFetchExtractFailed', { error: readApiErrorMessage(data) }))
+            notify.error(t('translate.listFetchExtractFailed', { error: readApiErrorMessage(data, t('translate.requestFailed')) }))
           }
           return
         }
       } catch (err) {
-        notify.error(t('translate.listFetchExtractFailed', { error: err instanceof Error ? err.message : String(err) }))
+        notify.error(t('translate.listFetchExtractFailed', { error: thrownMessage(err, t, String(err)) }))
       } finally {
         setLoading(false)
       }
@@ -335,7 +335,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
           refreshUI()
           notify.success(t('translate.listSingleTransSuccess', { src: item.src.slice(0, 20), zh: item.zh.slice(0, 20) }))
         } else {
-          const rawErr = data?.items?.[0]?.error || readApiErrorMessage(data) || (isCache ? t('translate.listSingleCacheMiss') : '')
+          const rawErr = data?.items?.[0]?.error || readApiErrorMessage(data, t('translate.requestFailed')) || (isCache ? t('translate.listSingleCacheMiss') : '')
           const isAppleMissingPack =
             typeof rawErr === 'string' &&
             rawErr.toLowerCase().includes('apple') &&
@@ -351,7 +351,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
           notify.error(t('translate.listSingleTransNoResult', { error: displayErr }))
         }
       } catch (err) {
-        notify.error(t('translate.listSingleTransReqFailed', { error: err instanceof Error ? err.message : String(err) }))
+        notify.error(t('translate.listSingleTransReqFailed', { error: thrownMessage(err, t, String(err)) }))
       } finally {
         setTranslatingId(null)
       }
@@ -432,11 +432,11 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
                 okCount += 1
               } else {
                 failCount += 1
-                lastError = data?.items?.[0]?.error || readApiErrorMessage(data) || t('translate.listSingleCacheMiss')
+                lastError = data?.items?.[0]?.error || readApiErrorMessage(data, t('translate.requestFailed')) || t('translate.listSingleCacheMiss')
               }
             } catch (err) {
               failCount += 1
-              lastError = err instanceof Error ? err.message : String(err)
+              lastError = thrownMessage(err, t, String(err))
             }
           }
           refreshUI()
@@ -462,7 +462,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
           }
           if (!data?.ok || !Array.isArray(data.items)) {
             failCount += chunk.length
-            lastError = readApiErrorMessage(data)
+            lastError = readApiErrorMessage(data, t('translate.requestFailed'))
             const rawErr = lastError
             if (
               typeof rawErr === 'string' &&
@@ -499,7 +499,7 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
           refreshUI()
         } catch (err) {
           failCount += chunk.length
-          lastError = err instanceof Error ? err.message : String(err)
+          lastError = thrownMessage(err, t, String(err))
         }
       }
       if (sawAppleMissingPack) {

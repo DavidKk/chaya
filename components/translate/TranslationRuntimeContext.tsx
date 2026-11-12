@@ -6,7 +6,7 @@ import { createTranslationFetch, installedTranslationRuntime, type TranslationRe
 
 const localRequest: TranslationRequestFn = (request, signal) => {
   const runtime = installedTranslationRuntime()
-  if (!runtime) return Promise.reject(new Error('游戏翻译插件未就绪，请更新插件后重新打开游戏'))
+  if (!runtime) return Promise.reject(Object.assign(new Error('Translation plugin is not ready. Update the plugin and reopen the game.'), { code: 'TRANSLATION_PLUGIN_NOT_READY' }))
   return runtime.request(request, signal)
 }
 const TranslationRuntimeContext = createContext(createTranslationFetch(localRequest))

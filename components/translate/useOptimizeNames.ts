@@ -45,7 +45,7 @@ export function useOptimizeNames(opts?: { engines?: string[]; onDone?: () => voi
       })
       const scanData = (await scanRes.json()) as { ok?: boolean; error?: unknown } & OptimizeScan
       if (!scanData?.ok) {
-        notify.error(t('translate.optimizeNamesFailed', { error: readApiErrorMessage(scanData) }))
+        notify.error(t('translate.optimizeNamesFailed', { error: readApiErrorMessage(scanData, t('translate.requestFailed')) }))
         return
       }
 
@@ -76,7 +76,7 @@ export function useOptimizeNames(opts?: { engines?: string[]; onDone?: () => voi
       })
       const runData = (await runRes.json()) as { ok?: boolean; error?: unknown } & OptimizeRun
       if (!runData?.ok) {
-        notify.error(t('translate.optimizeNamesFailed', { error: readApiErrorMessage(runData) }))
+        notify.error(t('translate.optimizeNamesFailed', { error: readApiErrorMessage(runData, t('translate.requestFailed')) }))
         return
       }
 

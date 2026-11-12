@@ -50,7 +50,7 @@ export function useSyncNames(opts?: { names?: string[]; sourceLang?: string; tar
       })
       const scanData = (await scanRes.json()) as { ok?: boolean; error?: unknown } & ScanNames
       if (!scanData?.ok) {
-        notify.error(t('translate.syncNamesFailed', { error: readApiErrorMessage(scanData) }))
+        notify.error(t('translate.syncNamesFailed', { error: readApiErrorMessage(scanData, t('translate.requestFailed')) }))
         return
       }
       if (scanData.pausedReason) {
@@ -91,7 +91,7 @@ export function useSyncNames(opts?: { names?: string[]; sourceLang?: string; tar
       })
       const runData = (await runRes.json()) as { ok?: boolean; error?: unknown } & ApplyNames
       if (!runData?.ok) {
-        notify.error(t('translate.syncNamesFailed', { error: readApiErrorMessage(runData) }))
+        notify.error(t('translate.syncNamesFailed', { error: readApiErrorMessage(runData, t('translate.requestFailed')) }))
         return
       }
       if (runData.pausedReason) {

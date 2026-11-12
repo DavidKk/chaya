@@ -67,7 +67,7 @@ export function useTranslateListSave({ rgssEngine, contentRoot, sourceLang, targ
           body: JSON.stringify(saveItemBody(item, { contentRoot, sourceLang, targetLang, localesMeta, rgssEngine })),
         })
         const data = (await response.json()) as { ok?: boolean; backupCreated?: boolean; error?: unknown }
-        if (!response.ok || !data?.ok) throw new Error(readApiErrorMessage(data))
+        if (!response.ok || !data?.ok) throw new Error(readApiErrorMessage(data, t('translate.requestFailed')))
 
         item.savedZh = item.zh
         item.translationFailure = undefined
@@ -139,7 +139,7 @@ export function useTranslateListSave({ rgssEngine, contentRoot, sourceLang, targ
             body: JSON.stringify({ mode: 'rgss-write', contentRoot, translations: Object.fromEntries(writebackItems.map((item) => [item.src, item.zh])) }),
           })
           const data = await response.json()
-          if (!response.ok || !data.ok) throw new Error(readApiErrorMessage(data))
+          if (!response.ok || !data.ok) throw new Error(readApiErrorMessage(data, t('translate.requestFailed')))
           for (const item of writebackItems) {
             item.savedZh = item.zh
             item.translationFailure = undefined

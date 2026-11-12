@@ -24,7 +24,7 @@ import { Select } from '@/components/sk'
 import { controlDisabled } from '@/components/sk/control'
 import { dropdownItemClass, dropdownPopupClass } from '@/components/sk/dropdownMenu'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
-import { readApiErrorMessage } from '@/lib/api-error'
+import { readApiErrorMessage, thrownMessage } from '@/lib/api-error'
 import type { MessageKey } from '@/lib/i18n'
 import { type CacheLang, DEFAULT_CACHE_SRC_LANG, DEFAULT_CACHE_TGT_LANG } from '@/lib/translate/cache-lang'
 import { listNewlineSpans, type NewlineAnnotation, type NewlineKind } from '@/lib/translate/logic-text'
@@ -365,7 +365,7 @@ export function CacheOptimizeContent({ target, onBack, onConfirmed }: Props) {
       onConfirmed?.()
       onBack()
     } catch (err) {
-      notify.error(err instanceof Error ? err.message : t('translate.cacheOptimizeFailed'))
+      notify.error(thrownMessage(err, t, t('translate.cacheOptimizeFailed')))
     } finally {
       setSaving(false)
     }

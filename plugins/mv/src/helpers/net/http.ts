@@ -31,7 +31,7 @@ export async function chayaFetch(pathOrUrl: string, init?: RequestInit): Promise
   // Desktop games run at file://. Use their Node context so a valid launch
   // token is not blocked by browser CORS before the local API can verify it.
   if (!reqFn) {
-    throw new Error('chayaFetch: 无 fetch / require')
+    throw new Error('chayaFetch: no fetch or require')
   }
   const http = reqFn('http') as typeof import('http')
   const https = reqFn('https') as typeof import('https')

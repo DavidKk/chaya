@@ -21,7 +21,7 @@ import { useTranslationFetch } from '@/components/translate/TranslationRuntimeCo
 import { useAnimatedNumber } from '@/components/translate/useAnimatedNumber'
 import { useOptimizeNames } from '@/components/translate/useOptimizeNames'
 import { useSyncNames } from '@/components/translate/useSyncNames'
-import { readApiErrorMessage } from '@/lib/api-error'
+import { readApiErrorMessage, thrownMessage } from '@/lib/api-error'
 import { filterTranslationExport, type TranslationExportMode } from '@/lib/translate/export'
 import {
   estimateRemainMs,
@@ -235,7 +235,7 @@ export function TranslateRunPane({
         }
         applySnapshot(json)
       } catch (err) {
-        setStatus(err instanceof Error ? err.message : t('translate.progressFailed'))
+        setStatus(thrownMessage(err, t, t('translate.progressFailed')))
       } finally {
         refreshing.current = false
       }
@@ -313,7 +313,7 @@ export function TranslateRunPane({
       await refresh({ rescan: true })
       notify.success(json.added ? t('translate.extractDoneAdded', { total: json.total ?? 0, added: json.added }) : t('translate.extractUpToDate', { total: json.total ?? 0 }))
     } catch (err) {
-      notify.error(err instanceof Error ? err.message : t('translate.extractFailed'))
+      notify.error(thrownMessage(err, t, t('translate.extractFailed')))
     } finally {
       setExtracting(false)
     }
@@ -341,7 +341,7 @@ export function TranslateRunPane({
         notify.success(wasPaused ? t('translate.continuedBg') : t('translate.startedBg'))
       }
     } catch (err) {
-      notify.error(err instanceof Error ? err.message : t('translate.startFailed'))
+      notify.error(thrownMessage(err, t, t('translate.startFailed')))
     } finally {
       setStarting(false)
     }
@@ -363,7 +363,7 @@ export function TranslateRunPane({
       }
       applySnapshot(json)
     } catch (err) {
-      notify.error(err instanceof Error ? err.message : t('translate.pauseFailed'))
+      notify.error(thrownMessage(err, t, t('translate.pauseFailed')))
     } finally {
       setPausing(false)
     }
@@ -404,7 +404,7 @@ export function TranslateRunPane({
       await refresh()
       notify.success(t('translate.exportJsonDone', { total }))
     } catch (err) {
-      notify.error(err instanceof Error ? err.message : t('translate.exportJsonFailed'))
+      notify.error(thrownMessage(err, t, t('translate.exportJsonFailed')))
     } finally {
       setExporting(false)
     }
@@ -430,7 +430,7 @@ export function TranslateRunPane({
       notify.success(t('translate.importDone', { inserted: json.inserted ?? 0, total: json.total ?? 0 }))
       await refresh({ rescan: true })
     } catch (err) {
-      notify.error(err instanceof Error ? err.message : t('translate.importFailed'))
+      notify.error(thrownMessage(err, t, t('translate.importFailed')))
     } finally {
       setImporting(false)
       if (fileRef.current) fileRef.current.value = ''

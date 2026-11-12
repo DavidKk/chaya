@@ -449,6 +449,7 @@ export const es: MessageTree = {
     engineOn: '{name} on',
     engineOff: '{name} off',
     enginesLoadFailed: 'Could not load engines',
+    pluginNotReady: 'Translation plugin is not ready. Update the plugin and reopen the game.',
     enginesSaveFailed: 'Could not save engines',
     backToEngines: 'Volver a las herramientas de traducción',
     engineConfigName: 'Configurar {name}',

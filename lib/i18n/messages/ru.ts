@@ -448,6 +448,7 @@ export const ru: MessageTree = {
     engineOn: '{name} on',
     engineOff: '{name} off',
     enginesLoadFailed: 'Could not load engines',
+    pluginNotReady: 'Translation plugin is not ready. Update the plugin and reopen the game.',
     enginesSaveFailed: 'Could not save engines',
     backToEngines: 'Вернуться к инструментам перевода',
     engineConfigName: 'Настроить {name}',

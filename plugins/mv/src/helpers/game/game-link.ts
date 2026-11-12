@@ -209,7 +209,7 @@ function bindDc(dc: RTCDataChannel) {
     async (request, signal) => {
       if (request.path === AGENT_LINK_PATH) return runLinkAgentRequest(request.body, (window as unknown as { ChayaAgent?: Parameters<typeof runLinkAgentRequest>[1] }).ChayaAgent)
       const runtime = installedTranslationRuntime()
-      if (!runtime) throw new Error('游戏翻译插件未就绪，请更新插件后重新打开游戏')
+      if (!runtime) throw Object.assign(new Error('Translation plugin is not ready. Update the plugin and reopen the game.'), { code: 'TRANSLATION_PLUGIN_NOT_READY' })
       return runtime.request(request, signal)
     },
     (entry) => {

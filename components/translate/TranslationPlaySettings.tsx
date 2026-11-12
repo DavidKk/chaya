@@ -8,7 +8,7 @@ import { formCardDense, formControlInline, formDescInline, formFieldInlineDense,
 import { useNotification } from '@/components/notification/useNotification'
 import { Button, DurationInput, Skeleton, Switch } from '@/components/sk'
 import { useTranslationFetch } from '@/components/translate/TranslationRuntimeContext'
-import { readApiErrorMessage } from '@/lib/api-error'
+import { readApiErrorMessage, thrownMessage } from '@/lib/api-error'
 import { DEFAULT_PLAY_SETTINGS, type TranslationPlaySettings as Settings } from '@/lib/translate/play-settings'
 import { cn } from '@/lib/utils'
 
@@ -51,7 +51,7 @@ export function TranslationPlaySettings() {
       setSaved(data.settings)
       setDraft(data.settings)
     } catch (err) {
-      if (!abort.signal.aborted) setError(err instanceof Error ? err.message : t('notify.loadFailed'))
+      if (!abort.signal.aborted) setError(thrownMessage(err, t, t('notify.loadFailed')))
     } finally {
       if (!abort.signal.aborted) setPending(null)
     }
@@ -91,7 +91,7 @@ export function TranslationPlaySettings() {
       } else notify.info(`${t('translate.benchLine', { chars: data.characters, sec: (data.elapsedMs / 1000).toFixed(2) })}：${data.translation}`)
     } catch (err) {
       if (!abort.signal.aborted) {
-        const message = err instanceof Error ? err.message : t('translate.requestFailed')
+        const message = thrownMessage(err, t, t('translate.requestFailed'))
         if (action === 'test') notify.error(t('translate.benchFailPrefix', { message }))
         else setError(t('translate.saveNotSaved', { message }))
       }

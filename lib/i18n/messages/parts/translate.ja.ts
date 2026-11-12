@@ -114,6 +114,7 @@ export const translateJa = {
     engineOn: '{name} オン',
     engineOff: '{name} オフ',
     enginesLoadFailed: 'エンジン読込失敗',
+    pluginNotReady: '翻訳プラグインの準備ができていません。プラグインを更新してゲームを開き直してください。',
     enginesSaveFailed: 'エンジン保存失敗',
     backToEngines: '翻訳ツール一覧に戻る',
     engineConfigName: '{name} を設定',

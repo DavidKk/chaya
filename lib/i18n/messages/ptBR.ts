@@ -448,6 +448,7 @@ export const ptBR: MessageTree = {
     engineOn: '{name} on',
     engineOff: '{name} off',
     enginesLoadFailed: 'Could not load engines',
+    pluginNotReady: 'Translation plugin is not ready. Update the plugin and reopen the game.',
     enginesSaveFailed: 'Could not save engines',
     backToEngines: 'Voltar às ferramentas de tradução',
     engineConfigName: 'Configurar {name}',

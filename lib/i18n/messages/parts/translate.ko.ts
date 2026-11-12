@@ -114,6 +114,7 @@ export const translateKo = {
     engineOn: '{name} 켜짐',
     engineOff: '{name} 꺼짐',
     enginesLoadFailed: '엔진 로드 실패',
+    pluginNotReady: '번역 플러그인이 준비되지 않았습니다. 플러그인을 업데이트한 뒤 게임을 다시 여세요.',
     enginesSaveFailed: '엔진 저장 실패',
     backToEngines: '번역 도구 목록으로 돌아가기',
     engineConfigName: '{name} 설정',
