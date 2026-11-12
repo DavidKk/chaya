@@ -365,7 +365,7 @@ export function createScheduledSeedSession(
       if (!load?.items) return true
       return load.chars + charCount(inventory.pending[id]) <= 40_000
     }
-    const budget = seedEngineBudget(engine, agents, configs)
+    const budget = seedEngineBudget(engine, agents, configs, { shareWithApple: engines.includes('apple') })
     const entries = [...loads].filter(([key]) => (budget ? key === engine : !key.startsWith('agent:')))
     if (!entries.some(([, load]) => load.items)) return true
     const chars = entries.reduce((sum, [, load]) => sum + load.chars, 0)
@@ -446,7 +446,7 @@ export function createScheduledSeedSession(
       let dispatched = false
       const ordered = engines.includes('apple') ? (['apple', ...engines.filter((engine) => engine !== 'apple')] as TranslateRunEngine[]) : engines
       for (const engine of ordered) {
-        const budget = seedEngineBudget(engine, agents, configs)
+        const budget = seedEngineBudget(engine, agents, configs, { shareWithApple: engines.includes('apple') })
         const ordinary = [...loads].filter(([key]) => !key.startsWith('agent:')).reduce((sum, [, load]) => sum + load.items, 0)
         if (engine !== 'apple' && !budget && (ordinary >= cap() || completed.length + ordinary >= MAX_BUFFER)) continue
         const count = loads.get(engine)?.items || 0

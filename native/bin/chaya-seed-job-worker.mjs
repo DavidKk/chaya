@@ -48740,12 +48740,12 @@ async function collectResultWindow(completed, options) {
 init_text_classify();
 
 // services/translate/scheduler/seed-engine-budget.ts
-function seedEngineBudget(engine, agents, configs) {
+function seedEngineBudget(engine, agents, configs, options) {
   if (!engine.startsWith("agent:")) return null;
   const settings = resolveEngineCapacitySettings(engine, configs, agents);
   const concurrency = settings.allowConcurrency === false ? 1 : settings.concurrencyLimit ?? 1;
   const maxChars = settings.maxConcurrentChars ?? 3e3;
-  const items = Math.min(48, Math.max(8, concurrency * 4));
+  const items = options?.shareWithApple ? Math.min(48, Math.max(8, concurrency * 4)) : 4096;
   return { items, chars: maxChars * (concurrency + 1) };
 }
 
@@ -49272,7 +49272,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       if (!load?.items) return true;
       return load.chars + charCount(inventory.pending[id]) <= 4e4;
     }
-    const budget = seedEngineBudget(engine, agents, configs);
+    const budget = seedEngineBudget(engine, agents, configs, { shareWithApple: engines.includes("apple") });
     const entries2 = [...loads].filter(([key3]) => budget ? key3 === engine : !key3.startsWith("agent:"));
     if (!entries2.some(([, load]) => load.items)) return true;
     const chars = entries2.reduce((sum2, [, load]) => sum2 + load.chars, 0);
@@ -49345,7 +49345,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       let dispatched = false;
       const ordered = engines.includes("apple") ? ["apple", ...engines.filter((engine) => engine !== "apple")] : engines;
       for (const engine of ordered) {
-        const budget = seedEngineBudget(engine, agents, configs);
+        const budget = seedEngineBudget(engine, agents, configs, { shareWithApple: engines.includes("apple") });
         const ordinary = [...loads].filter(([key3]) => !key3.startsWith("agent:")).reduce((sum2, [, load]) => sum2 + load.items, 0);
         if (engine !== "apple" && !budget && (ordinary >= cap() || completed.length + ordinary >= MAX_BUFFER)) continue;
         const count2 = loads.get(engine)?.items || 0;
