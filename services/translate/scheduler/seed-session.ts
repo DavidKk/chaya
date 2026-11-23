@@ -19,6 +19,7 @@ import { getGameCacheContext } from '../game-cache-context'
 import { gameTranslationFiles } from '../game-records'
 import { type LiveTranslateItem } from '../live-translate'
 import { recordSeedFailure } from '../seed-failures'
+import { getSeedSourceLanguage } from '../seed-source-language'
 import { isSensitiveForCloud } from '../sensitive-text'
 import { openSharedCache } from '../shared-cache'
 import type { IndexedRecord } from '../shared-cache/match-index'
@@ -31,7 +32,7 @@ import { collectResultWindow, type Completed } from './result-window'
 import { createSeedDispatcher, type SeedAttempt as Attempt } from './seed-dispatch'
 import { seedEngineBudget } from './seed-engine-budget'
 import { DONE, FAILED, MISS, RECHECK, RUNNING, takeSeedEngineTask, UNKNOWN, WAIT_CACHE } from './seed-engine-queue'
-import { readSeedInventory, seedFileStamp } from './seed-inventory'
+import { readSeedInventory, seedFileStamp, seedProgressStamp } from './seed-inventory'
 import type { SeedInventoryBundle } from './seed-prepare'
 
 const MAX_BUFFER = 64
@@ -282,7 +283,7 @@ export function createScheduledSeedSession(
         counters.cacheHit++
         rememberBackfill(result.records)
         finish(id, { src: result.src, zh: result.plan.zh, status: 'full', engine: 'cache:scan', plan: result.plan }, result.elapsedMs)
-        if (active.has(id)) {
+        if (active.has(id) && active.get(id)!.engine !== 'apple') {
           counters.cacheCancelled++
           active.get(id)!.controller.abort(new Error('A valid cache result completed this translation task'))
         }
@@ -302,7 +303,7 @@ export function createScheduledSeedSession(
             if (!misses.includes(id)) misses.push(id)
           }
         }
-        if (active.has(id)) active.get(id)!.controller.abort(new Error('Cache snapshot expired; rechecking before engine dispatch'))
+        if (active.has(id) && active.get(id)!.engine !== 'apple') active.get(id)!.controller.abort(new Error('Cache snapshot expired; rechecking before engine dispatch'))
       }
     } else if (waitingCache.has(id)) {
       finish(id, waitingCache.get(id)!)
@@ -372,9 +373,9 @@ export function createScheduledSeedSession(
     return chars + charCount(inventory.pending[id]) <= (budget?.chars ?? options.maxChars ?? 3000)
   }
 
-  const hasAgentEngine = () => engines.some((engine) => engine.startsWith('agent:'))
-  const maxBuffer = () => (hasAgentEngine() ? 4096 : MAX_BUFFER)
-  const maxCachePending = () => (hasAgentEngine() ? 4096 : MAX_CACHE_PENDING)
+  const hasFastOrAgentEngine = () => engines.some((engine) => engine === 'apple' || engine.startsWith('agent:'))
+  const maxBuffer = () => (hasFastOrAgentEngine() ? 4096 : MAX_BUFFER)
+  const maxCachePending = () => (hasFastOrAgentEngine() ? 4096 : MAX_CACHE_PENDING)
 
   const batchScope: AgentBatchScope = {
     waitForMore: () =>
@@ -391,7 +392,7 @@ export function createScheduledSeedSession(
       retries,
       deferred,
       cursors: freshCursors,
-      maxPending: seedEngineBudget(engine, agents) ? 4096 : MAX_BUFFER,
+      maxPending: engine === 'apple' || seedEngineBudget(engine, agents) ? 4096 : MAX_BUFFER,
       excluded: (id) => Boolean(options.exclude?.has(inventory.pending[id])),
       exclude: (id) => {
         if (states[id] === UNKNOWN || states[id] === MISS) {
@@ -450,7 +451,9 @@ export function createScheduledSeedSession(
         const ordinary = [...loads].filter(([key]) => !key.startsWith('agent:')).reduce((sum, [, load]) => sum + load.items, 0)
         if (engine !== 'apple' && !budget && (ordinary >= cap() || completed.length + ordinary >= MAX_BUFFER)) continue
         const count = loads.get(engine)?.items || 0
-        if (count >= (budget?.items ?? engineConfiguredCapacity(engine, resolveEngineCapacitySettings(engine, configs, agents)))) continue
+        const appleCapacity = engines.length > 1 ? 40 : 80
+        const configuredCapacity = engine === 'apple' ? appleCapacity : engineConfiguredCapacity(engine, resolveEngineCapacitySettings(engine, configs, agents))
+        if (count >= (budget?.items ?? configuredCapacity)) continue
         const id = nextTask(engine)
         if (id === undefined) continue
         dispatch(id, engine)
@@ -591,6 +594,7 @@ export function createScheduledSeedSession(
 
   dispatch = createSeedDispatcher({
     contentRoot,
+    sourceLang: getSeedSourceLanguage(contentRoot) || undefined,
     pending: () => inventory.pending,
     states,
     loads,
@@ -631,6 +635,15 @@ export function createScheduledSeedSession(
     },
     get processed() {
       return processed
+    },
+    get inventoryBundle(): SeedInventoryBundle {
+      const remainingPending = inventory.pending.filter((_, id) => states[id] !== DONE)
+      return {
+        progress: { ...progress },
+        pending: remainingPending,
+        stamp: inventory.stamp,
+        progressStamp: seedProgressStamp(contentRoot),
+      }
     },
     pause() {
       paused = true
@@ -733,7 +746,11 @@ export function createScheduledSeedSession(
         notify,
         wait: async () => {
           await new Promise<void>((resolve) => {
-            resolveWait = resolve
+            const fallbackTimer = setTimeout(resolve, 1000)
+            resolveWait = () => {
+              clearTimeout(fallbackTimer)
+              resolve()
+            }
           })
           resolveWait = undefined
         },

@@ -1465,6 +1465,21 @@ function isSourceText(value, language = "all") {
   if (language === "en") return latin && !kana && !han;
   return kana || han || latin;
 }
+function detectSourceLanguage(texts, locale = "") {
+  const scores = { ja: 0, en: 0, zh: 0 };
+  for (const text4 of texts) {
+    if (!isSourceText(text4)) continue;
+    const body = sourceTextBody(text4);
+    const weight = Math.min(body.length, 120);
+    if (KANA.test(body)) scores.ja += weight;
+    else if (HAN.test(body)) scores.zh += weight;
+    else if (LATIN.test(body)) scores.en += weight;
+  }
+  if (scores.ja >= Math.max(1, scores.zh * 0.35) && scores.ja + scores.zh >= scores.en) return "ja";
+  if (scores.zh > scores.en) return "zh";
+  if (scores.en > 0) return "en";
+  return /^en/i.test(locale) ? "en" : /^zh/i.test(locale) ? "zh" : "ja";
+}
 var KANA, HAN, LATIN, markupTags, TEXT_MARKUP_RE;
 var init_source_text = __esm({
   "lib/translate/source-text.ts"() {
@@ -1507,13 +1522,18 @@ function detectCacheLang(text4, fallback = DEFAULT_CACHE_SRC_LANG) {
   if (CYRILLIC.test(body)) return "ru";
   if (HANGUL.test(body)) return "ko";
   if (KANA2.test(body)) return "ja";
-  if (LATIN2.test(body) && !HAN2.test(body) && !KANA2.test(body)) return "en";
+  if (LATIN2.test(body) && !HAN2.test(body) && !KANA2.test(body)) {
+    if (/^[-_+#/:.()\[\]【】\s]*(?:[A-Za-z]{1,2}\d+|\d+[A-Za-z]{1,2}|[A-Za-z]\d+[A-Za-z]|\d+|[A-Za-z]{1,2})[-_+#/:.()\[\]【】\s]*$/.test(body)) {
+      return fallback;
+    }
+    return "en";
+  }
   if (HAN2.test(body)) return fallback;
   return fallback;
 }
 function resolveCacheLangPair(opts) {
-  const from = opts?.from != null ? canonicalResourceLanguage(opts.from) : opts?.src != null ? detectCacheLang(opts.src) : DEFAULT_CACHE_SRC_LANG;
-  const to = opts?.to != null ? canonicalResourceLanguage(opts.to) : DEFAULT_CACHE_TGT_LANG;
+  const from = opts?.from?.trim() ? canonicalResourceLanguage(opts.from) : opts?.src != null ? detectCacheLang(opts.src) : DEFAULT_CACHE_SRC_LANG;
+  const to = opts?.to?.trim() ? canonicalResourceLanguage(opts.to) : DEFAULT_CACHE_TGT_LANG;
   return { from, to };
 }
 var CACHE_LANGS, DEFAULT_CACHE_SRC_LANG, DEFAULT_CACHE_TGT_LANG, KANA2, HAN2, LATIN2, HANGUL, CYRILLIC;
@@ -1530,222 +1550,6 @@ var init_cache_lang = __esm({
     LATIN2 = /[A-Za-z]/;
     HANGUL = /[\uAC00-\uD7A3]/;
     CYRILLIC = /[\u0400-\u04FF]/;
-  }
-});
-
-// lib/translate/rm-escape.ts
-function rmDigitCodeRe() {
-  return new RegExp(RM_DIGIT_CODE_SRC, "g");
-}
-function isSemanticPlaceholder(token) {
-  if (!token) return false;
-  if (/^\\[NPV]\[[^\]]*\]$/i.test(token) || /^\\[Gg]$/.test(token)) return true;
-  if (/^%[0-9]+$/i.test(token) || /^%[sdifSc]$/.test(token)) return true;
-  if (/^\{[0-9A-Za-z_]+\}$/.test(token)) return true;
-  if (/^_(?:actor|aicon|class|name|icon|num|desc1|desc2)(?![A-Za-z0-9_])/i.test(token)) return true;
-  if (/^[A-Za-z_][A-Za-z0-9_]*\[\d+\]$/.test(token)) return true;
-  return false;
-}
-function hasRmDigitCodes(text4) {
-  return rmDigitCodeRe().test(String(text4 ?? ""));
-}
-function extractRmDigitCodes(text4) {
-  return [...String(text4 ?? "").matchAll(rmDigitCodeRe())].map((m) => m[0]);
-}
-function toRmDigitTemplate(text4) {
-  const src = String(text4 ?? "");
-  if (!hasRmDigitCodes(src)) return src;
-  return src.replace(rmDigitCodeRe(), (m) => {
-    const letter = m.match(/^\\([A-Za-z]+)/)?.[1] ?? "";
-    return `\\${letter.toLowerCase()}[#]`;
-  });
-}
-function applyRmDigitCodes(template, codes) {
-  if (!codes.length) return String(template ?? "");
-  let i = 0;
-  return String(template ?? "").replace(/\\[A-Za-z]+\[#\]/g, (slot) => {
-    const code = codes[i++];
-    return code != null ? code : slot;
-  });
-}
-function lookupWithRmDigitTemplate(get, text4) {
-  const src = String(text4 ?? "");
-  if (!src) return null;
-  const direct = get(src);
-  if (direct != null && direct !== "") return direct;
-  const codes = extractRmDigitCodes(src);
-  if (!codes.length) return null;
-  const tpl = toRmDigitTemplate(src);
-  if (tpl === src) return null;
-  const hit = get(tpl);
-  if (hit == null || hit === "") return null;
-  return applyRmDigitCodes(hit, codes);
-}
-var RM_DIGIT_CODE_SRC, RM_ESCAPE_RE;
-var init_rm_escape = __esm({
-  "lib/translate/rm-escape.ts"() {
-    "use strict";
-    RM_DIGIT_CODE_SRC = String.raw`\\[A-Za-z]+\[\d+\]`;
-    RM_ESCAPE_RE = /\\[A-Za-z]+(?:\[[^\]]*\])?/g;
-  }
-});
-
-// lib/translate/logic-text.ts
-function inferNewlineKind(text4, start, end) {
-  const src = String(text4 ?? "");
-  if (start < 0 || end <= start || end > src.length) return "unknown";
-  let left = start - 1;
-  while (left >= 0 && INDENT.test(src[left])) left -= 1;
-  let right = end;
-  while (right < src.length && INDENT.test(src[right])) right += 1;
-  const L = left >= 0 ? src[left] : void 0;
-  const R = right < src.length ? src[right] : void 0;
-  if (L == null || R == null) return "unknown";
-  if (SENTENCE_END.test(L) || SENTENCE_END.test(R)) return "hard";
-  if (WORDISH.test(L) && WORDISH.test(R)) return "soft";
-  return "unknown";
-}
-function newlineKindAt(start, end, annotations, text4) {
-  if (annotations?.length) {
-    for (const note of annotations) {
-      if (note.start === start && note.end === end) return note.kind;
-      if (note.start <= start && end <= note.end) return note.kind;
-    }
-  }
-  return text4 != null ? inferNewlineKind(text4, start, end) : "unknown";
-}
-function usesSpacedSoftBreaks(srcLang, sample) {
-  const lang = srcLang || detectCacheLang(sample, "en");
-  return lang !== "ja" && lang !== "zh" && lang !== "ko";
-}
-function shouldInsertSpace(left, right, spaced) {
-  if (!spaced || left == null || right == null) return false;
-  if (/\s/.test(left) || /\s/.test(right) || INDENT.test(left) || INDENT.test(right)) return false;
-  return WORD.test(left) && WORD.test(right);
-}
-function buildLogicText(original, opts) {
-  const text4 = String(original ?? "");
-  const spaced = usesSpacedSoftBreaks(opts?.srcLang, text4);
-  const controls = new Map([...text4.matchAll(TOKEN_RE)].map((m) => [m.index, m[0]]));
-  const logicToOriginal = [];
-  const logicNewlines = [];
-  let logic = "";
-  for (let i = 0; i < text4.length; ) {
-    const code = controls.get(i);
-    if (code && !/^\\[nr]$/i.test(code)) {
-      for (let k = 0; k < code.length; k++) {
-        logic += code[k];
-        logicToOriginal.push(i + k);
-      }
-      i += code.length;
-      continue;
-    }
-    const c = text4[i];
-    const literalLine = Boolean(code && /^\\[nr]$/i.test(code));
-    if (c === "\n" || c === "\r" || literalLine) {
-      const end = literalLine ? i + code.length : c === "\r" && text4[i + 1] === "\n" ? i + 2 : i + 1;
-      const kind = newlineKindAt(i, end, opts?.newlines, text4);
-      if (kind === "soft") {
-        let j = end;
-        while (j < text4.length && INDENT.test(text4[j])) j += 1;
-        const left = logic.length ? logic[logic.length - 1] : void 0;
-        const right = j < text4.length ? text4[j] : void 0;
-        if (shouldInsertSpace(left, right, spaced)) {
-          logic += " ";
-          logicToOriginal.push(-1);
-        }
-        i = j;
-        continue;
-      }
-      const logicStart = logic.length;
-      for (let k = i; k < end; k++) {
-        logic += text4[k];
-        logicToOriginal.push(k);
-      }
-      logicNewlines.push({ start: logicStart, end: logic.length, kind });
-      i = end;
-      continue;
-    }
-    logic += c;
-    logicToOriginal.push(i);
-    i += 1;
-  }
-  return { original: text4, logic, logicToOriginal, logicNewlines };
-}
-function listNewlineSpans(text4) {
-  const src = String(text4 ?? "");
-  const controls = new Map([...src.matchAll(TOKEN_RE)].map((m) => [m.index, m[0]]));
-  const spans = [];
-  for (let i = 0; i < src.length; ) {
-    const code = controls.get(i);
-    if (code && !/^\\[nr]$/i.test(code)) {
-      i += code.length;
-      continue;
-    }
-    const c = src[i];
-    const literalLine = Boolean(code && /^\\[nr]$/i.test(code));
-    if (c === "\n" || c === "\r" || literalLine) {
-      const end = literalLine ? i + code.length : c === "\r" && src[i + 1] === "\n" ? i + 2 : i + 1;
-      spans.push({ start: i, end, kind: inferNewlineKind(src, i, end) });
-      i = end;
-      continue;
-    }
-    i += 1;
-  }
-  return spans;
-}
-function validateNewlineAnnotations(text4, annotations) {
-  if (!annotations) return true;
-  if (!Array.isArray(annotations) || annotations.length > 500) return false;
-  const allowed = new Set(listNewlineSpans(text4).map((s) => `${s.start}:${s.end}`));
-  for (const note of annotations) {
-    if (!note || typeof note !== "object") return false;
-    if (!["soft", "hard", "unknown"].includes(note.kind)) return false;
-    if (!Number.isInteger(note.start) || !Number.isInteger(note.end) || note.end <= note.start) return false;
-    if (!allowed.has(`${note.start}:${note.end}`)) return false;
-  }
-  return true;
-}
-function mapLogicRangeToOriginal(view, logicStart, logicEnd) {
-  let start = Number.POSITIVE_INFINITY;
-  let end = Number.NEGATIVE_INFINITY;
-  const lo = Math.max(0, logicStart);
-  const hi = Math.min(view.logicToOriginal.length, logicEnd);
-  for (let i = lo; i < hi; i++) {
-    const o = view.logicToOriginal[i];
-    if (o < 0) continue;
-    if (o < start) start = o;
-    if (o + 1 > end) end = o + 1;
-  }
-  if (!Number.isFinite(start) || !Number.isFinite(end)) return { start: 0, end: 0 };
-  return { start, end };
-}
-var TOKEN_RE, INDENT, WORD, SENTENCE_END, WORDISH;
-var init_logic_text = __esm({
-  "lib/translate/logic-text.ts"() {
-    "use strict";
-    init_cache_lang();
-    init_rm_escape();
-    init_source_text();
-    TOKEN_RE = new RegExp(`${RM_ESCAPE_RE.source}|${TEXT_MARKUP_RE.source}|https?:\\/\\/[^\\s<>]+`, "g");
-    INDENT = /[\t \u3000]/;
-    WORD = /[A-Za-z0-9']/;
-    SENTENCE_END = /[。．.!！?？;；]/;
-    WORDISH = /[\p{L}\p{N}]/u;
-  }
-});
-
-// lib/translate/cache-engine-rank.ts
-function cacheEngineRank(engine) {
-  if (engine === "manual") return 4;
-  if (engine === "import" || engine?.startsWith("import:")) return 3;
-  if (engine === "live:optimize" || engine?.startsWith("live:optimize:") || engine?.startsWith("live:agent")) return 2;
-  if (engine === "manual:optimize") return 0;
-  return 1;
-}
-var init_cache_engine_rank = __esm({
-  "lib/translate/cache-engine-rank.ts"() {
-    "use strict";
   }
 });
 
@@ -1805,6 +1609,322 @@ function peelChoiceMetaShell(text4) {
 var init_choice_meta = __esm({
   "lib/translate/choice-meta.ts"() {
     "use strict";
+  }
+});
+
+// lib/translate/default-game-terms.json
+var default_game_terms_default;
+var init_default_game_terms = __esm({
+  "lib/translate/default-game-terms.json"() {
+    default_game_terms_default = {
+      flame: {
+        translations: {
+          zh: "\u708E",
+          en: "Flame",
+          ja: "\u708E",
+          ko: "\uD654\uC5FC"
+        },
+        aliases: {
+          en: ["Fire"]
+        }
+      },
+      lightning: {
+        translations: {
+          zh: "\u96F7",
+          en: "Lightning",
+          ja: "\u96F7",
+          ko: "\uBC88\uAC1C"
+        }
+      },
+      water: {
+        translations: {
+          zh: "\u6C34",
+          en: "Water",
+          ja: "\u6C34",
+          ko: "\uBB3C"
+        }
+      },
+      earth: {
+        translations: {
+          zh: "\u571F",
+          en: "Earth",
+          ja: "\u571F",
+          ko: "\uB300\uC9C0"
+        }
+      },
+      light: {
+        translations: {
+          zh: "\u5149",
+          en: "Light",
+          ja: "\u5149",
+          ko: "\uBE5B"
+        }
+      },
+      sword: {
+        translations: {
+          zh: "\u5251",
+          en: "Sword",
+          ja: "\u5263",
+          ko: "\uAC80"
+        }
+      },
+      axe: {
+        translations: {
+          zh: "\u65A7",
+          en: "Axe",
+          ja: "\u65A7",
+          ko: "\uB3C4\uB07C"
+        }
+      },
+      staff: {
+        translations: {
+          zh: "\u6756",
+          en: "Staff",
+          ja: "\u6756",
+          ko: "\uC9C0\uD321\uC774"
+        }
+      },
+      bow: {
+        translations: {
+          zh: "\u5F13",
+          en: "Bow",
+          ja: "\u5F13",
+          ko: "\uD65C"
+        }
+      },
+      gun: {
+        translations: {
+          zh: "\u67AA",
+          en: "Gun",
+          ja: "\u9283",
+          ko: "\uCD1D"
+        }
+      },
+      claw: {
+        translations: {
+          zh: "\u722A",
+          en: "Claw",
+          ja: "\u722A",
+          ko: "\uBC1C\uD1B1"
+        }
+      },
+      spear: {
+        translations: {
+          zh: "\u957F\u67AA",
+          en: "Spear",
+          ja: "\u69CD",
+          ko: "\uCC3D"
+        }
+      },
+      save: {
+        translations: {
+          zh: "\u4FDD\u5B58",
+          en: "Save",
+          ja: "\u30BB\u30FC\u30D6",
+          ko: "\uC800\uC7A5"
+        },
+        aliases: {
+          en: ["Save Game"],
+          ja: ["\u30BB\u30FC\u30D6\u3059\u308B"]
+        },
+        badTranslations: {
+          zh: ["\u8282\u7701", "\u62EF\u6551", "\u7701\u4E0B", "\u5B58\u76D8"]
+        }
+      },
+      load: {
+        translations: {
+          zh: "\u8BFB\u53D6",
+          en: "Load",
+          ja: "\u30ED\u30FC\u30C9",
+          ko: "\uBD88\uB7EC\uC624\uAE30"
+        },
+        aliases: {
+          en: ["Load Game"],
+          ja: ["\u30ED\u30FC\u30C9\u3059\u308B"]
+        },
+        badTranslations: {
+          zh: ["\u8D1F\u8377", "\u4F9B\u7535\u91CF", "\u8D1F\u8F7D", "\u88C5\u8F7D", "\u52A0\u8F7D", "\u88C5\u5165"]
+        }
+      },
+      new_game: {
+        translations: {
+          zh: "\u65B0\u6E38\u620F",
+          en: "New Game",
+          ja: "\u30CB\u30E5\u30FC\u30B2\u30FC\u30E0",
+          ko: "\uC0C8 \uAC8C\uC784"
+        },
+        badTranslations: {
+          zh: ["\u65B0\u7684\u6E38\u620F", "\u65B0\u6BD4\u8D5B"]
+        }
+      },
+      continue: {
+        translations: {
+          zh: "\u7EE7\u7EED\u6E38\u620F",
+          en: "Continue",
+          ja: "\u30B3\u30F3\u30C6\u30A3\u30CB\u30E5\u30FC",
+          ko: "\uC774\uC5B4\uD558\uAE30"
+        },
+        aliases: {
+          ja: ["\u3064\u3065\u304D\u304B\u3089"]
+        },
+        badTranslations: {
+          zh: ["\u7EE7\u7EED", "\u5EF6\u62D3"]
+        }
+      },
+      options: {
+        translations: {
+          zh: "\u8BBE\u7F6E",
+          en: "Options",
+          ja: "\u8A2D\u5B9A",
+          ko: "\uC124\uC815"
+        },
+        aliases: {
+          en: ["Option", "Config", "Settings"],
+          ja: ["\u30AA\u30D7\u30B7\u30E7\u30F3"]
+        },
+        badTranslations: {
+          zh: ["\u9009\u9879", "\u671F\u6743"]
+        }
+      },
+      item: {
+        translations: {
+          zh: "\u9053\u5177",
+          en: "Item",
+          ja: "\u30A2\u30A4\u30C6\u30E0",
+          ko: "\uC544\uC774\uD15C"
+        },
+        aliases: {
+          en: ["Items"]
+        },
+        badTranslations: {
+          zh: ["\u9879\u76EE", "\u6761\u6B3E", "\u7269\u4EF6"]
+        }
+      },
+      skill: {
+        translations: {
+          zh: "\u6280\u80FD",
+          en: "Skill",
+          ja: "\u30B9\u30AD\u30EB",
+          ko: "\uC2A4\uD0AC"
+        },
+        aliases: {
+          en: ["Skills"]
+        },
+        badTranslations: {
+          zh: ["\u6280\u672F", "\u6280\u80FD\u6761"]
+        }
+      },
+      equip: {
+        translations: {
+          zh: "\u88C5\u5907",
+          en: "Equip",
+          ja: "\u88C5\u5099",
+          ko: "\uC7A5\uBE44"
+        },
+        aliases: {
+          en: ["Equipment"]
+        },
+        badTranslations: {
+          zh: ["\u914D\u5907", "\u88C5\u8BBE"]
+        }
+      },
+      status: {
+        translations: {
+          zh: "\u72B6\u6001",
+          en: "Status",
+          ja: "\u30B9\u30C6\u30FC\u30BF\u30B9",
+          ko: "\uC0C1\uD0DC"
+        },
+        badTranslations: {
+          zh: ["\u5730\u4F4D", "\u8EAB\u5206", "\u72B6\u51B5"]
+        }
+      },
+      quit: {
+        translations: {
+          zh: "\u9000\u51FA",
+          en: "Quit",
+          ja: "\u7D42\u4E86",
+          ko: "\uC885\uB8CC"
+        },
+        aliases: {
+          en: ["Exit", "Game Over"]
+        },
+        badTranslations: {
+          zh: ["\u505C\u6B62", "\u653E\u5F03", "\u79BB\u5F00\u6E38\u620F"]
+        }
+      },
+      gold: {
+        translations: {
+          zh: "\u91D1\u5E01",
+          en: "Gold",
+          ja: "\u6240\u6301\u91D1",
+          ko: "\uC18C\uC9C0\uAE08"
+        },
+        aliases: {
+          en: ["Money"]
+        },
+        badTranslations: {
+          zh: ["\u9EC4\u91D1", "\u91D1\u8272"]
+        }
+      }
+    };
+  }
+});
+
+// lib/translate/rm-escape.ts
+function rmDigitCodeRe() {
+  return new RegExp(RM_DIGIT_CODE_SRC, "g");
+}
+function isSemanticPlaceholder(token) {
+  if (!token) return false;
+  if (/^\\[NPV]\[[^\]]*\]$/i.test(token) || /^\\[Gg]$/.test(token)) return true;
+  if (/^%[0-9]+$/i.test(token) || /^%[sdifSc]$/.test(token)) return true;
+  if (/^\{[0-9A-Za-z_]+\}$/.test(token)) return true;
+  if (/^_(?:actor|aicon|class|name|icon|num|desc1|desc2)(?![A-Za-z0-9_])/i.test(token)) return true;
+  if (/^[A-Za-z_][A-Za-z0-9_]*\[\d+\]$/.test(token)) return true;
+  return false;
+}
+function hasRmDigitCodes(text4) {
+  return rmDigitCodeRe().test(String(text4 ?? ""));
+}
+function extractRmDigitCodes(text4) {
+  return [...String(text4 ?? "").matchAll(rmDigitCodeRe())].map((m) => m[0]);
+}
+function toRmDigitTemplate(text4) {
+  const src = String(text4 ?? "");
+  if (!hasRmDigitCodes(src)) return src;
+  return src.replace(rmDigitCodeRe(), (m) => {
+    const letter = m.match(/^\\([A-Za-z]+)/)?.[1] ?? "";
+    return `\\${letter.toLowerCase()}[#]`;
+  });
+}
+function applyRmDigitCodes(template, codes) {
+  if (!codes.length) return String(template ?? "");
+  let i = 0;
+  return String(template ?? "").replace(/\\[A-Za-z]+\[#\]/g, (slot) => {
+    const code = codes[i++];
+    return code != null ? code : slot;
+  });
+}
+function lookupWithRmDigitTemplate(get, text4) {
+  const src = String(text4 ?? "");
+  if (!src) return null;
+  const direct = get(src);
+  if (direct != null && direct !== "") return direct;
+  const codes = extractRmDigitCodes(src);
+  if (!codes.length) return null;
+  const tpl = toRmDigitTemplate(src);
+  if (tpl === src) return null;
+  const hit = get(tpl);
+  if (hit == null || hit === "") return null;
+  return applyRmDigitCodes(hit, codes);
+}
+var RM_DIGIT_CODE_SRC, RM_ESCAPE_RE;
+var init_rm_escape = __esm({
+  "lib/translate/rm-escape.ts"() {
+    "use strict";
+    RM_DIGIT_CODE_SRC = String.raw`\\[A-Za-z]+\[\d+\]`;
+    RM_ESCAPE_RE = /\\[A-Za-z]+(?:\[[^\]]*\])?/g;
   }
 });
 
@@ -2093,6 +2213,224 @@ var init_segments = __esm({
     };
     SEPARATE_WRAPPERS = /* @__PURE__ */ new Set(["\u300C", "\u300E", "<", "\uFF1C"]);
     FRAGMENT_QUOTES = { "\u300C": "\u300D", "\u300E": "\u300F", "\u201C": "\u201D", "\u2018": "\u2019" };
+  }
+});
+
+// lib/translate/game-terms.ts
+function key(text4) {
+  return text4.normalize("NFKC").toLowerCase();
+}
+function lookupGameTerm(source, targetLanguage = "zh", sourceLanguage) {
+  if (!GAME_TERM_LANGUAGES.includes(targetLanguage) || sourceLanguage && !GAME_TERM_LANGUAGES.includes(sourceLanguage)) return null;
+  const { lead, core, trail } = translationSegmentContent(source);
+  const normalized = key(core);
+  const languages3 = sourceLanguage ? [sourceLanguage] : GAME_TERM_LANGUAGES;
+  const targets = /* @__PURE__ */ new Set();
+  for (const language of languages3) {
+    for (const id of indexes[language].get(normalized) || []) targets.add(GAME_TERMS[id].translations[targetLanguage]);
+  }
+  return targets.size === 1 ? lead + [...targets][0] + trail : null;
+}
+function fixKnownBadGameTermTranslation(source, currentTarget, targetLanguage = "zh") {
+  if (!currentTarget || !source) return null;
+  const { core } = translationSegmentContent(source);
+  const normalizedSource = key(core);
+  for (const [_id, entry] of Object.entries(GAME_TERMS)) {
+    const isMatch = GAME_TERM_LANGUAGES.some((lang) => {
+      const candidates2 = [entry.translations[lang], ...entry.aliases?.[lang] || []];
+      return candidates2.some((cand) => key(cand) === normalizedSource);
+    });
+    if (!isMatch) continue;
+    const correctTarget = entry.translations[targetLanguage];
+    if (!correctTarget) continue;
+    const targetContent = translationSegmentContent(currentTarget);
+    const targetCoreNorm = key(targetContent.core);
+    const badList = entry.badTranslations?.[targetLanguage] || [];
+    const isBad = badList.some((bad) => key(bad) === targetCoreNorm);
+    if (isBad) {
+      return targetContent.lead + correctTarget + targetContent.trail;
+    }
+  }
+  return null;
+}
+var GAME_TERM_LANGUAGES, GAME_TERMS, indexes;
+var init_game_terms = __esm({
+  "lib/translate/game-terms.ts"() {
+    "use strict";
+    init_default_game_terms();
+    init_segments();
+    GAME_TERM_LANGUAGES = ["zh", "en", "ja", "ko"];
+    GAME_TERMS = default_game_terms_default;
+    indexes = Object.fromEntries(GAME_TERM_LANGUAGES.map((language) => [language, /* @__PURE__ */ new Map()]));
+    for (const [id, entry] of Object.entries(GAME_TERMS)) {
+      for (const language of GAME_TERM_LANGUAGES) {
+        for (const source of [entry.translations[language], ...entry.aliases?.[language] || []]) {
+          const normalized = key(source);
+          const ids = indexes[language].get(normalized) || /* @__PURE__ */ new Set();
+          ids.add(id);
+          indexes[language].set(normalized, ids);
+        }
+      }
+    }
+  }
+});
+
+// lib/translate/cache-engine-rank.ts
+function cacheEngineRank(engine) {
+  if (engine === "manual") return 4;
+  if (engine === "import" || engine?.startsWith("import:")) return 3;
+  if (engine === "live:optimize" || engine?.startsWith("live:optimize:") || engine?.startsWith("live:agent")) return 2;
+  if (engine === "manual:optimize") return 0;
+  return 1;
+}
+var init_cache_engine_rank = __esm({
+  "lib/translate/cache-engine-rank.ts"() {
+    "use strict";
+  }
+});
+
+// lib/translate/logic-text.ts
+function inferNewlineKind(text4, start, end) {
+  const src = String(text4 ?? "");
+  if (start < 0 || end <= start || end > src.length) return "unknown";
+  let left = start - 1;
+  while (left >= 0 && INDENT.test(src[left])) left -= 1;
+  let right = end;
+  while (right < src.length && INDENT.test(src[right])) right += 1;
+  const L = left >= 0 ? src[left] : void 0;
+  const R = right < src.length ? src[right] : void 0;
+  if (L == null || R == null) return "unknown";
+  if (SENTENCE_END.test(L) || SENTENCE_END.test(R)) return "hard";
+  if (WORDISH.test(L) && WORDISH.test(R)) return "soft";
+  return "unknown";
+}
+function newlineKindAt(start, end, annotations, text4) {
+  if (annotations?.length) {
+    for (const note of annotations) {
+      if (note.start === start && note.end === end) return note.kind;
+      if (note.start <= start && end <= note.end) return note.kind;
+    }
+  }
+  return text4 != null ? inferNewlineKind(text4, start, end) : "unknown";
+}
+function usesSpacedSoftBreaks(srcLang, sample) {
+  const lang = srcLang || detectCacheLang(sample, "en");
+  return lang !== "ja" && lang !== "zh" && lang !== "ko";
+}
+function shouldInsertSpace(left, right, spaced) {
+  if (!spaced || left == null || right == null) return false;
+  if (/\s/.test(left) || /\s/.test(right) || INDENT.test(left) || INDENT.test(right)) return false;
+  return WORD.test(left) && WORD.test(right);
+}
+function buildLogicText(original, opts) {
+  const text4 = String(original ?? "");
+  const spaced = usesSpacedSoftBreaks(opts?.srcLang, text4);
+  const controls = new Map([...text4.matchAll(TOKEN_RE)].map((m) => [m.index, m[0]]));
+  const logicToOriginal = [];
+  const logicNewlines = [];
+  let logic = "";
+  for (let i = 0; i < text4.length; ) {
+    const code = controls.get(i);
+    if (code && !/^\\[nr]$/i.test(code)) {
+      for (let k = 0; k < code.length; k++) {
+        logic += code[k];
+        logicToOriginal.push(i + k);
+      }
+      i += code.length;
+      continue;
+    }
+    const c = text4[i];
+    const literalLine = Boolean(code && /^\\[nr]$/i.test(code));
+    if (c === "\n" || c === "\r" || literalLine) {
+      const end = literalLine ? i + code.length : c === "\r" && text4[i + 1] === "\n" ? i + 2 : i + 1;
+      const kind = newlineKindAt(i, end, opts?.newlines, text4);
+      if (kind === "soft") {
+        let j = end;
+        while (j < text4.length && INDENT.test(text4[j])) j += 1;
+        const left = logic.length ? logic[logic.length - 1] : void 0;
+        const right = j < text4.length ? text4[j] : void 0;
+        if (shouldInsertSpace(left, right, spaced)) {
+          logic += " ";
+          logicToOriginal.push(-1);
+        }
+        i = j;
+        continue;
+      }
+      const logicStart = logic.length;
+      for (let k = i; k < end; k++) {
+        logic += text4[k];
+        logicToOriginal.push(k);
+      }
+      logicNewlines.push({ start: logicStart, end: logic.length, kind });
+      i = end;
+      continue;
+    }
+    logic += c;
+    logicToOriginal.push(i);
+    i += 1;
+  }
+  return { original: text4, logic, logicToOriginal, logicNewlines };
+}
+function listNewlineSpans(text4) {
+  const src = String(text4 ?? "");
+  const controls = new Map([...src.matchAll(TOKEN_RE)].map((m) => [m.index, m[0]]));
+  const spans = [];
+  for (let i = 0; i < src.length; ) {
+    const code = controls.get(i);
+    if (code && !/^\\[nr]$/i.test(code)) {
+      i += code.length;
+      continue;
+    }
+    const c = src[i];
+    const literalLine = Boolean(code && /^\\[nr]$/i.test(code));
+    if (c === "\n" || c === "\r" || literalLine) {
+      const end = literalLine ? i + code.length : c === "\r" && src[i + 1] === "\n" ? i + 2 : i + 1;
+      spans.push({ start: i, end, kind: inferNewlineKind(src, i, end) });
+      i = end;
+      continue;
+    }
+    i += 1;
+  }
+  return spans;
+}
+function validateNewlineAnnotations(text4, annotations) {
+  if (!annotations) return true;
+  if (!Array.isArray(annotations) || annotations.length > 500) return false;
+  const allowed = new Set(listNewlineSpans(text4).map((s) => `${s.start}:${s.end}`));
+  for (const note of annotations) {
+    if (!note || typeof note !== "object") return false;
+    if (!["soft", "hard", "unknown"].includes(note.kind)) return false;
+    if (!Number.isInteger(note.start) || !Number.isInteger(note.end) || note.end <= note.start) return false;
+    if (!allowed.has(`${note.start}:${note.end}`)) return false;
+  }
+  return true;
+}
+function mapLogicRangeToOriginal(view, logicStart, logicEnd) {
+  let start = Number.POSITIVE_INFINITY;
+  let end = Number.NEGATIVE_INFINITY;
+  const lo = Math.max(0, logicStart);
+  const hi = Math.min(view.logicToOriginal.length, logicEnd);
+  for (let i = lo; i < hi; i++) {
+    const o = view.logicToOriginal[i];
+    if (o < 0) continue;
+    if (o < start) start = o;
+    if (o + 1 > end) end = o + 1;
+  }
+  if (!Number.isFinite(start) || !Number.isFinite(end)) return { start: 0, end: 0 };
+  return { start, end };
+}
+var TOKEN_RE, INDENT, WORD, SENTENCE_END, WORDISH;
+var init_logic_text = __esm({
+  "lib/translate/logic-text.ts"() {
+    "use strict";
+    init_cache_lang();
+    init_rm_escape();
+    init_source_text();
+    TOKEN_RE = new RegExp(`${RM_ESCAPE_RE.source}|${TEXT_MARKUP_RE.source}|https?:\\/\\/[^\\s<>]+`, "g");
+    INDENT = /[\t \u3000]/;
+    WORD = /[A-Za-z0-9']/;
+    SENTENCE_END = /[。．.!！?？;；]/;
+    WORDISH = /[\p{L}\p{N}]/u;
   }
 });
 
@@ -2503,7 +2841,7 @@ function inferEllipsisClauses(record, source, target2) {
   return clauses.length >= 2 ? clauses : [];
 }
 function inferredSentenceTarget(record, groups, from, to) {
-  const group = groups.find((g) => g.from === from && g.to === to);
+  const group = groups.find((g2) => g2.from === from && g2.to === to);
   return group ? record.zh.slice(group.targetStart, group.targetEnd) : null;
 }
 var init_sentence_auto_alignment = __esm({
@@ -2610,7 +2948,7 @@ function target(record, units, from, to) {
   if (from === 0 && to === units.length && units[0]?.start === 0 && units.at(-1)?.end === record.src.length) return record.zh;
   const start = units[from].start;
   const end = units[to - 1].end;
-  const groups = (record.alignments || []).filter((g) => g.evidence === "verified" && g.sourceStart >= start && g.sourceEnd <= end).sort((a, b) => a.sourceStart - b.sourceStart);
+  const groups = (record.alignments || []).filter((g2) => g2.evidence === "verified" && g2.sourceStart >= start && g2.sourceEnd <= end).sort((a, b) => a.sourceStart - b.sourceStart);
   if (!groups.length || groups[0].sourceStart !== start || groups.at(-1).sourceEnd !== end) return null;
   for (let i = 1; i < groups.length; i++) if (groups[i - 1].sourceEnd !== groups[i].sourceStart || groups[i - 1].targetEnd !== groups[i].targetStart) return null;
   return record.zh.slice(groups[0].targetStart, groups.at(-1).targetEnd);
@@ -2621,32 +2959,32 @@ function cutsSurrogate(text4, index2) {
   return c >= 56320 && c <= 57343;
 }
 function validateAlignments(record, groups) {
-  if (!Array.isArray(groups) || groups.length > 1e3 || groups.some((g) => !g || typeof g !== "object" || !["verified", "structural"].includes(g.evidence))) return false;
+  if (!Array.isArray(groups) || groups.length > 1e3 || groups.some((g2) => !g2 || typeof g2 !== "object" || !["verified", "structural"].includes(g2.evidence))) return false;
   const src = sentenceUnits(record.src, { newlines: record.newlines, structure: record.structure?.source });
   const tgt = sentenceUnits(record.zh, { structure: record.structure?.target });
   const starts = new Set(src.map((s) => s.start)), ends = new Set(src.map((s) => s.end));
   const targetStarts = new Set(tgt.map((s) => s.start)), targetEnds = new Set(tgt.map((s) => s.end));
   let sourceEnd = 0, targetEnd = 0;
-  for (const g of groups) {
-    if (![g.sourceStart, g.sourceEnd, g.targetStart, g.targetEnd].every(Number.isInteger)) return false;
-    if (g.sourceStart < sourceEnd || g.targetStart < targetEnd || g.sourceStart >= g.sourceEnd || g.targetStart >= g.targetEnd) return false;
-    if (g.sourceStart < 0 || g.sourceEnd > record.src.length || g.targetStart < 0 || g.targetEnd > record.zh.length) return false;
-    if (cutsSurrogate(record.src, g.sourceStart) || cutsSurrogate(record.src, g.sourceEnd)) return false;
-    if (cutsSurrogate(record.zh, g.targetStart) || cutsSurrogate(record.zh, g.targetEnd)) return false;
-    const onUnits = starts.has(g.sourceStart) && ends.has(g.sourceEnd) && targetStarts.has(g.targetStart) && targetEnds.has(g.targetEnd);
+  for (const g2 of groups) {
+    if (![g2.sourceStart, g2.sourceEnd, g2.targetStart, g2.targetEnd].every(Number.isInteger)) return false;
+    if (g2.sourceStart < sourceEnd || g2.targetStart < targetEnd || g2.sourceStart >= g2.sourceEnd || g2.targetStart >= g2.targetEnd) return false;
+    if (g2.sourceStart < 0 || g2.sourceEnd > record.src.length || g2.targetStart < 0 || g2.targetEnd > record.zh.length) return false;
+    if (cutsSurrogate(record.src, g2.sourceStart) || cutsSurrogate(record.src, g2.sourceEnd)) return false;
+    if (cutsSurrogate(record.zh, g2.targetStart) || cutsSurrogate(record.zh, g2.targetEnd)) return false;
+    const onUnits = starts.has(g2.sourceStart) && ends.has(g2.sourceEnd) && targetStarts.has(g2.targetStart) && targetEnds.has(g2.targetEnd);
     if (!onUnits) {
-      if (g.evidence !== "verified") return false;
+      if (g2.evidence !== "verified") return false;
       if (src.length !== 1 || src[0].start !== 0 || src[0].end !== record.src.length) return false;
       if (tgt.length !== 1 || tgt[0].start !== 0 || tgt[0].end !== record.zh.length) return false;
-      sourceEnd = g.sourceEnd;
-      targetEnd = g.targetEnd;
+      sourceEnd = g2.sourceEnd;
+      targetEnd = g2.targetEnd;
       continue;
     }
-    const a = src.filter((s) => s.start >= g.sourceStart && s.end <= g.sourceEnd).map((s) => s.controls).filter((s) => s !== "[]").join("");
-    const b = tgt.filter((s) => s.start >= g.targetStart && s.end <= g.targetEnd).map((s) => s.controls).filter((s) => s !== "[]").join("");
+    const a = src.filter((s) => s.start >= g2.sourceStart && s.end <= g2.sourceEnd).map((s) => s.controls).filter((s) => s !== "[]").join("");
+    const b = tgt.filter((s) => s.start >= g2.targetStart && s.end <= g2.targetEnd).map((s) => s.controls).filter((s) => s !== "[]").join("");
     if (a !== b) return false;
-    sourceEnd = g.sourceEnd;
-    targetEnd = g.targetEnd;
+    sourceEnd = g2.sourceEnd;
+    targetEnd = g2.targetEnd;
   }
   return true;
 }
@@ -2705,7 +3043,7 @@ function candidates(src, records2, queryOpts, automaticOnly = false, budget) {
           if (length && (query[q + length].block !== query[q].block || units[r + length].block !== units[r].block || query[q + length - 1].boundary !== units[r + length - 1].boundary))
             break;
           length++;
-          const ellipsis = automaticOnly && inferred.some((g) => g.kind === "ellipsis" && g.from === r && g.to === r + length);
+          const ellipsis = automaticOnly && inferred.some((g2) => g2.kind === "ellipsis" && g2.from === r && g2.to === r + length);
           if (automaticOnly && !ellipsis && (q > 0 && query[q - 1].boundary !== "stop" || query[q + length - 1].boundary !== "stop")) continue;
           const text4 = automaticOnly ? inferredSentenceTarget(record, inferred, r, r + length) : target(record, units, r, r + length);
           if (text4 == null) continue;
@@ -2744,7 +3082,7 @@ function renderSentencePlan(plan, gaps = /* @__PURE__ */ new Map()) {
       restoreSeam: true,
       trimCachedSeam: /[,，、;；]\s*$/.test(m.record.src.slice(m.sourceStart, m.sourceEnd))
     })),
-    ...plan.gaps.map((g) => ({ ...g, text: gaps.get(g.id) ?? g.text, restoreSeam: gaps.has(g.id), trimCachedSeam: false }))
+    ...plan.gaps.map((g2) => ({ ...g2, text: gaps.get(g2.id) ?? g2.text, restoreSeam: gaps.has(g2.id), trimCachedSeam: false }))
   ].sort((a, b) => a.start - b.start);
   let at = 0, out = "";
   for (const part of pieces) {
@@ -2772,7 +3110,7 @@ function planSentenceTranslationView(src, records2, opts, unwrap) {
         ...inner,
         src,
         matches: inner.matches.map((m) => ({ ...m, start: m.start + body.offset, end: m.end + body.offset })),
-        gaps: inner.gaps.map((g) => ({ ...g, id: `${g.start + body.offset}:${g.end + body.offset}`, start: g.start + body.offset, end: g.end + body.offset })),
+        gaps: inner.gaps.map((g2) => ({ ...g2, id: `${g2.start + body.offset}:${g2.end + body.offset}`, start: g2.start + body.offset, end: g2.end + body.offset })),
         zh: null
       };
       if (initial.matches.length) {
@@ -2999,356 +3337,6 @@ var init_sentence_plan = __esm({
   }
 });
 
-// lib/translate/cache-row.ts
-function parseCacheRow(value) {
-  if (Array.isArray(value)) return typeof value[0] === "string" && (typeof value[1] === "string" || value[1] === null) ? { s: value[0], t: value[1] } : null;
-  if (!value || typeof value !== "object") return null;
-  const r = { ...value };
-  if (typeof r.engine !== "string") r.engine = void 0;
-  if (typeof r.event !== "string") r.event = void 0;
-  if (typeof r.s !== "string" || typeof r.t !== "string" && r.t !== null) return null;
-  if (r.origin && (typeof r.origin.id !== "string" || !Number.isInteger(r.origin.revision) || typeof r.origin.database !== "string")) return null;
-  if (r.structure && !validRecordStructure(r.structure)) r.structure = void 0;
-  if (r.alignments && (!r.t || !validateAlignments({ src: r.s, zh: r.t, newlines: r.newlines, structure: r.structure }, r.alignments)))
-    return { ...r, alignments: void 0 };
-  if (r.newlines && !validateNewlineAnnotations(r.s, r.newlines)) return { ...r, newlines: void 0 };
-  return r;
-}
-function applyCacheRow(rows, row) {
-  const previous = rows.get(row.s);
-  if (row.t === null) {
-    if (!row.origin || previous?.origin?.database === row.origin.database && previous.origin.id === row.origin.id) rows.delete(row.s);
-  } else if (row.origin && previous && !previous.origin) {
-    return;
-  } else rows.set(row.s, row);
-}
-var init_cache_row = __esm({
-  "lib/translate/cache-row.ts"() {
-    "use strict";
-    init_logic_text();
-    init_sentence_plan();
-    init_structured_segments();
-  }
-});
-
-// lib/translate/default-game-terms.json
-var default_game_terms_default;
-var init_default_game_terms = __esm({
-  "lib/translate/default-game-terms.json"() {
-    default_game_terms_default = {
-      flame: {
-        translations: {
-          zh: "\u708E",
-          en: "Flame",
-          ja: "\u708E",
-          ko: "\uD654\uC5FC"
-        },
-        aliases: {
-          en: ["Fire"]
-        }
-      },
-      lightning: {
-        translations: {
-          zh: "\u96F7",
-          en: "Lightning",
-          ja: "\u96F7",
-          ko: "\uBC88\uAC1C"
-        }
-      },
-      water: {
-        translations: {
-          zh: "\u6C34",
-          en: "Water",
-          ja: "\u6C34",
-          ko: "\uBB3C"
-        }
-      },
-      earth: {
-        translations: {
-          zh: "\u571F",
-          en: "Earth",
-          ja: "\u571F",
-          ko: "\uB300\uC9C0"
-        }
-      },
-      light: {
-        translations: {
-          zh: "\u5149",
-          en: "Light",
-          ja: "\u5149",
-          ko: "\uBE5B"
-        }
-      },
-      sword: {
-        translations: {
-          zh: "\u5251",
-          en: "Sword",
-          ja: "\u5263",
-          ko: "\uAC80"
-        }
-      },
-      axe: {
-        translations: {
-          zh: "\u65A7",
-          en: "Axe",
-          ja: "\u65A7",
-          ko: "\uB3C4\uB07C"
-        }
-      },
-      staff: {
-        translations: {
-          zh: "\u6756",
-          en: "Staff",
-          ja: "\u6756",
-          ko: "\uC9C0\uD321\uC774"
-        }
-      },
-      bow: {
-        translations: {
-          zh: "\u5F13",
-          en: "Bow",
-          ja: "\u5F13",
-          ko: "\uD65C"
-        }
-      },
-      gun: {
-        translations: {
-          zh: "\u67AA",
-          en: "Gun",
-          ja: "\u9283",
-          ko: "\uCD1D"
-        }
-      },
-      claw: {
-        translations: {
-          zh: "\u722A",
-          en: "Claw",
-          ja: "\u722A",
-          ko: "\uBC1C\uD1B1"
-        }
-      },
-      spear: {
-        translations: {
-          zh: "\u957F\u67AA",
-          en: "Spear",
-          ja: "\u69CD",
-          ko: "\uCC3D"
-        }
-      },
-      save: {
-        translations: {
-          zh: "\u4FDD\u5B58",
-          en: "Save",
-          ja: "\u30BB\u30FC\u30D6",
-          ko: "\uC800\uC7A5"
-        },
-        aliases: {
-          en: ["Save Game"],
-          ja: ["\u30BB\u30FC\u30D6\u3059\u308B"]
-        },
-        badTranslations: {
-          zh: ["\u8282\u7701", "\u62EF\u6551", "\u7701\u4E0B", "\u5B58\u76D8"]
-        }
-      },
-      load: {
-        translations: {
-          zh: "\u8BFB\u53D6",
-          en: "Load",
-          ja: "\u30ED\u30FC\u30C9",
-          ko: "\uBD88\uB7EC\uC624\uAE30"
-        },
-        aliases: {
-          en: ["Load Game"],
-          ja: ["\u30ED\u30FC\u30C9\u3059\u308B"]
-        },
-        badTranslations: {
-          zh: ["\u8D1F\u8377", "\u4F9B\u7535\u91CF", "\u8D1F\u8F7D", "\u88C5\u8F7D", "\u52A0\u8F7D", "\u88C5\u5165"]
-        }
-      },
-      new_game: {
-        translations: {
-          zh: "\u65B0\u6E38\u620F",
-          en: "New Game",
-          ja: "\u30CB\u30E5\u30FC\u30B2\u30FC\u30E0",
-          ko: "\uC0C8 \uAC8C\uC784"
-        },
-        badTranslations: {
-          zh: ["\u65B0\u7684\u6E38\u620F", "\u65B0\u6BD4\u8D5B"]
-        }
-      },
-      continue: {
-        translations: {
-          zh: "\u7EE7\u7EED\u6E38\u620F",
-          en: "Continue",
-          ja: "\u30B3\u30F3\u30C6\u30A3\u30CB\u30E5\u30FC",
-          ko: "\uC774\uC5B4\uD558\uAE30"
-        },
-        aliases: {
-          ja: ["\u3064\u3065\u304D\u304B\u3089"]
-        },
-        badTranslations: {
-          zh: ["\u7EE7\u7EED", "\u5EF6\u62D3"]
-        }
-      },
-      options: {
-        translations: {
-          zh: "\u8BBE\u7F6E",
-          en: "Options",
-          ja: "\u8A2D\u5B9A",
-          ko: "\uC124\uC815"
-        },
-        aliases: {
-          en: ["Option", "Config", "Settings"],
-          ja: ["\u30AA\u30D7\u30B7\u30E7\u30F3"]
-        },
-        badTranslations: {
-          zh: ["\u9009\u9879", "\u671F\u6743"]
-        }
-      },
-      item: {
-        translations: {
-          zh: "\u9053\u5177",
-          en: "Item",
-          ja: "\u30A2\u30A4\u30C6\u30E0",
-          ko: "\uC544\uC774\uD15C"
-        },
-        aliases: {
-          en: ["Items"]
-        },
-        badTranslations: {
-          zh: ["\u9879\u76EE", "\u6761\u6B3E", "\u7269\u4EF6"]
-        }
-      },
-      skill: {
-        translations: {
-          zh: "\u6280\u80FD",
-          en: "Skill",
-          ja: "\u30B9\u30AD\u30EB",
-          ko: "\uC2A4\uD0AC"
-        },
-        aliases: {
-          en: ["Skills"]
-        },
-        badTranslations: {
-          zh: ["\u6280\u672F", "\u6280\u80FD\u6761"]
-        }
-      },
-      equip: {
-        translations: {
-          zh: "\u88C5\u5907",
-          en: "Equip",
-          ja: "\u88C5\u5099",
-          ko: "\uC7A5\uBE44"
-        },
-        aliases: {
-          en: ["Equipment"]
-        },
-        badTranslations: {
-          zh: ["\u914D\u5907", "\u88C5\u8BBE"]
-        }
-      },
-      status: {
-        translations: {
-          zh: "\u72B6\u6001",
-          en: "Status",
-          ja: "\u30B9\u30C6\u30FC\u30BF\u30B9",
-          ko: "\uC0C1\uD0DC"
-        },
-        badTranslations: {
-          zh: ["\u5730\u4F4D", "\u8EAB\u5206", "\u72B6\u51B5"]
-        }
-      },
-      quit: {
-        translations: {
-          zh: "\u9000\u51FA",
-          en: "Quit",
-          ja: "\u7D42\u4E86",
-          ko: "\uC885\uB8CC"
-        },
-        aliases: {
-          en: ["Exit", "Game Over"]
-        },
-        badTranslations: {
-          zh: ["\u505C\u6B62", "\u653E\u5F03", "\u79BB\u5F00\u6E38\u620F"]
-        }
-      },
-      gold: {
-        translations: {
-          zh: "\u91D1\u5E01",
-          en: "Gold",
-          ja: "\u6240\u6301\u91D1",
-          ko: "\uC18C\uC9C0\uAE08"
-        },
-        aliases: {
-          en: ["Money"]
-        },
-        badTranslations: {
-          zh: ["\u9EC4\u91D1", "\u91D1\u8272"]
-        }
-      }
-    };
-  }
-});
-
-// lib/translate/game-terms.ts
-function key(text4) {
-  return text4.normalize("NFKC").toLowerCase();
-}
-function lookupGameTerm(source, targetLanguage = "zh", sourceLanguage) {
-  if (!GAME_TERM_LANGUAGES.includes(targetLanguage) || sourceLanguage && !GAME_TERM_LANGUAGES.includes(sourceLanguage)) return null;
-  const { lead, core, trail } = translationSegmentContent(source);
-  const normalized = key(core);
-  const languages3 = sourceLanguage ? [sourceLanguage] : GAME_TERM_LANGUAGES;
-  const targets = /* @__PURE__ */ new Set();
-  for (const language of languages3) {
-    for (const id of indexes[language].get(normalized) || []) targets.add(GAME_TERMS[id].translations[targetLanguage]);
-  }
-  return targets.size === 1 ? lead + [...targets][0] + trail : null;
-}
-function fixKnownBadGameTermTranslation(source, currentTarget, targetLanguage = "zh") {
-  if (!currentTarget || !source) return null;
-  const { core } = translationSegmentContent(source);
-  const normalizedSource = key(core);
-  for (const [_id, entry] of Object.entries(GAME_TERMS)) {
-    const isMatch = GAME_TERM_LANGUAGES.some((lang) => {
-      const candidates2 = [entry.translations[lang], ...entry.aliases?.[lang] || []];
-      return candidates2.some((cand) => key(cand) === normalizedSource);
-    });
-    if (!isMatch) continue;
-    const correctTarget = entry.translations[targetLanguage];
-    if (!correctTarget) continue;
-    const targetContent = translationSegmentContent(currentTarget);
-    const targetCoreNorm = key(targetContent.core);
-    const badList = entry.badTranslations?.[targetLanguage] || [];
-    const isBad = badList.some((bad) => key(bad) === targetCoreNorm);
-    if (isBad) {
-      return targetContent.lead + correctTarget + targetContent.trail;
-    }
-  }
-  return null;
-}
-var GAME_TERM_LANGUAGES, GAME_TERMS, indexes;
-var init_game_terms = __esm({
-  "lib/translate/game-terms.ts"() {
-    "use strict";
-    init_default_game_terms();
-    init_segments();
-    GAME_TERM_LANGUAGES = ["zh", "en", "ja", "ko"];
-    GAME_TERMS = default_game_terms_default;
-    indexes = Object.fromEntries(GAME_TERM_LANGUAGES.map((language) => [language, /* @__PURE__ */ new Map()]));
-    for (const [id, entry] of Object.entries(GAME_TERMS)) {
-      for (const language of GAME_TERM_LANGUAGES) {
-        for (const source of [entry.translations[language], ...entry.aliases?.[language] || []]) {
-          const normalized = key(source);
-          const ids = indexes[language].get(normalized) || /* @__PURE__ */ new Set();
-          ids.add(id);
-          indexes[language].set(normalized, ids);
-        }
-      }
-    }
-  }
-});
-
 // lib/translate/lookup.ts
 function normalizeTranslateKey(text4) {
   let s = String(text4 ?? "").replace(/\r\n/g, "\n").replace(/\r/g, "\n");
@@ -3495,10 +3483,16 @@ function isIdenticalTranslation(src, zh) {
 function isStorableTranslation(src, zh, targetLang = "zh") {
   if (!validDynamicTranslation(src, zh)) return false;
   if (translationRubyChunks(zh).some((part) => part.ruby && JAPANESE.test(part.base + part.reading))) return false;
-  if (!String(src ?? "").trim() || !String(zh ?? "").trim() || isIdenticalTranslation(src, zh)) return false;
+  if (!String(src ?? "").trim() || !String(zh ?? "").trim()) return false;
   const sourceText = normCmp(stripControlNoise(src));
   const translatedText = normCmp(stripControlNoise(zh));
-  if (!translatedText || sourceText && sourceText === translatedText) return false;
+  if (!translatedText) return false;
+  if (isIdenticalTranslation(src, zh)) {
+    if (JAPANESE.test(sourceText) || !HAN3.test(sourceText)) return false;
+    if (retainsJapaneseHanPhrase(sourceText, translatedText) || /[応駅図広気帰転戦楽読売発変実対観関験険値]/.test(translatedText)) return false;
+    return true;
+  }
+  if (sourceText && sourceText === translatedText) return false;
   if (JAPANESE.test(translatedText)) return false;
   if (retainsJapaneseHanPhrase(sourceText, translatedText)) return false;
   const isTargetZh = !targetLang || targetLang === "zh" || targetLang === "ch" || targetLang === "zh-CN" || targetLang === "zh-Hans" || targetLang === "zh-TW" || targetLang === "cht";
@@ -3516,7 +3510,11 @@ function isReusableTranslation(src, zh) {
 function isUsefulTranslation(src, send, raw, zh, targetLang = "zh") {
   if (!String(raw ?? "").trim() || !String(zh ?? "").trim()) return false;
   if (!isStorableTranslation(src, zh, targetLang)) return false;
-  if (normCmp(raw) === normCmp(send)) return false;
+  if (normCmp(raw) === normCmp(send)) {
+    const cleanSend = stripControlNoise(send);
+    if (JAPANESE.test(cleanSend) || !HAN3.test(cleanSend)) return false;
+    if (retainsJapaneseHanPhrase(cleanSend, raw) || /[応駅図広気帰転戦楽読売発变实对观关验险値]/.test(cleanSend)) return false;
+  }
   const placeholders2 = send.match(/__C\d+__/g) || [];
   if (JSON.stringify([...placeholders2].sort()) !== JSON.stringify((raw.match(/__C\d+__/g) || []).sort())) return false;
   if (/__C\d+____C\d+__/.test(raw) && !/__C\d+____C\d+__/.test(send)) return false;
@@ -3533,7 +3531,7 @@ function shouldTranslate(text4, sourceLang) {
     const compact2 = core.replace(/[\s\u3000]+/g, "");
     return compact2.length > 0 && !/^[\p{P}\p{S}]+$/u.test(compact2);
   }
-  if (!JAPANESE.test(core) && !isSourceText(core, sourceLang === "en" ? "en" : "all")) return false;
+  if (!JAPANESE.test(core) && !isSourceText(core, sourceLang === "en" ? "en" : sourceLang === "ja" ? "ja" : "all")) return false;
   const compact = core.replace(/[\s\u3000]+/g, "");
   return !(compact.length > 0 && /^[\p{P}\p{S}]+$/u.test(compact));
 }
@@ -3562,208 +3560,6 @@ var init_text_classify = __esm({
     CONTROL_AFFIX = /^(?:\\[A-Za-z]+(?:\[[^\]]*\])?|\\\[[^\]]*\]|\\[^A-Za-z\s]|[A-Za-z_][A-Za-z0-9_]*\[\d+\])/;
     PLACEHOLDER_RE = /__C(\d+)__/g;
     PLACEHOLDER_FALLBACK_RE = /__Ｃ(\d+)__|＿＿C(\d+)＿＿|\[\[C(\d+)\]\]/g;
-  }
-});
-
-// services/translate/game-records.ts
-import fs14 from "node:fs";
-function gameTranslationFiles(contentRoot, opts) {
-  const seed = opts?.localOnly ? localGameContentFile(contentRoot, "seed") : gameContentReadPath(contentRoot, "seed", { alsoParent: true });
-  const cache2 = opts?.localOnly ? localGameContentFile(contentRoot, "cacheNdjson") : gameContentReadPath(contentRoot, "cacheNdjson", { alsoParent: true });
-  const stamp = JSON.stringify(
-    [seed, cache2, opts?.localOnly ? 1 : 0].map((file) => {
-      if (typeof file === "number") return file;
-      const stat = file ? fs14.statSync(file, { throwIfNoEntry: false }) : void 0;
-      return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
-    })
-  );
-  return { seed, cache: cache2, stamp };
-}
-function loadGameTranslationRecords(contentRoot, current, opts) {
-  const { seed, cache: cache2, stamp } = gameTranslationFiles(contentRoot, opts);
-  let snapshot = snapshots.get(contentRoot);
-  if (snapshot?.stamp !== stamp) {
-    const rows = /* @__PURE__ */ new Map();
-    if (seed) {
-      let data;
-      try {
-        data = JSON.parse(fs14.readFileSync(seed, "utf8"));
-      } catch {
-        data = null;
-      }
-      if (data && typeof data === "object" && !Array.isArray(data)) {
-        for (const [s, t] of Object.entries(data)) if (typeof t === "string" && t) rows.set(s, { s, t, engine: "seed" });
-      }
-    }
-    if (cache2)
-      for (const line of fs14.readFileSync(cache2, "utf8").split("\n")) {
-        if (!line.trim()) continue;
-        try {
-          const row = parseCacheRow(JSON.parse(line));
-          if (row && row.engine !== "derived:sentence") applyCacheRow(rows, row);
-        } catch {
-        }
-      }
-    const entries2 = [...rows.values()].filter((r) => r.t && isReusableTranslation(r.s, r.t)).map((row) => ({
-      row,
-      record: {
-        id: row.origin?.id || `local:${row.s}`,
-        revision: row.origin?.revision || 0,
-        src: row.s,
-        zh: row.t,
-        engine: row.engine || "legacy-local",
-        alignments: row.alignments,
-        structure: row.structure,
-        newlines: row.newlines,
-        local: !row.origin
-      }
-    }));
-    snapshot = { stamp, entries: entries2 };
-    if (snapshots.size >= 8 && !snapshots.has(contentRoot)) snapshots.delete(snapshots.keys().next().value);
-    snapshots.set(contentRoot, snapshot);
-  }
-  return snapshot.entries.filter(({ row }) => !row.origin || !current || current(row.origin)).map(({ record }) => record);
-}
-var snapshots;
-var init_game_records = __esm({
-  "services/translate/game-records.ts"() {
-    "use strict";
-    init_content_files();
-    init_cache_row();
-    init_text_classify();
-    snapshots = /* @__PURE__ */ new Map();
-  }
-});
-
-// services/translate/game-lookup.ts
-function applyPair(lookup, src, zh) {
-  if (src == null || zh == null) return;
-  const k = String(src);
-  const v = String(zh);
-  if (!isReusableTranslation(k, v)) return;
-  lookup[k] = v;
-  const nk = normalizeTranslateKey(k);
-  if (nk && nk !== k) lookup[nk] = v;
-}
-function createGameTranslateLookup(records2) {
-  const lookup = /* @__PURE__ */ Object.create(null);
-  try {
-    for (const record of records2) applyPair(lookup, record.src, record.zh);
-  } catch {
-  }
-  return lookup;
-}
-function loadGameTranslateLookup(contentRoot) {
-  try {
-    return createGameTranslateLookup(loadGameTranslationRecords(contentRoot));
-  } catch {
-    return /* @__PURE__ */ Object.create(null);
-  }
-}
-function createGameTranslateEngines(records2) {
-  const engines = /* @__PURE__ */ Object.create(null);
-  try {
-    for (const record of records2) {
-      if (record.src && record.engine) {
-        engines[record.src] = record.engine;
-        const nk = normalizeTranslateKey(record.src);
-        if (nk && nk !== record.src && !engines[nk]) engines[nk] = record.engine;
-      }
-    }
-  } catch {
-  }
-  return engines;
-}
-function loadRgssTranslationLookup(contentRoot) {
-  const records2 = loadGameTranslationRecords(contentRoot);
-  const lookup = createGameTranslateLookup(records2);
-  const overrides = createGameTranslateLookup(
-    records2.filter(
-      ({ engine }) => engine === "manual" || engine === "import" || engine?.startsWith("import:") || engine === "live:optimize" || engine?.startsWith("live:optimize:")
-    )
-  );
-  const engines = createGameTranslateEngines(records2);
-  return { lookup, overrides, engines };
-}
-function resolveRgssTranslation(src, current, translations2) {
-  return translations2.overrides[src] || current || translations2.lookup[src] || "";
-}
-var init_game_lookup = __esm({
-  "services/translate/game-lookup.ts"() {
-    "use strict";
-    init_lookup();
-    init_text_classify();
-    init_game_records();
-  }
-});
-
-// services/translate/game-cache-context.ts
-import { createHash } from "node:crypto";
-import fs15 from "node:fs";
-function buildContext(contentRoot) {
-  const records2 = loadGameTranslationRecords(contentRoot, () => false);
-  const blocked = /* @__PURE__ */ new Set();
-  const file = gameTranslationFiles(contentRoot).cache;
-  if (file && fs15.existsSync(file))
-    for (const line of fs15.readFileSync(file, "utf8").split("\n")) {
-      if (!line.trim()) continue;
-      try {
-        const row = parseCacheRow(JSON.parse(line));
-        if (!row?.origin) {
-          if (row?.t === null) blocked.add(row.s);
-          else if (row) blocked.delete(row.s);
-        }
-      } catch {
-      }
-    }
-  const numeric2 = /* @__PURE__ */ new Map();
-  for (const record of records2) {
-    const family = numericLabelFamily(record.src);
-    if (family) numeric2.set(family, [...numeric2.get(family) || [], record]);
-  }
-  const { seed } = gameTranslationFiles(contentRoot);
-  const authorityVersion = createHash("sha256").update(JSON.stringify([seed, records2.filter((record) => record.local), [...blocked].sort()])).digest("hex");
-  return {
-    records: records2,
-    blocked: (src) => blocked.has(src),
-    resolver: createSentenceResolver(records2),
-    lookup: createGameTranslateLookup(records2),
-    numericRecords: (src) => numeric2.get(numericLabelFamily(src) || "") || [],
-    authorityVersion
-  };
-}
-function getGameCacheContext(contentRoot) {
-  const { stamp } = gameTranslationFiles(contentRoot);
-  let context2 = contexts.get(contentRoot);
-  if (context2?.stamp !== stamp) {
-    context2 = { ...buildContext(contentRoot), stamp };
-    if (contexts.size >= 8 && !contexts.has(contentRoot)) contexts.delete(contexts.keys().next().value);
-    contexts.set(contentRoot, context2);
-  }
-  return context2;
-}
-function noteGameSharedBackfill(contentRoot, previousStamp) {
-  const context2 = contexts.get(contentRoot);
-  if (!context2) return true;
-  if (context2?.stamp !== previousStamp) return false;
-  const stamp = gameTranslationFiles(contentRoot).stamp;
-  const before = JSON.parse(previousStamp);
-  const after = JSON.parse(stamp);
-  if (JSON.stringify(before[0]) !== JSON.stringify(after[0])) return false;
-  if (before[1][0] != null && before[1][0] !== after[1][0]) return false;
-  context2.stamp = stamp;
-  return true;
-}
-var contexts;
-var init_game_cache_context = __esm({
-  "services/translate/game-cache-context.ts"() {
-    "use strict";
-    init_cache_row();
-    init_dynamic_template();
-    init_sentence_plan();
-    init_game_lookup();
-    init_game_records();
-    contexts = /* @__PURE__ */ new Map();
   }
 });
 
@@ -3872,443 +3668,237 @@ var init_cache_lookup = __esm({
   }
 });
 
-// services/translate/shared-cache/match-index.ts
-function migrateMatchKeysKindColumn(client) {
-  const cols = client.prepare("PRAGMA table_info(match_keys)").all();
-  if (!cols.length || cols.some((c) => c.name === "kind")) return;
-  client.exec("BEGIN IMMEDIATE");
-  try {
-    client.exec(`
-      DROP TRIGGER IF EXISTS match_record_insert;
-      DROP TRIGGER IF EXISTS match_record_update;
-      DROP TRIGGER IF EXISTS match_record_delete;
-      CREATE TABLE match_keys_kind (
-        record_id INTEGER NOT NULL, match_key TEXT NOT NULL, src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL,
-        kind TEXT NOT NULL DEFAULT 'canonical', PRIMARY KEY(record_id,match_key,kind)
-      );
-      INSERT OR IGNORE INTO match_keys_kind(record_id,match_key,src_lang,tgt_lang,kind)
-        SELECT record_id, match_key, src_lang, tgt_lang, 'canonical' FROM match_keys;
-      DROP TABLE match_keys;
-      ALTER TABLE match_keys_kind RENAME TO match_keys;
-      CREATE INDEX IF NOT EXISTS idx_match_key ON match_keys(src_lang,tgt_lang,match_key);
-      DELETE FROM cache_meta WHERE key='sentence_index_v10_exact_keys';
-    `);
-    client.exec("COMMIT");
-  } catch (e) {
-    client.exec("ROLLBACK");
-    throw e;
+// lib/translate/cache-row.ts
+function parseCacheRow(value) {
+  if (Array.isArray(value)) return typeof value[0] === "string" && (typeof value[1] === "string" || value[1] === null) ? { s: value[0], t: value[1] } : null;
+  if (!value || typeof value !== "object") return null;
+  const r = { ...value };
+  if (typeof r.engine !== "string") r.engine = void 0;
+  if (typeof r.event !== "string") r.event = void 0;
+  if (typeof r.s !== "string" || typeof r.t !== "string" && r.t !== null) return null;
+  if (r.origin && (typeof r.origin.id !== "string" || !Number.isInteger(r.origin.revision) || typeof r.origin.database !== "string")) return null;
+  if (r.structure && !validRecordStructure(r.structure)) r.structure = void 0;
+  if (r.alignments && (!r.t || !validateAlignments({ src: r.s, zh: r.t, newlines: r.newlines, structure: r.structure }, r.alignments)))
+    return { ...r, alignments: void 0 };
+  if (r.newlines && !validateNewlineAnnotations(r.s, r.newlines)) return { ...r, newlines: void 0 };
+  return r;
+}
+function applyCacheRow(rows, row) {
+  const previous = rows.get(row.s);
+  if (row.t === null) {
+    if (!row.origin || previous?.origin?.database === row.origin.database && previous.origin.id === row.origin.id) rows.delete(row.s);
+  } else if (row.origin && previous && !previous.origin) {
+    return;
+  } else rows.set(row.s, row);
+}
+var init_cache_row = __esm({
+  "lib/translate/cache-row.ts"() {
+    "use strict";
+    init_logic_text();
+    init_sentence_plan();
+    init_structured_segments();
   }
-}
-function ensureMatchIndex(client) {
-  client.function("chaya_alias_keys", (src, zh) => JSON.stringify(sentenceAliases(String(src), String(zh)).map((p) => wholeSentenceKey(p.src))));
-  client.function("chaya_numeric_family", (src) => numericLabelFamily(String(src)) || "");
-  client.function("chaya_sentence_key", (src) => wholeSentenceKey(String(src)));
-  client.function("chaya_logic_key", (src) => wholeSentenceKey(buildLogicText(String(src)).logic));
-  client.function("chaya_sentence_units", (src) => JSON.stringify(sentenceUnits(String(src))));
-  client.exec(`
-    CREATE TABLE IF NOT EXISTS translation_records (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, src TEXT NOT NULL,
-      src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1,
-      translation_id INTEGER NOT NULL UNIQUE
-    );
-    CREATE INDEX IF NOT EXISTS idx_translation_record_source ON translation_records(src,src_lang,tgt_lang);
-    CREATE TABLE IF NOT EXISTS match_keys (
-      record_id INTEGER NOT NULL, match_key TEXT NOT NULL, src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'canonical', PRIMARY KEY(record_id,match_key,kind)
-    );
-    CREATE TABLE IF NOT EXISTS cache_meta (
-      key TEXT PRIMARY KEY NOT NULL,
-      value TEXT NOT NULL
-    );
-  `);
-  migrateMatchKeysKindColumn(client);
-  client.exec(`
-    CREATE TABLE IF NOT EXISTS translation_records (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, src TEXT NOT NULL,
-      src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1,
-      translation_id INTEGER NOT NULL UNIQUE
-    );
-    CREATE TABLE IF NOT EXISTS match_keys (
-      record_id INTEGER NOT NULL, match_key TEXT NOT NULL, src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'canonical', PRIMARY KEY(record_id,match_key,kind)
-    );
-    CREATE INDEX IF NOT EXISTS idx_match_key ON match_keys(src_lang,tgt_lang,match_key);
-    CREATE TABLE IF NOT EXISTS sentence_positions (
-      record_id INTEGER NOT NULL, position INTEGER NOT NULL, body_key TEXT NOT NULL, tone TEXT NOT NULL,
-      src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, PRIMARY KEY(record_id,position)
-    );
-    CREATE INDEX IF NOT EXISTS idx_sentence_key ON sentence_positions(src_lang,tgt_lang,body_key,tone);
-    CREATE TABLE IF NOT EXISTS numeric_label_keys (
-      record_id INTEGER PRIMARY KEY, family TEXT NOT NULL, src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_numeric_family ON numeric_label_keys(src_lang,tgt_lang,family);
-    CREATE TABLE IF NOT EXISTS alignment_groups (
-      record_id INTEGER NOT NULL, revision INTEGER NOT NULL, groups_json TEXT NOT NULL, PRIMARY KEY(record_id)
-    );
-    CREATE TABLE IF NOT EXISTS structure_annotations (
-      record_id INTEGER NOT NULL, revision INTEGER NOT NULL, annotations_json TEXT NOT NULL, PRIMARY KEY(record_id)
-    );
-    CREATE TABLE IF NOT EXISTS newline_annotations (
-      record_id INTEGER NOT NULL, revision INTEGER NOT NULL, annotations_json TEXT NOT NULL, PRIMARY KEY(record_id)
-    );
-    CREATE TABLE IF NOT EXISTS translation_outbox (
-      id INTEGER PRIMARY KEY AUTOINCREMENT, record_id INTEGER NOT NULL, revision INTEGER NOT NULL, kind TEXT NOT NULL
-    );
-    INSERT OR IGNORE INTO cache_meta(key,value) VALUES ('sentence_version','0');
-    DROP TRIGGER IF EXISTS match_record_insert;
-    DROP TRIGGER IF EXISTS match_record_update;
-    CREATE TRIGGER match_record_insert AFTER INSERT ON translation_records BEGIN
-      INSERT INTO numeric_label_keys SELECT NEW.id,chaya_numeric_family(NEW.src),NEW.src_lang,NEW.tgt_lang WHERE chaya_numeric_family(NEW.src)<>'';
-      INSERT INTO match_keys VALUES (NEW.id,chaya_sentence_key(NEW.src),NEW.src_lang,NEW.tgt_lang,'canonical');
-      INSERT OR IGNORE INTO match_keys VALUES (NEW.id,chaya_logic_key(NEW.src),NEW.src_lang,NEW.tgt_lang,'logic');
-      INSERT OR IGNORE INTO match_keys SELECT NEW.id,j.value,NEW.src_lang,NEW.tgt_lang,'alias' FROM json_each(chaya_alias_keys(NEW.src,(SELECT zh FROM translations WHERE id=NEW.translation_id))) j;
-      INSERT INTO sentence_positions SELECT NEW.id,CAST(j.key AS INTEGER),json_extract(j.value,'$.key'),json_extract(j.value,'$.tone'),NEW.src_lang,NEW.tgt_lang FROM json_each(chaya_sentence_units(NEW.src)) AS j;
-      UPDATE cache_meta SET value=CAST(value AS INTEGER)+1 WHERE key='sentence_version';
-    END;
-    CREATE TRIGGER match_record_update AFTER UPDATE ON translation_records BEGIN
-      DELETE FROM alignment_groups WHERE record_id=NEW.id;
-      DELETE FROM newline_annotations WHERE record_id=NEW.id;
-      DELETE FROM structure_annotations WHERE record_id=NEW.id;
-      DELETE FROM match_keys WHERE record_id=NEW.id AND kind IN ('alias','logic');
-      DELETE FROM sentence_positions WHERE record_id=NEW.id;
-      INSERT OR IGNORE INTO match_keys VALUES (NEW.id,chaya_logic_key(NEW.src),NEW.src_lang,NEW.tgt_lang,'logic');
-      INSERT OR IGNORE INTO match_keys SELECT NEW.id,j.value,NEW.src_lang,NEW.tgt_lang,'alias' FROM json_each(chaya_alias_keys(NEW.src,(SELECT zh FROM translations WHERE id=NEW.translation_id))) j;
-      INSERT INTO sentence_positions SELECT NEW.id,CAST(j.key AS INTEGER),json_extract(j.value,'$.key'),json_extract(j.value,'$.tone'),NEW.src_lang,NEW.tgt_lang FROM json_each(chaya_sentence_units(NEW.src)) AS j;
-      INSERT INTO translation_outbox(record_id,revision,kind) VALUES (NEW.id,NEW.revision,'update');
-      UPDATE cache_meta SET value=CAST(value AS INTEGER)+1 WHERE key='sentence_version';
-    END;
-    DROP TRIGGER IF EXISTS match_record_delete;
-    CREATE TRIGGER match_record_delete AFTER DELETE ON translation_records BEGIN
-      DELETE FROM numeric_label_keys WHERE record_id=OLD.id;
-      DELETE FROM match_keys WHERE record_id=OLD.id;
-      DELETE FROM sentence_positions WHERE record_id=OLD.id;
-      DELETE FROM alignment_groups WHERE record_id=OLD.id;
-      DELETE FROM newline_annotations WHERE record_id=OLD.id;
-      DELETE FROM structure_annotations WHERE record_id=OLD.id;
-      INSERT INTO translation_outbox(record_id,revision,kind) VALUES (OLD.id,OLD.revision+1,'delete');
-      UPDATE cache_meta SET value=CAST(value AS INTEGER)+1 WHERE key='sentence_version';
-    END;
-    CREATE TRIGGER IF NOT EXISTS translation_match_insert AFTER INSERT ON translations BEGIN
-      INSERT INTO translation_records(src,src_lang,tgt_lang,translation_id) VALUES(NEW.src,NEW.src_lang,NEW.tgt_lang,NEW.id);
-    END;
-    CREATE TRIGGER IF NOT EXISTS translation_match_update AFTER UPDATE OF zh,engine ON translations
-      WHEN OLD.zh IS NOT NEW.zh OR OLD.engine IS NOT NEW.engine BEGIN
-      UPDATE translation_records SET revision=revision+1 WHERE translation_id=NEW.id;
-    END;
-    CREATE TRIGGER IF NOT EXISTS translation_match_delete AFTER DELETE ON translations BEGIN
-      DELETE FROM translation_records WHERE translation_id=OLD.id;
-    END;
-  `);
-  if (!client.prepare("SELECT value FROM cache_meta WHERE key='sentence_index_v1'").get()) {
-    client.exec("BEGIN IMMEDIATE");
-    try {
-      client.exec(`INSERT OR IGNORE INTO translation_records(src,src_lang,tgt_lang,translation_id) SELECT src,src_lang,tgt_lang,id FROM translations;
-        INSERT OR REPLACE INTO cache_meta(key,value) VALUES('sentence_index_v1','1');`);
-      client.exec("COMMIT");
-    } catch (e) {
-      client.exec("ROLLBACK");
-      throw e;
-    }
-  }
-}
-function ensureMatchIndexSchema(client) {
-  ensureMatchIndex(client);
-}
-function needsSentenceIndexV10(client) {
-  return !client.prepare("SELECT value FROM cache_meta WHERE key='sentence_index_v10_exact_keys'").get();
-}
-function rebuildSentenceIndexV10Rows(client, rows) {
-  client.exec(
-    "DELETE FROM numeric_label_keys; INSERT INTO numeric_label_keys SELECT id,chaya_numeric_family(src),src_lang,tgt_lang FROM translation_records WHERE chaya_numeric_family(src)<>'';"
+});
+
+// services/translate/game-records.ts
+import fs13 from "node:fs";
+function gameTranslationFiles(contentRoot, opts) {
+  const seed = opts?.localOnly ? localGameContentFile(contentRoot, "seed") : gameContentReadPath(contentRoot, "seed", { alsoParent: true });
+  const cache2 = opts?.localOnly ? localGameContentFile(contentRoot, "cacheNdjson") : gameContentReadPath(contentRoot, "cacheNdjson", { alsoParent: true });
+  const stamp = JSON.stringify(
+    [seed, cache2, opts?.localOnly ? 1 : 0].map((file) => {
+      if (typeof file === "number") return file;
+      const stat = file ? fs13.statSync(file, { throwIfNoEntry: false }) : void 0;
+      return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
+    })
   );
-  const delPos = client.prepare("DELETE FROM sentence_positions WHERE record_id=?");
-  const delKeys = client.prepare("DELETE FROM match_keys WHERE record_id=?");
-  const insKey = client.prepare("INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)");
-  const insPos = client.prepare("INSERT INTO sentence_positions VALUES (?,?,?,?,?,?)");
-  const zhOf = client.prepare("SELECT zh FROM translations WHERE id=?");
-  const structureOf = client.prepare("SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?");
-  const nlOf = client.prepare("SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?");
-  for (const row of rows) {
-    const nlRow = nlOf.get(row.id, row.revision);
-    const newlines = nlRow ? JSON.parse(nlRow.annotations_json) : void 0;
-    const st = structureOf.get(row.id, row.revision);
-    const structure = st ? JSON.parse(st.annotations_json) : void 0;
-    const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang };
-    delPos.run(row.id);
-    delKeys.run(row.id);
-    const logicKey = wholeSentenceKey(buildLogicText(row.src, unitOpts).logic);
-    const canon = wholeSentenceKey(row.src);
-    insKey.run(row.id, canon, row.src_lang, row.tgt_lang, "canonical");
-    if (logicKey !== canon) insKey.run(row.id, logicKey, row.src_lang, row.tgt_lang, "logic");
-    const zh = zhOf.get(row.translation_id)?.zh ?? "";
-    for (const alias of sentenceAliases(row.src, zh)) {
-      insKey.run(row.id, wholeSentenceKey(alias.src), row.src_lang, row.tgt_lang, "alias");
-    }
-    sentenceUnits(row.src, unitOpts).forEach((unit, position) => insPos.run(row.id, position, unit.key, unit.tone, row.src_lang, row.tgt_lang));
-  }
+  return { seed, cache: cache2, stamp };
 }
-function rebuildSentenceIndexV10(client) {
-  if (!needsSentenceIndexV10(client)) return;
-  client.exec("BEGIN IMMEDIATE");
-  try {
-    const rows = client.prepare("SELECT id, translation_id, src, src_lang, tgt_lang, revision FROM translation_records").all();
-    rebuildSentenceIndexV10Rows(client, rows);
-    client.prepare("INSERT OR REPLACE INTO cache_meta(key,value) VALUES('sentence_index_v10_exact_keys','1')").run();
-    client.exec("COMMIT");
-  } catch (e) {
-    client.exec("ROLLBACK");
-    throw e;
-  }
-}
-async function rebuildSentenceIndexV10Async(client, yieldEvery = 80) {
-  if (!needsSentenceIndexV10(client)) return;
-  const rows = client.prepare("SELECT id, translation_id, src, src_lang, tgt_lang, revision FROM translation_records").all();
-  client.exec("BEGIN IMMEDIATE");
-  try {
-    client.exec(
-      "DELETE FROM numeric_label_keys; INSERT INTO numeric_label_keys SELECT id,chaya_numeric_family(src),src_lang,tgt_lang FROM translation_records WHERE chaya_numeric_family(src)<>'';"
-    );
-    const delPos = client.prepare("DELETE FROM sentence_positions WHERE record_id=?");
-    const delKeys = client.prepare("DELETE FROM match_keys WHERE record_id=?");
-    const insKey = client.prepare("INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)");
-    const insPos = client.prepare("INSERT INTO sentence_positions VALUES (?,?,?,?,?,?)");
-    const zhOf = client.prepare("SELECT zh FROM translations WHERE id=?");
-    const structureOf = client.prepare("SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?");
-    const nlOf = client.prepare("SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?");
-    for (let i = 0; i < rows.length; i++) {
-      const row = rows[i];
-      const nlRow = nlOf.get(row.id, row.revision);
-      const newlines = nlRow ? JSON.parse(nlRow.annotations_json) : void 0;
-      const st = structureOf.get(row.id, row.revision);
-      const structure = st ? JSON.parse(st.annotations_json) : void 0;
-      const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang };
-      delPos.run(row.id);
-      delKeys.run(row.id);
-      const logicKey = wholeSentenceKey(buildLogicText(row.src, unitOpts).logic);
-      const canon = wholeSentenceKey(row.src);
-      insKey.run(row.id, canon, row.src_lang, row.tgt_lang, "canonical");
-      if (logicKey !== canon) insKey.run(row.id, logicKey, row.src_lang, row.tgt_lang, "logic");
-      const zh = zhOf.get(row.translation_id)?.zh ?? "";
-      for (const alias of sentenceAliases(row.src, zh)) {
-        insKey.run(row.id, wholeSentenceKey(alias.src), row.src_lang, row.tgt_lang, "alias");
+function loadGameTranslationRecords(contentRoot, current, opts) {
+  const { seed, cache: cache2, stamp } = gameTranslationFiles(contentRoot, opts);
+  let snapshot = snapshots.get(contentRoot);
+  if (snapshot?.stamp !== stamp) {
+    const rows = /* @__PURE__ */ new Map();
+    if (seed) {
+      let data;
+      try {
+        data = JSON.parse(fs13.readFileSync(seed, "utf8"));
+      } catch {
+        data = null;
       }
-      sentenceUnits(row.src, unitOpts).forEach((unit, position) => insPos.run(row.id, position, unit.key, unit.tone, row.src_lang, row.tgt_lang));
-      if (i > 0 && i % yieldEvery === 0) {
-        client.exec("COMMIT");
-        await new Promise((r) => setTimeout(r, 0));
-        client.exec("BEGIN IMMEDIATE");
+      if (data && typeof data === "object" && !Array.isArray(data)) {
+        for (const [s, t] of Object.entries(data)) if (typeof t === "string" && t) rows.set(s, { s, t, engine: "seed" });
       }
     }
-    client.prepare("INSERT OR REPLACE INTO cache_meta(key,value) VALUES('sentence_index_v10_exact_keys','1')").run();
-    client.exec("COMMIT");
-  } catch (e) {
-    try {
-      client.exec("ROLLBACK");
-    } catch {
-    }
-    throw e;
-  }
-}
-function createMatchIndex(client) {
-  const statements = /* @__PURE__ */ new Map();
-  function prepare(sql2) {
-    let statement = statements.get(sql2);
-    if (!statement) {
-      statement = client.prepare(sql2);
-      statements.set(sql2, statement);
-    }
-    return statement;
-  }
-  const rawJoined = "SELECT DISTINCT r.*,t.zh,t.engine,t.category FROM translation_records r JOIN translations t ON t.id=r.translation_id";
-  const joined = rawJoined.replace("JOIN translations t", "JOIN selected_translations t");
-  function reindexWithNewlines(row, newlines, structure) {
-    const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang };
-    prepare("DELETE FROM sentence_positions WHERE record_id=?").run(row.id);
-    prepare("DELETE FROM match_keys WHERE record_id=? AND kind IN ('alias','logic')").run(row.id);
-    const logicKey = wholeSentenceKey(buildLogicText(row.src, unitOpts).logic);
-    const canon = wholeSentenceKey(row.src);
-    if (logicKey !== canon) {
-      prepare("INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)").run(row.id, logicKey, row.src_lang, row.tgt_lang, "logic");
-    }
-    for (const alias of sentenceAliases(row.src, row.zh)) {
-      prepare("INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)").run(row.id, wholeSentenceKey(alias.src), row.src_lang, row.tgt_lang, "alias");
-    }
-    const units = sentenceUnits(row.src, unitOpts);
-    const insertPos = prepare("INSERT INTO sentence_positions VALUES (?,?,?,?,?,?)");
-    units.forEach((unit, position) => insertPos.run(row.id, position, unit.key, unit.tone, row.src_lang, row.tgt_lang));
-  }
-  function attach(row) {
-    const record2 = toRecord(row);
-    const alignment = prepare("SELECT groups_json FROM alignment_groups WHERE record_id=? AND revision=?").get(row.id, row.revision);
-    if (alignment) record2.alignments = JSON.parse(alignment.groups_json);
-    const newlines = prepare("SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?").get(row.id, row.revision);
-    if (newlines) record2.newlines = JSON.parse(newlines.annotations_json);
-    const structure = prepare("SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?").get(row.id, row.revision);
-    if (structure) record2.structure = JSON.parse(structure.annotations_json);
-    return record2;
-  }
-  function inserted(translationId) {
-    const row = prepare(rawJoined + " WHERE t.id=?").get(translationId);
-    return row ? attach(row) : null;
-  }
-  function record(src, pair) {
-    const r = prepare(joined + " WHERE r.src=? AND r.src_lang=? AND r.tgt_lang=?").get(src, pair.from, pair.to);
-    return r ? attach(r) : null;
-  }
-  function equivalent(src, pair) {
-    const key3 = wholeSentenceKey(src);
-    return prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical' LIMIT 501").all(
-      key3,
-      pair.from,
-      pair.to
-    ).map(attach);
-  }
-  function candidates2(src, pair, opts) {
-    const found = /* @__PURE__ */ new Map();
-    const keyQuery = prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? LIMIT 501");
-    const lookupKeys = sentenceQueryKeys(src, opts);
-    for (const key3 of lookupKeys) {
-      for (const row of keyQuery.all(key3, pair.from, pair.to)) {
-        if (!found.has(String(row.id))) found.set(String(row.id), attach(row));
-        if (found.size > 500) return { records: [], limited: true };
-      }
-    }
-    const whole = [...found.values()];
-    for (const unit of sentenceQueryUnits(src, opts)) {
-      if (unit.boundary === "structure") {
-        const exactItems = keyQuery.all(wholeSentenceKey(src.slice(unit.start, unit.end)), pair.from, pair.to);
-        if (exactItems.length > 500) return { records: whole.length > 500 ? [] : whole, limited: true };
-        for (const row of exactItems) {
-          if (!found.has(String(row.id))) found.set(String(row.id), attach(row));
-          if (found.size > 500) return { records: [], limited: true };
+    if (cache2)
+      for (const line of fs13.readFileSync(cache2, "utf8").split("\n")) {
+        if (!line.trim()) continue;
+        try {
+          const row = parseCacheRow(JSON.parse(line));
+          if (row && row.engine !== "derived:sentence") applyCacheRow(rows, row);
+        } catch {
         }
       }
-      const rows = prepare(joined + " JOIN sentence_positions p ON p.record_id=r.id WHERE p.body_key=? AND p.tone=? AND p.src_lang=? AND p.tgt_lang=? LIMIT 501").all(
-        unit.key,
-        unit.tone,
-        pair.from,
-        pair.to
-      );
-      if (new Set(rows.map((r) => r.id)).size > 500 || found.size > 500) return { records: whole.length > 500 ? [] : whole, limited: true };
-      for (const row of rows) {
-        if (!found.has(String(row.id))) found.set(String(row.id), attach(row));
-        if (found.size > 500) return { records: [], limited: true };
+    const entries2 = [...rows.values()].filter((r) => r.t && isReusableTranslation(r.s, r.t)).map((row) => ({
+      row,
+      record: {
+        id: row.origin?.id || `local:${row.s}`,
+        revision: row.origin?.revision || 0,
+        src: row.s,
+        zh: row.t,
+        engine: row.engine || "legacy-local",
+        alignments: row.alignments,
+        structure: row.structure,
+        newlines: row.newlines,
+        local: !row.origin
+      }
+    }));
+    snapshot = { stamp, entries: entries2 };
+    if (snapshots.size >= 8 && !snapshots.has(contentRoot)) snapshots.delete(snapshots.keys().next().value);
+    snapshots.set(contentRoot, snapshot);
+  }
+  return snapshot.entries.filter(({ row }) => !row.origin || !current || current(row.origin)).map(({ record }) => record);
+}
+var snapshots;
+var init_game_records = __esm({
+  "services/translate/game-records.ts"() {
+    "use strict";
+    init_content_files();
+    init_cache_row();
+    init_text_classify();
+    snapshots = /* @__PURE__ */ new Map();
+  }
+});
+
+// services/translate/game-lookup.ts
+function applyPair(lookup, src, zh) {
+  if (src == null || zh == null) return;
+  const k = String(src);
+  const v = String(zh);
+  if (!isReusableTranslation(k, v)) return;
+  lookup[k] = v;
+  const nk = normalizeTranslateKey(k);
+  if (nk && nk !== k) lookup[nk] = v;
+}
+function createGameTranslateLookup(records2) {
+  const lookup = /* @__PURE__ */ Object.create(null);
+  try {
+    for (const record of records2) applyPair(lookup, record.src, record.zh);
+  } catch {
+  }
+  return lookup;
+}
+function loadGameTranslateLookup(contentRoot) {
+  try {
+    return createGameTranslateLookup(loadGameTranslationRecords(contentRoot));
+  } catch {
+    return /* @__PURE__ */ Object.create(null);
+  }
+}
+function createGameTranslateEngines(records2) {
+  const engines = /* @__PURE__ */ Object.create(null);
+  try {
+    for (const record of records2) {
+      if (record.src && record.engine) {
+        engines[record.src] = record.engine;
+        const nk = normalizeTranslateKey(record.src);
+        if (nk && nk !== record.src && !engines[nk]) engines[nk] = record.engine;
       }
     }
-    return found.size > 500 ? { records: [], limited: true } : { records: [...found.values()], limited: false };
+  } catch {
   }
+  return engines;
+}
+function loadRgssTranslationLookup(contentRoot) {
+  const records2 = loadGameTranslationRecords(contentRoot);
+  const lookup = createGameTranslateLookup(records2);
+  const overrides = createGameTranslateLookup(
+    records2.filter(
+      ({ engine }) => engine === "manual" || engine === "import" || engine?.startsWith("import:") || engine === "live:optimize" || engine?.startsWith("live:optimize:")
+    )
+  );
+  const engines = createGameTranslateEngines(records2);
+  return { lookup, overrides, engines };
+}
+function resolveRgssTranslation(src, current, translations2) {
+  return translations2.overrides[src] || current || translations2.lookup[src] || "";
+}
+var init_game_lookup = __esm({
+  "services/translate/game-lookup.ts"() {
+    "use strict";
+    init_lookup();
+    init_text_classify();
+    init_game_records();
+  }
+});
+
+// services/translate/game-cache-context.ts
+import { createHash } from "node:crypto";
+import fs14 from "node:fs";
+function buildContext(contentRoot) {
+  const records2 = loadGameTranslationRecords(contentRoot, () => false);
+  const blocked = /* @__PURE__ */ new Set();
+  const file = gameTranslationFiles(contentRoot).cache;
+  if (file && fs14.existsSync(file))
+    for (const line of fs14.readFileSync(file, "utf8").split("\n")) {
+      if (!line.trim()) continue;
+      try {
+        const row = parseCacheRow(JSON.parse(line));
+        if (!row?.origin) {
+          if (row?.t === null) blocked.add(row.s);
+          else if (row) blocked.delete(row.s);
+        }
+      } catch {
+      }
+    }
+  const numeric2 = /* @__PURE__ */ new Map();
+  for (const record of records2) {
+    const family = numericLabelFamily(record.src);
+    if (family) numeric2.set(family, [...numeric2.get(family) || [], record]);
+  }
+  const { seed } = gameTranslationFiles(contentRoot);
+  const authorityVersion = createHash("sha256").update(JSON.stringify([seed, records2.filter((record) => record.local), [...blocked].sort()])).digest("hex");
   return {
-    record,
-    inserted,
-    equivalent,
-    candidates: candidates2,
-    numericRecords(pair, src) {
-      const family = numericLabelFamily(src);
-      const rows = family ? prepare(joined + " JOIN numeric_label_keys n ON n.record_id=r.id WHERE n.src_lang=? AND n.tgt_lang=? AND n.family=? LIMIT 501").all(
-        pair.from,
-        pair.to,
-        family
-      ) : [];
-      return Object.assign(rows.map(attach), { limited: rows.length > 500 });
-    },
-    version: () => String(prepare("SELECT value FROM cache_meta WHERE key='sentence_version'").get().value),
-    current(records2) {
-      return records2.every((r) => Number(prepare(joined + " WHERE r.id=?").get(r.id)?.revision) === r.revision);
-    },
-    plan(src, pair, local = [], opts) {
-      client.exec("BEGIN");
-      try {
-        const selected = candidates2(src, pair, opts);
-        const limited = selected.limited || local.limited === true;
-        const resolved = planSentenceTranslation(src, limited ? [] : [...local, ...selected.records].filter((r) => pair.to !== "zh" || isReusableTranslation(r.src, r.zh)), opts);
-        const plan = {
-          ...resolved,
-          limited: limited || resolved.limited,
-          ruleVersion: SENTENCE_RULE_VERSION,
-          corpusVersion: String(prepare("SELECT value FROM cache_meta WHERE key='sentence_version'").get().value)
-        };
-        client.exec("COMMIT");
-        return plan;
-      } catch (e) {
-        client.exec("ROLLBACK");
-        throw e;
-      }
-    },
-    setAlignment(src, pair, groups, expectedRevision, opts) {
-      const r = opts?.candidateId ? inserted(opts.candidateId) : record(src, pair);
-      if (r && (r.src !== src || r.from !== pair.from || r.to !== pair.to)) return false;
-      if (!r || expectedRevision !== void 0 && r.revision !== expectedRevision || groups.length > 1e3) return false;
-      const structure = opts?.structure ?? r.structure;
-      if (structure && !validRecordStructure(structure)) return false;
-      const nextNewlines = opts?.newlines !== void 0 ? opts.newlines : r.newlines;
-      if (nextNewlines && !validateNewlineAnnotations(src, nextNewlines)) return false;
-      const draft = { ...r, newlines: nextNewlines, structure };
-      if (!validateAlignments(draft, groups)) return false;
-      client.exec("BEGIN IMMEDIATE");
-      try {
-        if (!prepare("UPDATE translation_records SET revision=revision+1 WHERE id=? AND revision=?").run(r.id, r.revision).changes) {
-          client.exec("ROLLBACK");
-          return false;
-        }
-        const nextRevision = r.revision + 1;
-        prepare("INSERT OR REPLACE INTO alignment_groups VALUES(?,?,?)").run(r.id, nextRevision, JSON.stringify(groups));
-        if (nextNewlines?.length) {
-          prepare("INSERT OR REPLACE INTO newline_annotations VALUES(?,?,?)").run(r.id, nextRevision, JSON.stringify(nextNewlines));
-        }
-        const row = prepare(rawJoined + " WHERE r.id=?").get(r.id);
-        if (structure) prepare("INSERT OR REPLACE INTO structure_annotations VALUES(?,?,?)").run(r.id, nextRevision, JSON.stringify(structure));
-        reindexWithNewlines(row, nextNewlines, structure);
-        client.exec("COMMIT");
-        return true;
-      } catch (e) {
-        client.exec("ROLLBACK");
-        throw e;
-      }
-    },
-    authority(src, pair, opts) {
-      const want = String(opts?.category || "").trim();
-      const records2 = prepare(
-        rawJoined + ` JOIN match_keys k ON k.record_id=r.id
-        WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical'
-          AND t.id=(SELECT c.id FROM translations c
-            WHERE c.src=t.src AND c.src_lang=t.src_lang AND c.tgt_lang=t.tgt_lang
-            ORDER BY c.engine_rank DESC,CASE WHEN c.category=? THEN 1 ELSE 0 END DESC,c.updated_at DESC,c.id DESC LIMIT 1)
-        ORDER BY t.updated_at DESC,t.id DESC LIMIT 501`
-      ).all(wholeSentenceKey(src), pair.from, pair.to, want).map(attach);
-      if (!records2.length || records2.length > 500) return null;
-      const rank = Math.max(...records2.map((r) => cacheEngineRank(r.engine)));
-      let top = records2.filter((r) => cacheEngineRank(r.engine) === rank);
-      if (want) {
-        const matched = top.filter((r) => r.category === want);
-        if (matched.length) top = matched;
-      }
-      if (new Set(top.map((r) => r.zh)).size !== 1) return top.find((r) => r.src === src) || null;
-      return top[0];
-    }
+    records: records2,
+    blocked: (src) => blocked.has(src),
+    resolver: createSentenceResolver(records2),
+    lookup: createGameTranslateLookup(records2),
+    numericRecords: (src) => numeric2.get(numericLabelFamily(src) || "") || [],
+    authorityVersion
   };
 }
-var toRecord;
-var init_match_index = __esm({
-  "services/translate/shared-cache/match-index.ts"() {
+function getGameCacheContext(contentRoot) {
+  const { stamp } = gameTranslationFiles(contentRoot);
+  let context2 = contexts.get(contentRoot);
+  if (context2?.stamp !== stamp) {
+    context2 = { ...buildContext(contentRoot), stamp };
+    if (contexts.size >= 8 && !contexts.has(contentRoot)) contexts.delete(contexts.keys().next().value);
+    contexts.set(contentRoot, context2);
+  }
+  return context2;
+}
+function noteGameSharedBackfill(contentRoot, previousStamp) {
+  const context2 = contexts.get(contentRoot);
+  if (!context2) return true;
+  if (context2?.stamp !== previousStamp) return false;
+  const stamp = gameTranslationFiles(contentRoot).stamp;
+  const before = JSON.parse(previousStamp);
+  const after = JSON.parse(stamp);
+  if (JSON.stringify(before[0]) !== JSON.stringify(after[0])) return false;
+  if (before[1][0] != null && before[1][0] !== after[1][0]) return false;
+  context2.stamp = stamp;
+  return true;
+}
+var contexts;
+var init_game_cache_context = __esm({
+  "services/translate/game-cache-context.ts"() {
     "use strict";
-    init_cache_engine_rank();
+    init_cache_row();
     init_dynamic_template();
-    init_logic_text();
-    init_sentence_aliases();
     init_sentence_plan();
-    init_sentence_query();
-    init_sentence_units();
-    init_structured_segments();
-    init_text_classify();
-    toRecord = (r) => ({
-      id: String(r.id),
-      candidateId: r.translation_id,
-      revision: r.revision,
-      src: r.src,
-      zh: r.zh,
-      engine: r.engine,
-      category: r.category || null,
-      from: r.src_lang,
-      to: r.tgt_lang
-    });
+    init_game_lookup();
+    init_game_records();
+    contexts = /* @__PURE__ */ new Map();
   }
 });
 
@@ -31857,7 +31447,7 @@ var require_ipv4 = __commonJS({
           }
         }
         const trailing = firstWildcard === -1 ? 0 : groups.length - firstWildcard;
-        const replaced = groups.map((g) => g === "*" ? "0" : g);
+        const replaced = groups.map((g2) => g2 === "*" ? "0" : g2);
         const subnetBits = constants.BITS - trailing * 8;
         return new _Address4(`${replaced.join(".")}/${subnetBits}`);
       }
@@ -32373,15 +31963,15 @@ var require_helpers = __commonJS({
     }
     function spanLeadingZeroes(address) {
       const groups = address.split(":");
-      return groups.map((g) => spanLeadingZeroesSimple(g)).join(":");
+      return groups.map((g2) => spanLeadingZeroesSimple(g2)).join(":");
     }
     function simpleGroup(addressString, offset = 0) {
       const groups = addressString.split(":");
-      return groups.map((g, i) => {
-        if (/group-v4/.test(g)) {
-          return g;
+      return groups.map((g2, i) => {
+        if (/group-v4/.test(g2)) {
+          return g2;
         }
-        return `<span class="hover-group group-${i + offset}">${spanLeadingZeroesSimple(g)}</span>`;
+        return `<span class="hover-group group-${i + offset}">${spanLeadingZeroesSimple(g2)}</span>`;
       });
     }
   }
@@ -32761,7 +32351,7 @@ var require_ipv6 = __commonJS({
           }
         }
         const trailing = firstWildcard === -1 ? 0 : groups.length - firstWildcard;
-        const replaced = groups.map((g) => g === "*" ? "0" : g);
+        const replaced = groups.map((g2) => g2 === "*" ? "0" : g2);
         const subnetBits = constants6.BITS - trailing * 16;
         return new _Address6(`${replaced.join(":")}/${subnetBits}`);
       }
@@ -34717,6 +34307,438 @@ var require_build = __commonJS({
     };
     Object.defineProperty(exports, "__esModule", { value: true });
     __exportStar(require_socksclient(), exports);
+  }
+});
+
+// services/translate/shared-cache/match-index.ts
+function migrateMatchKeysKindColumn(client) {
+  const cols = client.prepare("PRAGMA table_info(match_keys)").all();
+  if (!cols.length || cols.some((c) => c.name === "kind")) return;
+  client.exec("BEGIN IMMEDIATE");
+  try {
+    client.exec(`
+      DROP TRIGGER IF EXISTS match_record_insert;
+      DROP TRIGGER IF EXISTS match_record_update;
+      DROP TRIGGER IF EXISTS match_record_delete;
+      CREATE TABLE match_keys_kind (
+        record_id INTEGER NOT NULL, match_key TEXT NOT NULL, src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL,
+        kind TEXT NOT NULL DEFAULT 'canonical', PRIMARY KEY(record_id,match_key,kind)
+      );
+      INSERT OR IGNORE INTO match_keys_kind(record_id,match_key,src_lang,tgt_lang,kind)
+        SELECT record_id, match_key, src_lang, tgt_lang, 'canonical' FROM match_keys;
+      DROP TABLE match_keys;
+      ALTER TABLE match_keys_kind RENAME TO match_keys;
+      CREATE INDEX IF NOT EXISTS idx_match_key ON match_keys(src_lang,tgt_lang,match_key);
+      DELETE FROM cache_meta WHERE key='sentence_index_v10_exact_keys';
+    `);
+    client.exec("COMMIT");
+  } catch (e) {
+    client.exec("ROLLBACK");
+    throw e;
+  }
+}
+function ensureMatchIndex(client) {
+  client.function("chaya_alias_keys", (src, zh) => JSON.stringify(sentenceAliases(String(src), String(zh)).map((p) => wholeSentenceKey(p.src))));
+  client.function("chaya_numeric_family", (src) => numericLabelFamily(String(src)) || "");
+  client.function("chaya_sentence_key", (src) => wholeSentenceKey(String(src)));
+  client.function("chaya_logic_key", (src) => wholeSentenceKey(buildLogicText(String(src)).logic));
+  client.function("chaya_sentence_units", (src) => JSON.stringify(sentenceUnits(String(src))));
+  client.exec(`
+    CREATE TABLE IF NOT EXISTS translation_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, src TEXT NOT NULL,
+      src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1,
+      translation_id INTEGER NOT NULL UNIQUE
+    );
+    CREATE INDEX IF NOT EXISTS idx_translation_record_source ON translation_records(src,src_lang,tgt_lang);
+    CREATE TABLE IF NOT EXISTS match_keys (
+      record_id INTEGER NOT NULL, match_key TEXT NOT NULL, src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'canonical', PRIMARY KEY(record_id,match_key,kind)
+    );
+    CREATE TABLE IF NOT EXISTS cache_meta (
+      key TEXT PRIMARY KEY NOT NULL,
+      value TEXT NOT NULL
+    );
+  `);
+  migrateMatchKeysKindColumn(client);
+  client.exec(`
+    CREATE TABLE IF NOT EXISTS translation_records (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, src TEXT NOT NULL,
+      src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 1,
+      translation_id INTEGER NOT NULL UNIQUE
+    );
+    CREATE TABLE IF NOT EXISTS match_keys (
+      record_id INTEGER NOT NULL, match_key TEXT NOT NULL, src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, kind TEXT NOT NULL DEFAULT 'canonical', PRIMARY KEY(record_id,match_key,kind)
+    );
+    CREATE INDEX IF NOT EXISTS idx_match_key ON match_keys(src_lang,tgt_lang,match_key);
+    CREATE TABLE IF NOT EXISTS sentence_positions (
+      record_id INTEGER NOT NULL, position INTEGER NOT NULL, body_key TEXT NOT NULL, tone TEXT NOT NULL,
+      src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL, PRIMARY KEY(record_id,position)
+    );
+    CREATE INDEX IF NOT EXISTS idx_sentence_key ON sentence_positions(src_lang,tgt_lang,body_key,tone);
+    CREATE TABLE IF NOT EXISTS numeric_label_keys (
+      record_id INTEGER PRIMARY KEY, family TEXT NOT NULL, src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_numeric_family ON numeric_label_keys(src_lang,tgt_lang,family);
+    CREATE TABLE IF NOT EXISTS alignment_groups (
+      record_id INTEGER NOT NULL, revision INTEGER NOT NULL, groups_json TEXT NOT NULL, PRIMARY KEY(record_id)
+    );
+    CREATE TABLE IF NOT EXISTS structure_annotations (
+      record_id INTEGER NOT NULL, revision INTEGER NOT NULL, annotations_json TEXT NOT NULL, PRIMARY KEY(record_id)
+    );
+    CREATE TABLE IF NOT EXISTS newline_annotations (
+      record_id INTEGER NOT NULL, revision INTEGER NOT NULL, annotations_json TEXT NOT NULL, PRIMARY KEY(record_id)
+    );
+    CREATE TABLE IF NOT EXISTS translation_outbox (
+      id INTEGER PRIMARY KEY AUTOINCREMENT, record_id INTEGER NOT NULL, revision INTEGER NOT NULL, kind TEXT NOT NULL
+    );
+    INSERT OR IGNORE INTO cache_meta(key,value) VALUES ('sentence_version','0');
+    DROP TRIGGER IF EXISTS match_record_insert;
+    DROP TRIGGER IF EXISTS match_record_update;
+    CREATE TRIGGER match_record_insert AFTER INSERT ON translation_records BEGIN
+      INSERT INTO numeric_label_keys SELECT NEW.id,chaya_numeric_family(NEW.src),NEW.src_lang,NEW.tgt_lang WHERE chaya_numeric_family(NEW.src)<>'';
+      INSERT INTO match_keys VALUES (NEW.id,chaya_sentence_key(NEW.src),NEW.src_lang,NEW.tgt_lang,'canonical');
+      INSERT OR IGNORE INTO match_keys VALUES (NEW.id,chaya_logic_key(NEW.src),NEW.src_lang,NEW.tgt_lang,'logic');
+      INSERT OR IGNORE INTO match_keys SELECT NEW.id,j.value,NEW.src_lang,NEW.tgt_lang,'alias' FROM json_each(chaya_alias_keys(NEW.src,(SELECT zh FROM translations WHERE id=NEW.translation_id))) j;
+      INSERT INTO sentence_positions SELECT NEW.id,CAST(j.key AS INTEGER),json_extract(j.value,'$.key'),json_extract(j.value,'$.tone'),NEW.src_lang,NEW.tgt_lang FROM json_each(chaya_sentence_units(NEW.src)) AS j;
+      UPDATE cache_meta SET value=CAST(value AS INTEGER)+1 WHERE key='sentence_version';
+    END;
+    CREATE TRIGGER match_record_update AFTER UPDATE ON translation_records BEGIN
+      DELETE FROM alignment_groups WHERE record_id=NEW.id;
+      DELETE FROM newline_annotations WHERE record_id=NEW.id;
+      DELETE FROM structure_annotations WHERE record_id=NEW.id;
+      DELETE FROM match_keys WHERE record_id=NEW.id AND kind IN ('alias','logic');
+      DELETE FROM sentence_positions WHERE record_id=NEW.id;
+      INSERT OR IGNORE INTO match_keys VALUES (NEW.id,chaya_logic_key(NEW.src),NEW.src_lang,NEW.tgt_lang,'logic');
+      INSERT OR IGNORE INTO match_keys SELECT NEW.id,j.value,NEW.src_lang,NEW.tgt_lang,'alias' FROM json_each(chaya_alias_keys(NEW.src,(SELECT zh FROM translations WHERE id=NEW.translation_id))) j;
+      INSERT INTO sentence_positions SELECT NEW.id,CAST(j.key AS INTEGER),json_extract(j.value,'$.key'),json_extract(j.value,'$.tone'),NEW.src_lang,NEW.tgt_lang FROM json_each(chaya_sentence_units(NEW.src)) AS j;
+      INSERT INTO translation_outbox(record_id,revision,kind) VALUES (NEW.id,NEW.revision,'update');
+      UPDATE cache_meta SET value=CAST(value AS INTEGER)+1 WHERE key='sentence_version';
+    END;
+    DROP TRIGGER IF EXISTS match_record_delete;
+    CREATE TRIGGER match_record_delete AFTER DELETE ON translation_records BEGIN
+      DELETE FROM numeric_label_keys WHERE record_id=OLD.id;
+      DELETE FROM match_keys WHERE record_id=OLD.id;
+      DELETE FROM sentence_positions WHERE record_id=OLD.id;
+      DELETE FROM alignment_groups WHERE record_id=OLD.id;
+      DELETE FROM newline_annotations WHERE record_id=OLD.id;
+      DELETE FROM structure_annotations WHERE record_id=OLD.id;
+      INSERT INTO translation_outbox(record_id,revision,kind) VALUES (OLD.id,OLD.revision+1,'delete');
+      UPDATE cache_meta SET value=CAST(value AS INTEGER)+1 WHERE key='sentence_version';
+    END;
+    CREATE TRIGGER IF NOT EXISTS translation_match_insert AFTER INSERT ON translations BEGIN
+      INSERT INTO translation_records(src,src_lang,tgt_lang,translation_id) VALUES(NEW.src,NEW.src_lang,NEW.tgt_lang,NEW.id);
+    END;
+    CREATE TRIGGER IF NOT EXISTS translation_match_update AFTER UPDATE OF zh,engine ON translations
+      WHEN OLD.zh IS NOT NEW.zh OR OLD.engine IS NOT NEW.engine BEGIN
+      UPDATE translation_records SET revision=revision+1 WHERE translation_id=NEW.id;
+    END;
+    CREATE TRIGGER IF NOT EXISTS translation_match_delete AFTER DELETE ON translations BEGIN
+      DELETE FROM translation_records WHERE translation_id=OLD.id;
+    END;
+  `);
+  if (!client.prepare("SELECT value FROM cache_meta WHERE key='sentence_index_v1'").get()) {
+    client.exec("BEGIN IMMEDIATE");
+    try {
+      client.exec(`INSERT OR IGNORE INTO translation_records(src,src_lang,tgt_lang,translation_id) SELECT src,src_lang,tgt_lang,id FROM translations;
+        INSERT OR REPLACE INTO cache_meta(key,value) VALUES('sentence_index_v1','1');`);
+      client.exec("COMMIT");
+    } catch (e) {
+      client.exec("ROLLBACK");
+      throw e;
+    }
+  }
+}
+function ensureMatchIndexSchema(client) {
+  ensureMatchIndex(client);
+}
+function needsSentenceIndexV10(client) {
+  return !client.prepare("SELECT value FROM cache_meta WHERE key='sentence_index_v10_exact_keys'").get();
+}
+function rebuildSentenceIndexV10Rows(client, rows) {
+  client.exec(
+    "DELETE FROM numeric_label_keys; INSERT INTO numeric_label_keys SELECT id,chaya_numeric_family(src),src_lang,tgt_lang FROM translation_records WHERE chaya_numeric_family(src)<>'';"
+  );
+  const delPos = client.prepare("DELETE FROM sentence_positions WHERE record_id=?");
+  const delKeys = client.prepare("DELETE FROM match_keys WHERE record_id=?");
+  const insKey = client.prepare("INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)");
+  const insPos = client.prepare("INSERT INTO sentence_positions VALUES (?,?,?,?,?,?)");
+  const zhOf = client.prepare("SELECT zh FROM translations WHERE id=?");
+  const structureOf = client.prepare("SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?");
+  const nlOf = client.prepare("SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?");
+  for (const row of rows) {
+    const nlRow = nlOf.get(row.id, row.revision);
+    const newlines = nlRow ? JSON.parse(nlRow.annotations_json) : void 0;
+    const st = structureOf.get(row.id, row.revision);
+    const structure = st ? JSON.parse(st.annotations_json) : void 0;
+    const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang };
+    delPos.run(row.id);
+    delKeys.run(row.id);
+    const logicKey = wholeSentenceKey(buildLogicText(row.src, unitOpts).logic);
+    const canon = wholeSentenceKey(row.src);
+    insKey.run(row.id, canon, row.src_lang, row.tgt_lang, "canonical");
+    if (logicKey !== canon) insKey.run(row.id, logicKey, row.src_lang, row.tgt_lang, "logic");
+    const zh = zhOf.get(row.translation_id)?.zh ?? "";
+    for (const alias of sentenceAliases(row.src, zh)) {
+      insKey.run(row.id, wholeSentenceKey(alias.src), row.src_lang, row.tgt_lang, "alias");
+    }
+    sentenceUnits(row.src, unitOpts).forEach((unit, position) => insPos.run(row.id, position, unit.key, unit.tone, row.src_lang, row.tgt_lang));
+  }
+}
+function rebuildSentenceIndexV10(client) {
+  if (!needsSentenceIndexV10(client)) return;
+  client.exec("BEGIN IMMEDIATE");
+  try {
+    const rows = client.prepare("SELECT id, translation_id, src, src_lang, tgt_lang, revision FROM translation_records").all();
+    rebuildSentenceIndexV10Rows(client, rows);
+    client.prepare("INSERT OR REPLACE INTO cache_meta(key,value) VALUES('sentence_index_v10_exact_keys','1')").run();
+    client.exec("COMMIT");
+  } catch (e) {
+    client.exec("ROLLBACK");
+    throw e;
+  }
+}
+async function rebuildSentenceIndexV10Async(client, yieldEvery = 80) {
+  if (!needsSentenceIndexV10(client)) return;
+  const rows = client.prepare("SELECT id, translation_id, src, src_lang, tgt_lang, revision FROM translation_records").all();
+  client.exec("BEGIN IMMEDIATE");
+  try {
+    client.exec(
+      "DELETE FROM numeric_label_keys; INSERT INTO numeric_label_keys SELECT id,chaya_numeric_family(src),src_lang,tgt_lang FROM translation_records WHERE chaya_numeric_family(src)<>'';"
+    );
+    const delPos = client.prepare("DELETE FROM sentence_positions WHERE record_id=?");
+    const delKeys = client.prepare("DELETE FROM match_keys WHERE record_id=?");
+    const insKey = client.prepare("INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)");
+    const insPos = client.prepare("INSERT INTO sentence_positions VALUES (?,?,?,?,?,?)");
+    const zhOf = client.prepare("SELECT zh FROM translations WHERE id=?");
+    const structureOf = client.prepare("SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?");
+    const nlOf = client.prepare("SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?");
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
+      const nlRow = nlOf.get(row.id, row.revision);
+      const newlines = nlRow ? JSON.parse(nlRow.annotations_json) : void 0;
+      const st = structureOf.get(row.id, row.revision);
+      const structure = st ? JSON.parse(st.annotations_json) : void 0;
+      const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang };
+      delPos.run(row.id);
+      delKeys.run(row.id);
+      const logicKey = wholeSentenceKey(buildLogicText(row.src, unitOpts).logic);
+      const canon = wholeSentenceKey(row.src);
+      insKey.run(row.id, canon, row.src_lang, row.tgt_lang, "canonical");
+      if (logicKey !== canon) insKey.run(row.id, logicKey, row.src_lang, row.tgt_lang, "logic");
+      const zh = zhOf.get(row.translation_id)?.zh ?? "";
+      for (const alias of sentenceAliases(row.src, zh)) {
+        insKey.run(row.id, wholeSentenceKey(alias.src), row.src_lang, row.tgt_lang, "alias");
+      }
+      sentenceUnits(row.src, unitOpts).forEach((unit, position) => insPos.run(row.id, position, unit.key, unit.tone, row.src_lang, row.tgt_lang));
+      if (i > 0 && i % yieldEvery === 0) {
+        client.exec("COMMIT");
+        await new Promise((r) => setTimeout(r, 0));
+        client.exec("BEGIN IMMEDIATE");
+      }
+    }
+    client.prepare("INSERT OR REPLACE INTO cache_meta(key,value) VALUES('sentence_index_v10_exact_keys','1')").run();
+    client.exec("COMMIT");
+  } catch (e) {
+    try {
+      client.exec("ROLLBACK");
+    } catch {
+    }
+    throw e;
+  }
+}
+function createMatchIndex(client) {
+  const statements = /* @__PURE__ */ new Map();
+  function prepare(sql2) {
+    let statement = statements.get(sql2);
+    if (!statement) {
+      statement = client.prepare(sql2);
+      statements.set(sql2, statement);
+    }
+    return statement;
+  }
+  const rawJoined = "SELECT DISTINCT r.*,t.zh,t.engine,t.category FROM translation_records r JOIN translations t ON t.id=r.translation_id";
+  const joined = rawJoined.replace("JOIN translations t", "JOIN selected_translations t");
+  function reindexWithNewlines(row, newlines, structure) {
+    const unitOpts = { newlines, structure: structure?.source, srcLang: row.src_lang };
+    prepare("DELETE FROM sentence_positions WHERE record_id=?").run(row.id);
+    prepare("DELETE FROM match_keys WHERE record_id=? AND kind IN ('alias','logic')").run(row.id);
+    const logicKey = wholeSentenceKey(buildLogicText(row.src, unitOpts).logic);
+    const canon = wholeSentenceKey(row.src);
+    if (logicKey !== canon) {
+      prepare("INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)").run(row.id, logicKey, row.src_lang, row.tgt_lang, "logic");
+    }
+    for (const alias of sentenceAliases(row.src, row.zh)) {
+      prepare("INSERT OR IGNORE INTO match_keys VALUES (?,?,?,?,?)").run(row.id, wholeSentenceKey(alias.src), row.src_lang, row.tgt_lang, "alias");
+    }
+    const units = sentenceUnits(row.src, unitOpts);
+    const insertPos = prepare("INSERT INTO sentence_positions VALUES (?,?,?,?,?,?)");
+    units.forEach((unit, position) => insertPos.run(row.id, position, unit.key, unit.tone, row.src_lang, row.tgt_lang));
+  }
+  function attach(row) {
+    const record2 = toRecord(row);
+    const alignment = prepare("SELECT groups_json FROM alignment_groups WHERE record_id=? AND revision=?").get(row.id, row.revision);
+    if (alignment) record2.alignments = JSON.parse(alignment.groups_json);
+    const newlines = prepare("SELECT annotations_json FROM newline_annotations WHERE record_id=? AND revision=?").get(row.id, row.revision);
+    if (newlines) record2.newlines = JSON.parse(newlines.annotations_json);
+    const structure = prepare("SELECT annotations_json FROM structure_annotations WHERE record_id=? AND revision=?").get(row.id, row.revision);
+    if (structure) record2.structure = JSON.parse(structure.annotations_json);
+    return record2;
+  }
+  function inserted(translationId) {
+    const row = prepare(rawJoined + " WHERE t.id=?").get(translationId);
+    return row ? attach(row) : null;
+  }
+  function record(src, pair) {
+    const r = prepare(joined + " WHERE r.src=? AND r.src_lang=? AND r.tgt_lang=?").get(src, pair.from, pair.to);
+    return r ? attach(r) : null;
+  }
+  function equivalent(src, pair) {
+    const key3 = wholeSentenceKey(src);
+    return prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical' LIMIT 501").all(
+      key3,
+      pair.from,
+      pair.to
+    ).map(attach);
+  }
+  function candidates2(src, pair, opts) {
+    const found = /* @__PURE__ */ new Map();
+    const keyQuery = prepare(joined + " JOIN match_keys k ON k.record_id=r.id WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? LIMIT 501");
+    const lookupKeys = sentenceQueryKeys(src, opts);
+    for (const key3 of lookupKeys) {
+      for (const row of keyQuery.all(key3, pair.from, pair.to)) {
+        if (!found.has(String(row.id))) found.set(String(row.id), attach(row));
+        if (found.size > 500) return { records: [], limited: true };
+      }
+    }
+    const whole = [...found.values()];
+    for (const unit of sentenceQueryUnits(src, opts)) {
+      if (unit.boundary === "structure") {
+        const exactItems = keyQuery.all(wholeSentenceKey(src.slice(unit.start, unit.end)), pair.from, pair.to);
+        if (exactItems.length > 500) return { records: whole.length > 500 ? [] : whole, limited: true };
+        for (const row of exactItems) {
+          if (!found.has(String(row.id))) found.set(String(row.id), attach(row));
+          if (found.size > 500) return { records: [], limited: true };
+        }
+      }
+      const rows = prepare(joined + " JOIN sentence_positions p ON p.record_id=r.id WHERE p.body_key=? AND p.tone=? AND p.src_lang=? AND p.tgt_lang=? LIMIT 501").all(
+        unit.key,
+        unit.tone,
+        pair.from,
+        pair.to
+      );
+      if (new Set(rows.map((r) => r.id)).size > 500 || found.size > 500) return { records: whole.length > 500 ? [] : whole, limited: true };
+      for (const row of rows) {
+        if (!found.has(String(row.id))) found.set(String(row.id), attach(row));
+        if (found.size > 500) return { records: [], limited: true };
+      }
+    }
+    return found.size > 500 ? { records: [], limited: true } : { records: [...found.values()], limited: false };
+  }
+  return {
+    record,
+    inserted,
+    equivalent,
+    candidates: candidates2,
+    numericRecords(pair, src) {
+      const family = numericLabelFamily(src);
+      const rows = family ? prepare(joined + " JOIN numeric_label_keys n ON n.record_id=r.id WHERE n.src_lang=? AND n.tgt_lang=? AND n.family=? LIMIT 501").all(
+        pair.from,
+        pair.to,
+        family
+      ) : [];
+      return Object.assign(rows.map(attach), { limited: rows.length > 500 });
+    },
+    version: () => String(prepare("SELECT value FROM cache_meta WHERE key='sentence_version'").get().value),
+    current(records2) {
+      return records2.every((r) => Number(prepare(joined + " WHERE r.id=?").get(r.id)?.revision) === r.revision);
+    },
+    plan(src, pair, local = [], opts) {
+      const selected = candidates2(src, pair, opts);
+      const limited = selected.limited || local.limited === true;
+      const resolved = planSentenceTranslation(src, limited ? [] : [...local, ...selected.records].filter((r) => pair.to !== "zh" || isReusableTranslation(r.src, r.zh)), opts);
+      return {
+        ...resolved,
+        limited: limited || resolved.limited,
+        ruleVersion: SENTENCE_RULE_VERSION,
+        corpusVersion: String(prepare("SELECT value FROM cache_meta WHERE key='sentence_version'").get().value)
+      };
+    },
+    setAlignment(src, pair, groups, expectedRevision, opts) {
+      const r = opts?.candidateId ? inserted(opts.candidateId) : record(src, pair);
+      if (r && (r.src !== src || r.from !== pair.from || r.to !== pair.to)) return false;
+      if (!r || expectedRevision !== void 0 && r.revision !== expectedRevision || groups.length > 1e3) return false;
+      const structure = opts?.structure ?? r.structure;
+      if (structure && !validRecordStructure(structure)) return false;
+      const nextNewlines = opts?.newlines !== void 0 ? opts.newlines : r.newlines;
+      if (nextNewlines && !validateNewlineAnnotations(src, nextNewlines)) return false;
+      const draft = { ...r, newlines: nextNewlines, structure };
+      if (!validateAlignments(draft, groups)) return false;
+      client.exec("BEGIN IMMEDIATE");
+      try {
+        if (!prepare("UPDATE translation_records SET revision=revision+1 WHERE id=? AND revision=?").run(r.id, r.revision).changes) {
+          client.exec("ROLLBACK");
+          return false;
+        }
+        const nextRevision = r.revision + 1;
+        prepare("INSERT OR REPLACE INTO alignment_groups VALUES(?,?,?)").run(r.id, nextRevision, JSON.stringify(groups));
+        if (nextNewlines?.length) {
+          prepare("INSERT OR REPLACE INTO newline_annotations VALUES(?,?,?)").run(r.id, nextRevision, JSON.stringify(nextNewlines));
+        }
+        const row = prepare(rawJoined + " WHERE r.id=?").get(r.id);
+        if (structure) prepare("INSERT OR REPLACE INTO structure_annotations VALUES(?,?,?)").run(r.id, nextRevision, JSON.stringify(structure));
+        reindexWithNewlines(row, nextNewlines, structure);
+        client.exec("COMMIT");
+        return true;
+      } catch (e) {
+        client.exec("ROLLBACK");
+        throw e;
+      }
+    },
+    authority(src, pair, opts) {
+      const want = String(opts?.category || "").trim();
+      const records2 = prepare(
+        rawJoined + ` JOIN match_keys k ON k.record_id=r.id
+        WHERE k.match_key=? AND k.src_lang=? AND k.tgt_lang=? AND k.kind='canonical'
+          AND t.id=(SELECT c.id FROM translations c
+            WHERE c.src=t.src AND c.src_lang=t.src_lang AND c.tgt_lang=t.tgt_lang
+            ORDER BY c.engine_rank DESC,CASE WHEN c.category=? THEN 1 ELSE 0 END DESC,c.updated_at DESC,c.id DESC LIMIT 1)
+        ORDER BY t.updated_at DESC,t.id DESC LIMIT 501`
+      ).all(wholeSentenceKey(src), pair.from, pair.to, want).map(attach);
+      if (!records2.length || records2.length > 500) return null;
+      const rank = Math.max(...records2.map((r) => cacheEngineRank(r.engine)));
+      let top = records2.filter((r) => cacheEngineRank(r.engine) === rank);
+      if (want) {
+        const matched = top.filter((r) => r.category === want);
+        if (matched.length) top = matched;
+      }
+      if (new Set(top.map((r) => r.zh)).size !== 1) return top.find((r) => r.src === src) || null;
+      return top[0];
+    }
+  };
+}
+var toRecord;
+var init_match_index = __esm({
+  "services/translate/shared-cache/match-index.ts"() {
+    "use strict";
+    init_cache_engine_rank();
+    init_dynamic_template();
+    init_logic_text();
+    init_sentence_aliases();
+    init_sentence_plan();
+    init_sentence_query();
+    init_sentence_units();
+    init_structured_segments();
+    init_text_classify();
+    toRecord = (r) => ({
+      id: String(r.id),
+      candidateId: r.translation_id,
+      revision: r.revision,
+      src: r.src,
+      zh: r.zh,
+      engine: r.engine,
+      category: r.category || null,
+      from: r.src_lang,
+      to: r.tgt_lang
+    });
   }
 });
 
@@ -37316,46 +37338,46 @@ var init_game_cache_plan = __esm({
 });
 
 // lib/translate/cache-file-lock.ts
-function lockCacheFile(fs40, file) {
+function lockCacheFile(fs41, file) {
   const name2 = `${file}.lock`;
   let fd;
   try {
-    fd = fs40.openSync(name2, "wx");
+    fd = fs41.openSync(name2, "wx");
   } catch (error) {
     if (error.code !== "EEXIST") throw error;
     let stale = false;
     try {
-      const pid = Number(fs40.readFileSync(name2, "utf8"));
+      const pid = Number(fs41.readFileSync(name2, "utf8"));
       if (Number.isInteger(pid) && pid > 0) {
         try {
           process.kill(pid, 0);
         } catch (e) {
           stale = e.code === "ESRCH";
         }
-      } else stale = Date.now() - fs40.statSync(name2).mtimeMs > 3e4;
+      } else stale = Date.now() - fs41.statSync(name2).mtimeMs > 3e4;
     } catch {
     }
     if (!stale) throw new Error("Translation cache is being written, please try again later");
-    fs40.unlinkSync(name2);
-    fd = fs40.openSync(name2, "wx");
+    fs41.unlinkSync(name2);
+    fd = fs41.openSync(name2, "wx");
   }
   try {
-    fs40.writeFileSync(fd, String(process.pid));
+    fs41.writeFileSync(fd, String(process.pid));
   } catch (e) {
-    fs40.closeSync(fd);
-    fs40.unlinkSync(name2);
+    fs41.closeSync(fd);
+    fs41.unlinkSync(name2);
     throw e;
   }
   return () => {
-    fs40.closeSync(fd);
-    fs40.unlinkSync(name2);
+    fs41.closeSync(fd);
+    fs41.unlinkSync(name2);
   };
 }
-function appendCacheLines(fs40, file, lines) {
+function appendCacheLines(fs41, file, lines) {
   if (!lines.length) return;
   let text4 = "";
   try {
-    text4 = fs40.readFileSync(file, "utf8");
+    text4 = fs41.readFileSync(file, "utf8");
   } catch (e) {
     if (e.code !== "ENOENT") throw e;
   }
@@ -37363,17 +37385,17 @@ function appendCacheLines(fs40, file, lines) {
     const end = text4.lastIndexOf("\n") + 1;
     try {
       JSON.parse(text4.slice(end));
-      fs40.appendFileSync(file, "\n");
+      fs41.appendFileSync(file, "\n");
     } catch {
-      fs40.truncateSync(file, Buffer.byteLength(text4.slice(0, end)));
+      fs41.truncateSync(file, Buffer.byteLength(text4.slice(0, end)));
     }
   }
-  fs40.appendFileSync(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
-  const fd = fs40.openSync(file, "r+");
+  fs41.appendFileSync(file, lines.map((line) => JSON.stringify(line)).join("\n") + "\n");
+  const fd = fs41.openSync(file, "r+");
   try {
-    fs40.fsyncSync(fd);
+    fs41.fsyncSync(fd);
   } finally {
-    fs40.closeSync(fd);
+    fs41.closeSync(fd);
   }
 }
 var init_cache_file_lock = __esm({
@@ -37388,7 +37410,8 @@ function createGameProjections(client, index2, database) {
   client.exec(`CREATE TABLE IF NOT EXISTS game_projections (
     root TEXT NOT NULL, src TEXT NOT NULL, src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL,
     signature TEXT NOT NULL DEFAULT '', revision INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY(root,src,src_lang,tgt_lang))`);
+    PRIMARY KEY(root,src,src_lang,tgt_lang));
+  CREATE INDEX IF NOT EXISTS idx_game_projections_order ON game_projections(root, revision, src, src_lang, tgt_lang);`);
   const originDatabase = `${database}:game-projection`;
   function signature(root) {
     return JSON.stringify([SENTENCE_RULE_VERSION, index2.version(), getGameCacheContext(root).authorityVersion]);
@@ -37410,11 +37433,15 @@ function createGameProjections(client, index2, database) {
       const started = performance.now();
       const context2 = getGameCacheContext(root);
       const nextSignature = signature(root);
-      const pending = client.prepare("SELECT * FROM game_projections WHERE root=? AND signature<>? ORDER BY revision,src,src_lang,tgt_lang").all(root, nextSignature);
+      const limit = budgetMs < Infinity ? Math.max(100, Math.ceil(budgetMs * 4)) : -1;
+      const query = limit > 0 ? client.prepare("SELECT * FROM game_projections WHERE root=? AND signature<>? ORDER BY revision,src,src_lang,tgt_lang LIMIT ?") : client.prepare("SELECT * FROM game_projections WHERE root=? AND signature<>? ORDER BY revision,src,src_lang,tgt_lang");
+      const pending = limit > 0 ? query.all(root, nextSignature, limit + 1) : query.all(root, nextSignature);
+      const hasMore = limit > 0 && pending.length > limit;
+      const entries2 = hasMore ? pending.slice(0, limit) : pending;
       const updateProjection = client.prepare("UPDATE game_projections SET signature=?,revision=? WHERE root=? AND src=? AND src_lang=? AND tgt_lang=?");
       const events = [];
       const acknowledge = [];
-      for (const entry of pending) {
+      for (const entry of entries2) {
         if (acknowledge.length && performance.now() - started >= budgetMs) break;
         const pair = { from: entry.src_lang, to: entry.tgt_lang };
         const exact = !context2.blocked(entry.src) && context2.lookup[entry.src] == null ? index2.record(entry.src, pair) : null;
@@ -37437,7 +37464,7 @@ function createGameProjections(client, index2, database) {
           updateProjection.run(nextSignature, revision, root, entry.src, entry.src_lang, entry.tgt_lang);
         });
       }
-      return { events, acknowledge, pending: acknowledge.length < pending.length };
+      return { events, acknowledge, pending: hasMore || acknowledge.length < entries2.length };
     }
   };
 }
@@ -37451,15 +37478,15 @@ var init_game_projections = __esm({
 });
 
 // services/translate/shared-cache/backfill.ts
-import fs32 from "node:fs";
+import fs33 from "node:fs";
 function fileStamp(file) {
-  const stat = fs32.statSync(file, { throwIfNoEntry: false });
+  const stat = fs33.statSync(file, { throwIfNoEntry: false });
   return JSON.stringify([stat?.ino, stat?.size, stat?.mtimeMs, stat?.ctimeMs]);
 }
 function readBackfillSnapshot(file) {
   const stamp = fileStamp(file);
   const rows = /* @__PURE__ */ new Map(), seen2 = /* @__PURE__ */ new Set();
-  for (const line of (fs32.existsSync(file) ? fs32.readFileSync(file, "utf8") : "").split("\n")) {
+  for (const line of (fs33.existsSync(file) ? fs33.readFileSync(file, "utf8") : "").split("\n")) {
     try {
       const row = parseCacheRow(JSON.parse(line));
       if (row) {
@@ -37502,7 +37529,7 @@ function ownedSharedAppend(file, before, events) {
 }
 function appendCacheEvents(file, events) {
   if (appendPublicCacheFile(file, events)) return;
-  appendCacheLines(fs32, file, events);
+  appendCacheLines(fs33, file, events);
 }
 function createGameBackfill(client, index2, database) {
   const projections = createGameProjections(client, index2, database);
@@ -37551,7 +37578,7 @@ function createGameBackfill(client, index2, database) {
       const stale = client.prepare(`SELECT 1 FROM game_backfills b WHERE b.root=? AND ${staleLink} LIMIT 1`).get(root);
       if (!pending && !stale && !projections.pending(root)) return { sharedOnly: false };
       const file = ensureGameContentDir(root, "cacheNdjson");
-      const release = lockCacheFile(fs32, file);
+      const release = lockCacheFile(fs33, file);
       try {
         const filesBefore = gameTranslationFiles(root);
         const previousStamp = filesBefore.stamp;
@@ -37697,7 +37724,7 @@ function confirmRecordSegments(index2, parent, pairs, pair, opts) {
   let groups = opts?.replaceGroups ? [] : [...record.alignments || []];
   const tryAdd = (group, index3, src, zh) => {
     const dup = groups.some(
-      (g) => g.sourceStart === group.sourceStart && g.sourceEnd === group.sourceEnd && g.targetStart === group.targetStart && g.targetEnd === group.targetEnd && g.evidence === group.evidence
+      (g2) => g2.sourceStart === group.sourceStart && g2.sourceEnd === group.sourceEnd && g2.targetStart === group.targetStart && g2.targetEnd === group.targetEnd && g2.evidence === group.evidence
     );
     if (dup) {
       stats.identical++;
@@ -41221,7 +41248,7 @@ var init_candidate_schema = __esm({
 });
 
 // services/translate/shared-cache/migrate-bg.ts
-import fs33 from "node:fs";
+import fs34 from "node:fs";
 import path31 from "node:path";
 import { DatabaseSync as DatabaseSync5 } from "node:sqlite";
 function isSharedIdenticalPair(src, tgt) {
@@ -41232,7 +41259,7 @@ function isSharedIdenticalPair(src, tgt) {
 }
 function runSharedCacheHeavyMigrateSync(dbPath) {
   const resolved = path31.resolve(dbPath);
-  if (!fs33.existsSync(resolved)) return;
+  if (!fs34.existsSync(resolved)) return;
   const client = new DatabaseSync5(resolved);
   try {
     client.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000");
@@ -41249,7 +41276,7 @@ function runSharedCacheHeavyMigrateSync(dbPath) {
 }
 function scheduleSharedCacheHeavyMigrate(dbPath) {
   const resolved = path31.resolve(dbPath);
-  if (!fs33.existsSync(resolved)) return;
+  if (!fs34.existsSync(resolved)) return;
   if (process.env.JEST_WORKER_ID) {
     runSharedCacheHeavyMigrateSync(resolved);
     return;
@@ -41426,7 +41453,7 @@ var init_schema = __esm({
 });
 
 // services/translate/shared-cache/db.ts
-import fs34 from "node:fs";
+import fs35 from "node:fs";
 import path32 from "node:path";
 import { DatabaseSync as DatabaseSync6 } from "node:sqlite";
 function defaultSharedDir() {
@@ -41600,7 +41627,7 @@ function ensureSchema(db, client) {
 }
 function openSharedCacheDb(dbPath = defaultSharedDbPath()) {
   const resolved = path32.resolve(dbPath);
-  fs34.mkdirSync(path32.dirname(resolved), { recursive: true });
+  fs35.mkdirSync(path32.dirname(resolved), { recursive: true });
   const client = new DatabaseSync6(resolved);
   client.exec("PRAGMA journal_mode = WAL; PRAGMA busy_timeout = 5000; PRAGMA foreign_keys = ON");
   const db = drizzle({ client });
@@ -41676,7 +41703,7 @@ __export(shared_cache_exports, {
   sharedCacheSchema: () => sharedCacheSchema,
   translations: () => translations
 });
-import fs35 from "node:fs";
+import fs36 from "node:fs";
 import path33 from "node:path";
 function nsfwBit(src, engine) {
   return isNsfwCacheRow(src, engine) ? 1 : 0;
@@ -41774,7 +41801,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
       const previous = db.select().from(cacheMeta).where(eq(cacheMeta.key, key3)).get()?.value;
       if (previous === startedWith) return backfill.flush(root);
       const file = gameTranslationFiles(root).seed;
-      const seed = file ? JSON.parse(fs35.readFileSync(file, "utf8")) : {};
+      const seed = file ? JSON.parse(fs36.readFileSync(file, "utf8")) : {};
       if (!seed || typeof seed !== "object" || Array.isArray(seed)) throw new Error("Seed must be an object mapping source text to translation");
       const context2 = getGameCacheContext(root);
       const records2 = [];
@@ -42023,7 +42050,7 @@ function openOwnedSharedCache(dbPath = defaultSharedDbPath()) {
       const n = Number(db.select({ n: count() }).from(translations).get()?.n || 0);
       let sizeBytes = 0;
       try {
-        sizeBytes = fs35.statSync(resolved).size;
+        sizeBytes = fs36.statSync(resolved).size;
       } catch {
       }
       return { entries: n, sizeBytes, file: resolved };
@@ -42097,7 +42124,7 @@ import { parentPort as parentPort2 } from "node:worker_threads";
 var SEED_JOB_WORKER_VERSION = 1;
 
 // services/translate/seed-job-runtime.ts
-import fs39 from "node:fs";
+import fs40 from "node:fs";
 
 // lib/format-compact-count.ts
 function formatCompactCount(n) {
@@ -42681,11 +42708,11 @@ var DEFAULT_LOG_URL = `${DEFAULT_API_BASE}/api/logs`;
 var GAME_ONLINE_TTL_MS = 15e3;
 var STORE_KEY = "__chaya_game_presence_v1__";
 function store() {
-  const g = globalThis;
-  if (!g[STORE_KEY]) {
-    g[STORE_KEY] = { current: null, quitRequested: false };
+  const g2 = globalThis;
+  if (!g2[STORE_KEY]) {
+    g2[STORE_KEY] = { current: null, quitRequested: false };
   }
-  return g[STORE_KEY];
+  return g2[STORE_KEY];
 }
 function getGamePresence() {
   const s = store();
@@ -43250,8 +43277,15 @@ function withEntryIds(contentRoot, state) {
   if (assigned.changed && contentRoot) writePlatformFile(contentRoot, next);
   return next;
 }
+function defaultAppleOn() {
+  if (process.platform !== "darwin") return false;
+  const bin = path14.resolve(process.cwd(), "native/bin/chaya-apple-translator");
+  return fs12.existsSync(bin);
+}
 function combine(contentRoot, raw) {
-  const local = mergeEngineState(raw);
+  const hasRaw = raw && typeof raw === "object" && Object.keys(raw).length > 0;
+  const appleDefault = !hasRaw && defaultAppleOn();
+  const local = mergeEngineState(raw, appleDefault ? { switches: { apple: true }, configs: { apple: { enabled: true } } } : void 0);
   let shared = readSharedTranslateAgents();
   if (!shared.stored && local.agents.length) {
     shared = writeSharedTranslateAgents({ agents: local.agents, order: local.order });
@@ -43274,16 +43308,19 @@ function getTranslateEngineSwitches(contentRoot = resolveContentRoot(false)) {
   if (!contentRoot) {
     const sharedAgents = readSharedTranslateAgents() || { agents: [], order: [] };
     const sharedSwitches = readSharedSwitches();
+    const appleDefault = !sharedSwitches && defaultAppleOn();
     const initialConfigs = sharedSwitches?.configs || {
       ...DEFAULT_ENGINE_SETTINGS,
+      ...appleDefault ? { apple: { ...DEFAULT_ENGINE_SETTINGS.apple, enabled: true } } : {},
       bergamot: { ...DEFAULT_ENGINE_SETTINGS.bergamot, id: "mvsd812nzmca" }
     };
     const combined = mergeEngineState({
       ...DEFAULT_ENGINE_SWITCHES,
+      ...appleDefault ? { apple: true } : {},
       ...sharedSwitches?.switches || {},
       configs: initialConfigs,
       agents: sharedAgents.agents,
-      order: sharedSwitches?.order || [...sharedAgents.order, ...DEFAULT_ENGINE_ORDER]
+      order: sharedSwitches?.order || [...sharedAgents.order, ...appleDefault ? ["apple", ...DEFAULT_ENGINE_ORDER.filter((e) => e !== "apple")] : DEFAULT_ENGINE_ORDER]
     });
     const assigned = assignMissingEngineEntryIds(combined.configs);
     if (assigned.changed || !sharedSwitches) {
@@ -43304,1341 +43341,7 @@ function getTranslateEngineSwitches(contentRoot = resolveContentRoot(false)) {
 init_content_files();
 init_cache_lang();
 init_dynamic_template();
-init_source_text();
-import fs38 from "node:fs";
-
-// services/extract/lib/rgss.ts
-init_content_files();
-init_cache_lang();
-init_source_text();
-import fs22 from "node:fs";
-import path20 from "node:path";
-
-// services/game/rgss-archive.ts
-import fs13 from "node:fs";
-import path15 from "node:path";
-import { inflateSync } from "node:zlib";
-
-// services/extract/lib/rgss/marshal.ts
-var HEADER_MAJOR = 4;
-var HEADER_MINOR = 8;
-function assert(condition, message) {
-  if (!condition) throw new Error(`Invalid Ruby Marshal data: ${message}`);
-}
-function decodeUtf8(bytes) {
-  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
-}
-var Reader = class {
-  constructor(bytes) {
-    this.bytes = bytes;
-    this.offset = 0;
-    this.symbols = [];
-    this.objects = [];
-  }
-  readByte() {
-    assert(this.offset < this.bytes.length, "unexpected end of input");
-    return this.bytes[this.offset++];
-  }
-  readBytes(length) {
-    assert(length >= 0 && this.offset + length <= this.bytes.length, "truncated payload");
-    const value = this.bytes.subarray(this.offset, this.offset + length);
-    this.offset += length;
-    return value;
-  }
-  readIntegerBody() {
-    const first = this.readByte();
-    if (first === 0) return 0;
-    if (first >= 5 && first <= 127) return first - 5;
-    if (first >= 128 && first <= 250) return first - 251;
-    if (first >= 1 && first <= 4) {
-      let value2 = 0;
-      for (let i = 0; i < first; i += 1) value2 += this.readByte() * 2 ** (8 * i);
-      return value2;
-    }
-    const length = 256 - first;
-    assert(length <= 8, "integer is too large");
-    let value = 0;
-    for (let i = 0; i < length; i += 1) value += this.readByte() * 2 ** (8 * i);
-    return value - 2 ** (8 * length);
-  }
-  readSymbol() {
-    const tag = String.fromCharCode(this.readByte());
-    if (tag === ";") {
-      const index2 = this.readIntegerBody();
-      assert(index2 >= 0 && index2 < this.symbols.length, "symbol link out of range");
-      return { kind: "symbol", value: this.symbols[index2] };
-    }
-    assert(tag === ":", `expected symbol, got ${JSON.stringify(tag)}`);
-    const value = decodeUtf8(this.readBytes(this.readIntegerBody()));
-    this.symbols.push(value);
-    return { kind: "symbol", value };
-  }
-  readIvars(value) {
-    const count2 = this.readIntegerBody();
-    const pairs = [];
-    for (let i = 0; i < count2; i += 1) pairs.push({ key: this.readSymbol(), value: this.readValue() });
-    const ivars = { kind: "hash", pairs };
-    if (value && typeof value === "object" && "kind" in value) {
-      if (value.kind === "string" || value.kind === "array" || value.kind === "hash" || value.kind === "user-defined" || value.kind === "regexp") value.ivars = ivars;
-    }
-    return value;
-  }
-  readValue() {
-    const tag = String.fromCharCode(this.readByte());
-    switch (tag) {
-      case "0":
-        return null;
-      case "T":
-        return true;
-      case "F":
-        return false;
-      case "i":
-        return this.readIntegerBody();
-      case '"': {
-        const bytes = this.readBytes(this.readIntegerBody()).slice();
-        const value = { kind: "string", value: decodeUtf8(bytes) };
-        Object.defineProperty(value, "bytes", { value: bytes, writable: true });
-        this.objects.push(value);
-        return value;
-      }
-      case "f": {
-        const length = this.readIntegerBody();
-        const bytes = this.readBytes(length).slice();
-        const value = { kind: "float", value: decodeUtf8(bytes) };
-        Object.defineProperty(value, "bytes", { value: bytes, writable: true });
-        this.objects.push(value);
-        return value;
-      }
-      case "/": {
-        const value = { kind: "regexp", data: this.readBytes(this.readIntegerBody()).slice(), options: this.readByte() };
-        this.objects.push(value);
-        return value;
-      }
-      case ":":
-      case ";":
-        this.offset -= 1;
-        return this.readSymbol();
-      case "[": {
-        const result = { kind: "array", items: [] };
-        this.objects.push(result);
-        const count2 = this.readIntegerBody();
-        for (let i = 0; i < count2; i += 1) result.items.push(this.readValue());
-        return result;
-      }
-      case "{": {
-        const result = { kind: "hash", pairs: [] };
-        this.objects.push(result);
-        const count2 = this.readIntegerBody();
-        for (let i = 0; i < count2; i += 1) result.pairs.push({ key: this.readValue(), value: this.readValue() });
-        return result;
-      }
-      case "}": {
-        const result = { kind: "hash", pairs: [] };
-        this.objects.push(result);
-        const count2 = this.readIntegerBody();
-        for (let i = 0; i < count2; i += 1) result.pairs.push({ key: this.readValue(), value: this.readValue() });
-        result.defaultValue = this.readValue();
-        return result;
-      }
-      case "l": {
-        const sign = String.fromCharCode(this.readByte());
-        assert(sign === "+" || sign === "-", "invalid bignum sign");
-        const count2 = this.readIntegerBody();
-        const value = { kind: "bignum", sign, bytes: this.readBytes(count2 * 2).slice() };
-        this.objects.push(value);
-        return value;
-      }
-      case "I":
-        return this.readIvars(this.readValue());
-      case "o": {
-        const className = this.readSymbol().value;
-        const count2 = this.readIntegerBody();
-        const result = { kind: "object", className, ivars: { kind: "hash", pairs: [] } };
-        this.objects.push(result);
-        for (let i = 0; i < count2; i += 1) result.ivars.pairs.push({ key: this.readSymbol(), value: this.readValue() });
-        return result;
-      }
-      case "u": {
-        const className = this.readSymbol().value;
-        const length = this.readIntegerBody();
-        const result = { kind: "user-defined", className, data: this.readBytes(length).slice() };
-        this.objects.push(result);
-        return result;
-      }
-      case "U": {
-        const className = this.readSymbol().value;
-        const result = { kind: "user-marshal", className, value: null };
-        this.objects.push(result);
-        result.value = this.readValue();
-        return result;
-      }
-      case "C": {
-        const className = this.readSymbol().value;
-        const index2 = this.objects.length;
-        const result = { kind: "user-class", className, value: null };
-        result.value = this.readValue();
-        this.objects[index2] = result;
-        return result;
-      }
-      case "S": {
-        const className = this.readSymbol().value;
-        const count2 = this.readIntegerBody();
-        const result = { kind: "struct", className, members: [] };
-        this.objects.push(result);
-        for (let i = 0; i < count2; i += 1) result.members.push({ key: this.readSymbol(), value: this.readValue() });
-        return result;
-      }
-      case "@": {
-        const index2 = this.readIntegerBody();
-        assert(index2 >= 0 && index2 < this.objects.length, "object link out of range");
-        return this.objects[index2];
-      }
-      default:
-        throw new Error(`unsupported Ruby Marshal tag ${JSON.stringify(tag)}`);
-    }
-  }
-};
-function symbolName(value) {
-  return value && typeof value === "object" && value.kind === "symbol" ? value.value : String(plainValue(value));
-}
-function plainValue(value) {
-  if (value === null || typeof value === "boolean" || typeof value === "number") return value;
-  if (value.kind === "string" || value.kind === "symbol") return value.value;
-  if (value.kind === "array") return value.items.map(plainValue);
-  if (value.kind === "hash") {
-    const out2 = {};
-    for (const pair of value.pairs) out2[String(plainValue(pair.key))] = plainValue(pair.value);
-    return out2;
-  }
-  if (value.kind === "float") return Number(value.value.split("\0", 1)[0]);
-  if (value.kind === "regexp") return { __rubyRegexp: Array.from(value.data), options: value.options };
-  if (value.kind === "bignum") {
-    let integer2 = BigInt(0);
-    for (let i = value.bytes.length - 1; i >= 0; i -= 1) integer2 = integer2 * BigInt(256) + BigInt(value.bytes[i]);
-    return (value.sign === "+" ? integer2 : -integer2).toString();
-  }
-  if (value.kind === "user-defined") return { __rubyClass: value.className, data: Array.from(value.data) };
-  if (value.kind === "user-marshal" || value.kind === "user-class") return { __rubyClass: value.className, value: plainValue(value.value) };
-  if (value.kind === "struct") {
-    const out2 = { __rubyClass: value.className };
-    for (const member of value.members) out2[member.key.value] = plainValue(member.value);
-    return out2;
-  }
-  const out = {};
-  for (const pair of value.ivars.pairs) out[String(plainValue(pair.key)).replace(/^@/, "")] = plainValue(pair.value);
-  return out;
-}
-function parseRubyMarshal(bytes) {
-  if (bytes.length < 2 || bytes[0] !== HEADER_MAJOR || bytes[1] !== HEADER_MINOR) throw new Error("Not a Ruby Marshal 4.8 file");
-  return new Reader(bytes.subarray(2)).readValue();
-}
-function rubyObjectField(value, field) {
-  if (!value || typeof value !== "object" || value.kind !== "object") return void 0;
-  const pair = value.ivars.pairs.find((item) => symbolName(item.key) === `@${field}`);
-  return pair?.value;
-}
-
-// services/game/rgss-archive.ts
-function readAceMember(archive, member) {
-  const fd = fs13.openSync(archive, "r");
-  let cursor = 0;
-  const length = fs13.fstatSync(fd).size;
-  const read = (size, offset = cursor) => {
-    if (size < 0 || offset + size > length) throw new Error("Truncated RGSS archive");
-    const bytes = Buffer.alloc(size);
-    if (fs13.readSync(fd, bytes, 0, size, offset) !== size) throw new Error("Truncated RGSS archive");
-    cursor = offset + size;
-    return bytes;
-  };
-  try {
-    const header = read(12);
-    if (!header.subarray(0, 8).equals(Buffer.from("RGSSAD\0", "binary"))) throw new Error("Unsupported RGSS archive version");
-    const key3 = Math.imul(header.readUInt32LE(8), 9) + 3 >>> 0;
-    for (let count2 = 0; count2 < 1e5; count2++) {
-      const record = read(16);
-      const offset = (record.readUInt32LE(0) ^ key3) >>> 0;
-      if (!offset) return null;
-      const size = (record.readUInt32LE(4) ^ key3) >>> 0;
-      let fileKey = (record.readUInt32LE(8) ^ key3) >>> 0;
-      const nameSize = (record.readUInt32LE(12) ^ key3) >>> 0;
-      if (nameSize > 4096) throw new Error("Invalid RGSS archive filename");
-      const name2 = read(nameSize);
-      for (let i = 0; i < name2.length; i++) name2[i] ^= key3 >>> i % 4 * 8 & 255;
-      if (name2.toString().replaceAll("\\", "/").toLowerCase() !== member.toLowerCase()) continue;
-      if (size > 32 * 1024 * 1024) throw new Error("RGSS script archive exceeds 32 MiB");
-      const bytes = read(size, offset);
-      for (let i = 0; i < bytes.length; i++) {
-        bytes[i] ^= fileKey >>> i % 4 * 8 & 255;
-        if (i % 4 === 3) fileKey = Math.imul(fileKey, 7) + 3 >>> 0;
-      }
-      return bytes;
-    }
-    throw new Error("RGSS archive has too many members");
-  } finally {
-    fs13.closeSync(fd);
-  }
-}
-function readRgssScripts(contentRoot) {
-  const names = fs13.readdirSync(contentRoot);
-  const data = names.find((name2) => name2.toLowerCase() === "data");
-  const script = data && fs13.readdirSync(path15.join(contentRoot, data)).find((name2) => /^scripts\.rvdata2?$/i.test(name2));
-  const archive = names.find((name2) => name2.toLowerCase() === "game.rgss3a");
-  const bytes = script ? fs13.readFileSync(path15.join(contentRoot, data, script)) : archive ? readAceMember(path15.join(contentRoot, archive), "Data/Scripts.rvdata2") : null;
-  if (!bytes) return [];
-  const value = parseRubyMarshal(bytes);
-  if (!value || typeof value !== "object" || value.kind !== "array") return [];
-  return value.items.flatMap((entry) => {
-    if (!entry || typeof entry !== "object" || entry.kind !== "array") return [];
-    const [, name2, packed] = entry.items;
-    if (!packed || typeof packed !== "object" || packed.kind !== "string" || !packed.bytes) return [];
-    return [
-      {
-        name: name2 && typeof name2 === "object" && name2.kind === "string" ? name2.value : "",
-        source: inflateSync(packed.bytes, { maxOutputLength: 8 * 1024 * 1024 }).toString("utf8")
-      }
-    ];
-  });
-}
-
-// services/extract/lib/rgss.ts
-init_game_files();
-init_game_cache_context();
-
-// services/translate/game-coverage.ts
-init_paths();
-init_cache_lang();
-init_dynamic_template();
-init_sentence_plan();
-init_cache_lookup();
-init_game_lookup();
-init_match_index();
-import fs16 from "node:fs";
-import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
-function createGameCoverage(records2, opts) {
-  const lookup = createGameTranslateLookup(records2);
-  const resolver = createSentenceResolver(records2);
-  const numeric2 = createNumericLabelIndex(records2);
-  let client;
-  let shared;
-  let opened = false;
-  const resolved = /* @__PURE__ */ new Map();
-  return {
-    resolve(src) {
-      if (resolved.has(src)) return resolved.get(src);
-      if (opts?.blocked?.(src)) return null;
-      let hit = lookup[src] ?? numeric2.resolve(src);
-      if (hit == null) {
-        if (!opened) {
-          opened = true;
-          const database = opts?.database ?? TRANSLATE_CACHE_DB_PATH;
-          if (database && fs16.existsSync(database)) {
-            client = new DatabaseSync2(database, { readOnly: true });
-            client.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=250");
-            if (client.prepare("SELECT 1 FROM sqlite_master WHERE name='match_keys'").get()) shared = createMatchIndex(client);
-          }
-        }
-        const pair = { from: detectCacheLang(src), to: "zh" };
-        const plan = shared ? shared.plan(src, pair, resolver.select(src)) : resolver.plan(src);
-        if (!plan.limited) {
-          hit = plan.status === "full" ? plan.zh : null;
-          if (hit == null) hit = lookupCachedTranslation((key3) => lookup[key3], src);
-          if (hit == null && shared && numericLabelFamily(src)) {
-            const rows = shared.numericRecords(pair, src);
-            if (!rows.limited) hit = createNumericLabelIndex([...rows, ...records2]).resolve(src);
-          }
-          if (hit == null && /\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(src)) {
-            hit = lookupCachedTranslation((key3) => lookup[key3] ?? shared?.record(key3, pair)?.zh, src);
-          }
-        }
-      }
-      resolved.set(src, hit ?? null);
-      return hit ?? null;
-    },
-    close() {
-      client?.close();
-    }
-  };
-}
-
-// services/extract/lib/rgss.ts
-init_game_lookup();
-init_game_records();
-
-// services/translate/resources/snapshot.ts
-init_paths();
-import fs17 from "node:fs";
-import { DatabaseSync as DatabaseSync3 } from "node:sqlite";
-
-// lib/translate/resource-matcher.ts
-init_segments();
-var key2 = (text4) => text4.normalize("NFC");
-function matchVocalRule(text4, rule) {
-  const source = key2(text4);
-  if (Array.from(source).length > rule.modifiers.maxInputLength) return null;
-  const units = Object.entries(rule.units).sort(([a], [b]) => b.length - a.length);
-  const punctuation = [...rule.modifiers.punctuation].sort((a, b) => b.length - a.length);
-  const states = Array.from({ length: source.length + 1 }, () => /* @__PURE__ */ new Map());
-  states[0].set(0, /* @__PURE__ */ new Set([""]));
-  let stateCount = 0;
-  for (let at = 0; at < source.length; at++) {
-    for (const [count2, outputs] of states[at]) {
-      const choices = units.filter(([unit]) => source.startsWith(unit, at)).map(([unit, target2]) => [unit, target2, 1]);
-      for (const mark of punctuation) if (source.startsWith(mark, at)) choices.push([mark, mark, 0]);
-      for (const [part, target2, increment] of choices) {
-        const nextCount = count2 + increment;
-        if (nextCount > rule.modifiers.maxUnits) continue;
-        const next = states[at + part.length];
-        const values = next.get(nextCount) || /* @__PURE__ */ new Set();
-        for (const output of outputs) {
-          const value = output + target2;
-          if (value.length > 16e3) return null;
-          values.add(value);
-          if (++stateCount > 4096 || values.size > 8) return null;
-        }
-        next.set(nextCount, values);
-      }
-    }
-  }
-  const results = /* @__PURE__ */ new Set();
-  for (const [count2, outputs] of states[source.length]) if (count2 >= rule.modifiers.minUnits) for (const output of outputs) results.add(output);
-  return results.size === 1 ? [...results][0] : null;
-}
-function createResourceMatcher(snapshot) {
-  const exact = /* @__PURE__ */ new Map();
-  const vocal = [];
-  for (const pack of snapshot.packs) {
-    for (const record of pack.records) {
-      if (record.reviewStatus !== "reviewed") continue;
-      const candidate = { pack, record };
-      if (record.type === "vocal_rule") vocal.push(candidate);
-      else
-        for (const text4 of [record.sourceText, ...record.aliases || []]) {
-          const id = JSON.stringify([record.sourceLanguage, record.targetLanguage, key2(text4)]);
-          exact.set(id, [...exact.get(id) || [], candidate]);
-        }
-    }
-  }
-  function eligible(record, context2) {
-    return record.sourceLanguage === context2.sourceLanguage && record.targetLanguage === context2.targetLanguage && (record.scope.kind === "global" || record.scope.gameId === context2.gameId) && Object.entries(record.conditions || {}).every(([name2, value]) => context2[name2] === value);
-  }
-  function choose(candidates2, context2) {
-    const available = candidates2.filter(({ record: record2 }) => eligible(record2, context2));
-    const score = ({ record: record2 }) => (record2.scope.kind === "game" ? 100 : 0) + Object.keys(record2.conditions || {}).length;
-    const best = Math.max(-1, ...available.map(score));
-    const winners = available.filter((candidate) => score(candidate) === best);
-    if (!winners.length) return { hit: null, conflict: false };
-    if (new Set(winners.map(({ output: output2 }) => output2)).size !== 1) return { hit: null, conflict: true };
-    const { pack, record, output } = winners[0];
-    return {
-      conflict: false,
-      hit: {
-        targetText: output,
-        packId: pack.manifest.packId,
-        version: pack.manifest.version,
-        entryId: record.entryId,
-        revision: snapshot.revision,
-        matchKind: record.type === "entry" ? "exact" : "vocal-template"
-      }
-    };
-  }
-  return {
-    revision: snapshot.revision,
-    match(text4, context2) {
-      const candidates2 = (source) => exact.get(JSON.stringify([context2.sourceLanguage, context2.targetLanguage, key2(source)])) || [];
-      const full = choose(
-        candidates2(text4).map((candidate) => ({ ...candidate, output: candidate.record.targetText })),
-        context2
-      );
-      if (full.hit || full.conflict) return full.hit;
-      const shell = translationSegmentContent(text4);
-      if (shell.core !== text4) {
-        const wrapped = choose(
-          candidates2(shell.core).filter(({ record }) => record.type === "entry" && record.match.allowBoundary).map((candidate) => ({ ...candidate, output: shell.lead + candidate.record.targetText + shell.trail })),
-          context2
-        );
-        if (wrapped.hit || wrapped.conflict) return wrapped.hit;
-      }
-      const generated = vocal.filter(({ record }) => eligible(record, context2)).flatMap((candidate) => {
-        const output = matchVocalRule(text4, candidate.record);
-        return output == null ? [] : [{ ...candidate, output }];
-      });
-      return choose(generated, context2).hit;
-    }
-  };
-}
-
-// services/translate/resources/defaults.ts
-init_default_game_terms();
-
-// services/translate/resources/defaults/fixed-phrases.json
-var fixed_phrases_default = {
-  \u306F\u3044: "\u662F",
-  \u3044\u3044\u3048: "\u5426",
-  \u3046\u3093: "\u55EF",
-  \u3059\u308B: "\u505A",
-  \u3057\u306A\u3044: "\u4E0D\u505A",
-  \u30B9\u30AD\u30C3\u30D7: "\u8DF3\u8FC7",
-  \u30C0\u30C3\u30B7\u30E5\u8A31\u53EF: "\u5141\u8BB8\u51B2\u523A",
-  \u30C0\u30C3\u30B7\u30E5\u7981\u6B62: "\u7981\u6B62\u51B2\u523A",
-  \u30B9\u30C6\u30FC\u30C8\u78BA\u8A8D: "\u72B6\u6001\u786E\u8BA4",
-  \u30D1\u30FC\u30C6\u30A3\u30FC\u30B3\u30DE\u30F3\u30C9: "\u961F\u4F0D\u6307\u4EE4",
-  \uFF33\u30DC\u30BF\u30F3: "S\u6309\u94AE",
-  \u30B8\u30E3\u30F3\u30D7: "\u8DF3\u8DC3",
-  \u30D5\u30A9\u30B0\u30B9\u30AD\u30C3\u30D7: "\u8FF7\u96FE\u8DF3\u8FC7",
-  \u623B\u308B: "\u8FD4\u56DE",
-  \u9032\u3080: "\u524D\u8FDB",
-  \u8A71\u3059: "\u4EA4\u8C08",
-  \u805E\u304F: "\u503E\u542C",
-  \u898B\u308B: "\u67E5\u770B",
-  \u5F85\u3064: "\u7B49\u5F85",
-  \u958B\u3051\u308B: "\u6253\u5F00",
-  \u9589\u3058\u308B: "\u5173\u95ED",
-  \u4F7F\u3046: "\u4F7F\u7528",
-  \u88C5\u5099: "\u88C5\u5907",
-  \u6368\u3066\u308B: "\u4E22\u5F03",
-  \u8CB7\u3046: "\u8D2D\u4E70",
-  \u58F2\u308B: "\u51FA\u552E"
-};
-
-// services/translate/resources/defaults.ts
-var languages = [
-  { tag: "ja", name: "\u65E5\u672C\u8A9E" },
-  { tag: "en", name: "English" },
-  { tag: "ru", name: "\u0420\u0443\u0441\u0441\u043A\u0438\u0439" },
-  { tag: "ko", name: "\uD55C\uAD6D\uC5B4" },
-  { tag: "zh", name: "\u4E2D\u6587" }
-];
-var records = [];
-for (const [id, term] of Object.entries(default_game_terms_default)) {
-  for (const [sourceLanguage, sourceText] of Object.entries(term.translations)) {
-    for (const [targetLanguage, targetText] of Object.entries(term.translations)) {
-      if (sourceLanguage === targetLanguage) continue;
-      const aliases = "aliases" in term ? term.aliases[sourceLanguage] : void 0;
-      records.push({
-        type: "entry",
-        entryId: `term.${id}.${sourceLanguage}.${targetLanguage}`,
-        sourceLanguage,
-        targetLanguage,
-        sourceText,
-        targetText,
-        aliases,
-        scope: { kind: "global" },
-        reviewStatus: "reviewed",
-        provenance: { kind: "legacy-game-term" },
-        match: { kind: "exact", allowBoundary: true }
-      });
-    }
-  }
-}
-for (const [index2, [sourceText, targetText]] of Object.entries(fixed_phrases_default).entries()) {
-  records.push({
-    type: "entry",
-    entryId: `fixed.${index2}`,
-    sourceLanguage: "ja",
-    targetLanguage: "zh",
-    sourceText,
-    targetText,
-    scope: { kind: "global" },
-    reviewStatus: "reviewed",
-    provenance: { kind: "legacy-fixed-phrase" },
-    match: { kind: "exact", allowBoundary: true }
-  });
-}
-var defaultResourcePack = {
-  manifest: { type: "manifest", schemaVersion: 1, packId: "chaya.defaults", version: "1", languages },
-  records
-};
-function bundledResourceSnapshot() {
-  return { revision: 0, languages, packs: [{ ...defaultResourcePack, hash: "bundled", revision: 0 }] };
-}
-
-// services/translate/resources/validate.ts
-init_resource_types();
-init_sentence_units();
-var RESOURCE_LIMITS = { bytes: 7e5, records: 1e3, lineLength: 32e3 };
-var object = (value) => !!value && typeof value === "object" && !Array.isArray(value);
-var text = (value, max2 = 16e3) => typeof value === "string" && !!value.trim() && value.length <= max2;
-var identifier = (value) => text(value, 100) && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value);
-function fail(message) {
-  throw new TypeError(message);
-}
-function placeholders(value) {
-  return JSON.stringify([controlSignature(value), value.match(/%(?:\d+\$)?[-+#0 ]*(?:\d+|\*)?(?:\.(?:\d+|\*))?[sdifouxXeEgGc%]/g) || []]);
-}
-function parseResourcePack(input) {
-  if (Buffer.byteLength(input, "utf8") > RESOURCE_LIMITS.bytes) fail("Resource package exceeds size limit");
-  const lines = input.split(/\r?\n/).filter((line) => line.trim());
-  if (lines.length < 1 || lines.length > RESOURCE_LIMITS.records + 1) fail("Invalid resource record count");
-  const rows = lines.map((line, index2) => {
-    if (line.length > RESOURCE_LIMITS.lineLength) fail(`Resource line ${index2 + 1} is too long`);
-    let value;
-    try {
-      value = JSON.parse(line);
-    } catch {
-      return fail(`Invalid JSON at resource line ${index2 + 1}`);
-    }
-    if (!object(value)) fail(`Invalid object at resource line ${index2 + 1}`);
-    const queue3 = [[value, 0]];
-    while (queue3.length) {
-      const [item, depth] = queue3.pop();
-      if (depth > 16) fail("Resource nesting limit exceeded");
-      if (item && typeof item === "object") for (const child of Object.values(item)) queue3.push([child, depth + 1]);
-    }
-    return value;
-  });
-  const [manifest, ...records2] = rows;
-  if (manifest.type !== "manifest" || manifest.schemaVersion !== 1 || !identifier(manifest.packId) || !identifier(manifest.version)) fail("Invalid resource manifest");
-  if (!Array.isArray(manifest.languages) || manifest.languages.length > 100) fail("Invalid resource languages");
-  const languages3 = /* @__PURE__ */ new Set();
-  for (const language of manifest.languages) {
-    if (!object(language) || !text(language.tag, 100) || !text(language.name, 100)) fail("Invalid resource language");
-    if (canonicalResourceLanguage(language.tag) !== language.tag || languages3.has(language.tag)) fail("Languages must be canonical and unique");
-    languages3.add(language.tag);
-  }
-  const ids = /* @__PURE__ */ new Set();
-  for (const record of records2) {
-    if (!identifier(record.entryId) || ids.has(String(record.entryId))) fail("Invalid or duplicate resource entry ID");
-    ids.add(String(record.entryId));
-    for (const field of ["sourceLanguage", "targetLanguage"]) {
-      if (!text(record[field], 100) || canonicalResourceLanguage(record[field]) !== record[field]) fail("Invalid resource language pair");
-    }
-    if (!object(record.scope) || !["global", "game"].includes(String(record.scope.kind)) || record.scope.kind === "game" && !text(record.scope.gameId, 200))
-      fail("Invalid resource scope");
-    if (!["candidate", "reviewed"].includes(String(record.reviewStatus)) || !object(record.provenance) || !text(record.provenance.kind, 100)) fail("Invalid resource provenance");
-    if (record.conditions !== void 0 && (!object(record.conditions) || Object.entries(record.conditions).some(([name2, value]) => !["category", "speaker", "scene"].includes(name2) || !text(value, 200))))
-      fail("Invalid resource conditions");
-    if (record.type === "entry") {
-      if (!text(record.sourceText) || !text(record.targetText) || !object(record.match) || record.match.kind !== "exact") fail("Invalid exact resource entry");
-      if (record.match.allowBoundary !== void 0 && typeof record.match.allowBoundary !== "boolean") fail("Invalid boundary matching flag");
-      for (const name2 of ["aliases", "badTranslations"]) {
-        const values = record[name2];
-        if (values !== void 0 && (!Array.isArray(values) || values.length > 100 || values.some((value) => !text(value)))) fail(`Invalid ${name2}`);
-      }
-      for (const source of [record.sourceText, ...record.aliases || []]) {
-        if (placeholders(source) !== placeholders(record.targetText)) fail("Resource controls or placeholders differ");
-      }
-    } else if (record.type === "vocal_rule") {
-      if (record.templateKind !== "vocal-sequence" || !object(record.units) || !object(record.modifiers)) fail("Invalid vocal template");
-      const units = Object.entries(record.units);
-      if (!units.length || units.length > 100 || units.some(([unit, target2]) => !text(unit, 40) || !new RegExp("^\\p{L}[\\p{L}\\p{M}]*$", "u").test(unit) || unit.normalize("NFC") !== unit || !text(target2, 100) || /[\\%{}<>]/.test(target2)))
-        fail("Invalid vocal units");
-      const modifiers = record.modifiers;
-      if (!Array.isArray(modifiers.punctuation) || modifiers.punctuation.length > 100 || modifiers.punctuation.some((mark) => typeof mark !== "string" || !mark.length || mark.length > 20 || !/^[\p{P}\p{Zs}]+$/u.test(mark) || /[\\%{}<>[\]]/.test(mark)))
-        fail("Invalid vocal punctuation");
-      if (![modifiers.minUnits, modifiers.maxUnits, modifiers.maxInputLength].every(Number.isSafeInteger) || Number(modifiers.minUnits) < 1 || Number(modifiers.maxUnits) < Number(modifiers.minUnits) || Number(modifiers.maxUnits) > 256 || Number(modifiers.maxInputLength) < 1 || Number(modifiers.maxInputLength) > 512)
-        fail("Invalid vocal bounds");
-    } else fail("Unknown resource record type");
-  }
-  return { manifest, records: records2 };
-}
-
-// services/storage/translation-resource-store.ts
-function readResourceRevision(db) {
-  return Number(db.prepare("SELECT revision FROM translation_resource_state WHERE id=1").get().revision);
-}
-function readResourceSnapshot(db) {
-  const revision = readResourceRevision(db);
-  const languages3 = db.prepare("SELECT tag, name FROM translation_languages ORDER BY tag").all();
-  const rows = db.prepare(
-    `SELECT v.* FROM translation_resource_versions v
-    JOIN translation_resource_activations a ON a.pack_id=v.pack_id AND a.version=v.version
-    WHERE a.enabled=1 ORDER BY v.pack_id`
-  ).all();
-  const packs = rows.map((row) => ({ ...parseResourcePack(row.content), hash: row.hash, revision }));
-  return { revision, languages: languages3, packs };
-}
-
-// services/translate/resources/snapshot.ts
-var matchers = /* @__PURE__ */ new Map();
-function loadResourceMatcher(file = TRANSLATE_CACHE_DB_PATH) {
-  if (!fs17.existsSync(file)) return createResourceMatcher(bundledResourceSnapshot());
-  const db = new DatabaseSync3(file, { readOnly: true });
-  try {
-    db.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=5000; BEGIN");
-    const ready = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='translation_resource_state'").get();
-    if (!ready || !db.prepare("SELECT 1 FROM translation_resource_state WHERE id=1").get()) return createResourceMatcher(bundledResourceSnapshot());
-    const revision = readResourceRevision(db);
-    const stat = fs17.statSync(file);
-    const identity = `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`;
-    const previous = matchers.get(file);
-    if (previous?.identity === identity && previous.revision === revision) return previous.matcher;
-    const matcher = createResourceMatcher(readResourceSnapshot(db));
-    if (matchers.size >= 8) matchers.clear();
-    matchers.set(file, { identity, revision, matcher });
-    return matcher;
-  } finally {
-    db.exec("ROLLBACK");
-    db.close();
-  }
-}
-
-// services/translate/seed-failures.ts
-import fs19 from "node:fs";
-import path17 from "node:path";
-
-// services/translate/seed-job-state.ts
-init_paths();
-import { createHash as createHash2 } from "node:crypto";
-import fs18 from "node:fs";
-import path16 from "node:path";
-var MAX_SEED_JOB_LOGS = 120;
-function idleSeedJob(contentRoot = "") {
-  return {
-    contentRoot,
-    status: "idle",
-    startedAt: null,
-    updatedAt: Date.now(),
-    sessionDone: 0,
-    rounds: 0,
-    performance: null,
-    liveStatus: "",
-    error: null,
-    engines: [],
-    logs: [],
-    failedSources: [],
-    inventoryPreparing: false
-  };
-}
-function emptySeedProgress(contentRoot) {
-  return {
-    contentRoot,
-    hasSeed: false,
-    total: 0,
-    done: 0,
-    missing: 0,
-    needCount: 0,
-    skipCount: 0,
-    needChars: 0,
-    skipChars: 0,
-    missingChars: 0,
-    doneChars: 0,
-    lines: 0,
-    batchSize: 40,
-    batchesLeft: 0
-  };
-}
-function seedJobKey(contentRoot) {
-  return createHash2("sha1").update(path16.resolve(contentRoot)).digest("hex").slice(0, 16);
-}
-function seedJobFile(contentRoot) {
-  return path16.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
-}
-function readSeedJobState(contentRoot) {
-  const file = seedJobFile(contentRoot);
-  if (!fs18.existsSync(file)) return null;
-  try {
-    const raw = JSON.parse(fs18.readFileSync(file, "utf8"));
-    if (!raw || typeof raw !== "object") return null;
-    return {
-      ...idleSeedJob(contentRoot),
-      ...raw,
-      contentRoot,
-      failedSources: Array.isArray(raw.failedSources) ? raw.failedSources.filter((s) => typeof s === "string") : [],
-      logs: Array.isArray(raw.logs) ? raw.logs.slice(-MAX_SEED_JOB_LOGS) : []
-    };
-  } catch {
-    return null;
-  }
-}
-function writeSeedJobState(state) {
-  fs18.mkdirSync(TRANSLATE_JOBS_DIR, { recursive: true });
-  const file = seedJobFile(state.contentRoot);
-  const tmp = `${file}.${process.pid}.tmp`;
-  fs18.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}
-`, "utf8");
-  fs18.renameSync(tmp, file);
-}
-function isObsoleteCacheWorkerLog(text4) {
-  if (/Cannot find module .+chaya-cache-worker/i.test(text4)) return true;
-  if (fs18.existsSync(CACHE_WORKER_PATH) && /Cache scan unavailable:.*(?:worker not built|CACHE_WORKER_MISSING|chaya-cache-worker)/i.test(text4)) return true;
-  return false;
-}
-function visibleSeedJobState(state) {
-  const logs = process.env.CHAYA_TRANSLATE_DEBUG === "1" ? state.logs : state.logs.filter(
-    (entry) => !isObsoleteCacheWorkerLog(entry.text) && !/^\[translation-timing\]|^Requesting batch |^\.\.\. \d+ additional items omitted|^Skipping \d+ failed items this round/.test(entry.text) && !(entry.level === "ok" && entry.text.includes(" \u2192 "))
-  );
-  return { ...state, logs: [...logs] };
-}
-function scrubSeedJobLogs(state) {
-  const next = state.logs.filter((entry) => !/Cannot find module .+chaya-cache-worker/i.test(entry.text));
-  if (next.length === state.logs.length) return false;
-  state.logs = next;
-  return true;
-}
-
-// services/translate/seed-failures.ts
-init_text_classify();
-function seedFailureFile(contentRoot) {
-  return seedJobFile(contentRoot).replace(/\.json$/, ".failures.ndjson");
-}
-function readSeedFailures(contentRoot) {
-  const failures = new Map((readSeedJobState(contentRoot)?.failedSources ?? []).map((src) => [src, ""]));
-  const file = seedFailureFile(contentRoot);
-  let text4;
-  try {
-    text4 = fs19.readFileSync(file, "utf8");
-  } catch (error) {
-    if (error.code === "ENOENT") return failures;
-    throw error;
-  }
-  for (const line of text4.split("\n")) {
-    if (!line.trim()) continue;
-    try {
-      const event = JSON.parse(line);
-      if (event.error === null) failures.delete(event.src);
-      else failures.set(event.src, event.error);
-    } catch {
-    }
-  }
-  return failures;
-}
-function writeSeedFailure(contentRoot, src, error) {
-  const file = seedFailureFile(contentRoot);
-  fs19.mkdirSync(path17.dirname(file), { recursive: true });
-  fs19.appendFileSync(file, `${JSON.stringify({ src, error, at: Date.now() })}
-`, "utf8");
-}
-function isSeedTarget(target2) {
-  return !target2 || /^(?:ch|zh|zh-cn|zh-hans)$/i.test(target2);
-}
-function attachSeedFailures(contentRoot, items, target2) {
-  const failures = isSeedTarget(target2) ? readSeedFailures(contentRoot) : /* @__PURE__ */ new Map();
-  return items.map(
-    (item) => !item.savedZh?.trim() && failures.has(item.src) ? { ...item, translationFailure: { error: failures.get(item.src) } } : item
-  );
-}
-function recordSeedFailure(contentRoot, item, progress) {
-  writeSeedFailure(contentRoot, item.src, item.error || "No valid translation returned");
-  progress.failedCount = (progress.failedCount ?? 0) + 1;
-  progress.failedChars = (progress.failedChars ?? 0) + charCount(item.src);
-  progress.missing--;
-  progress.missingChars -= charCount(item.src);
-}
-
-// services/extract/lib/compare.ts
-init_segments();
-
-// services/extract/lib/data-fields.ts
-init_source_text();
-
-// services/extract/lib/text.ts
-init_source_text();
-
-// services/extract/lib/data-fields.ts
-var TEXT_FIELD = /^(?:name|displayName|nickname|description|profile|message\d*|text|label|title|help|caption|summary|dialogue|.*[ _-](?:text|message|label|title|description|name|help))$/i;
-var TECH_FIELD = /^(?:.*(?:path|url|script|formula|texture)|file(?:name)?|code|eval|callback|handler|condition|expression|Battle Show List|mode|blendMode|spawnType|(?:character|battler|face|picture|animation\d*|battleback\d*|title\d*|parallax)Name|tilesetNames|bgm|bgs|se|me|audio|image|sound|parameters|params|meta|frames|data|flags|traits|effects|damage|timings)$/i;
-var isTextField = (field) => TEXT_FIELD.test(field);
-var isTechnicalField = (field) => TECH_FIELD.test(field);
-
-// services/extract/lib/rgss/extended-choices.ts
-var CONTROLS2 = /\\(?:[A-Za-z]+(?:\[[^\]\r\n]*\])?|[^A-Za-z\r\n])/g;
-function literal(text4) {
-  return !/[,[\]\r\n]/.test(text4.replace(CONTROLS2, "")) && !/@m\(|<s>/i.test(text4);
-}
-function fields(raw, start, end) {
-  const result = [];
-  let depth = 0;
-  let from = start;
-  const push = (to) => {
-    const value = raw.slice(from, to);
-    const text4 = value.trim();
-    const offset = value.length - value.trimStart().length;
-    result.push({ text: text4, start: from + offset, end: from + offset + text4.length });
-  };
-  for (let i = start; i < end; i++) {
-    if (raw[i] === "[") depth++;
-    else if (raw[i] === "]" && --depth < 0) return null;
-    else if (raw[i] === "," && depth === 0) {
-      push(i);
-      from = i + 1;
-    }
-  }
-  if (depth !== 0) return null;
-  push(end);
-  return result;
-}
-function parseRgssExtendedChoices(raw) {
-  if (raw.length > 1e5) return null;
-  const header = /^拡張選択肢[ \t\u3000]+/.exec(raw);
-  if (!header) return null;
-  const args = fields(raw, header[0].length, raw.length);
-  if (!args || args.length < 3 || !/^-?\d+$/.test(args[0].text) || !/^\d*$/.test(args[1].text)) return null;
-  const third = args[2];
-  let choices;
-  if (third.text.startsWith("[")) {
-    if (!third.text.endsWith("]") || args.length > 5) return null;
-    if (args.slice(3).some((arg) => !/^(?:-?\d+|左|中|右|上|下)?$/.test(arg.text))) return null;
-    choices = fields(raw, third.start + 1, third.end - 1);
-  } else choices = args.slice(2);
-  return choices && choices.every((choice) => literal(choice.text)) ? choices : null;
-}
-function assertExtendedChoiceTranslation(source, target2) {
-  if (!literal(target2) || JSON.stringify(source.match(CONTROLS2) || []) !== JSON.stringify(target2.match(CONTROLS2) || [])) {
-    throw new Error("Extended choice translation must preserve escape controls and cannot contain commas, brackets or executable expressions");
-  }
-}
-
-// services/extract/lib/rgss/script-strings.ts
-init_source_text();
-var ASSIGN_RE = /^\s*(?:[A-Z][\w:]*::)*[A-Z]\w*\s*=\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/;
-var RETURN_RE = /^\s*return\s+("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*(?:#.*)?$/;
-var DRAW_RE = /\bdraw_text(?:_ex)?\s*\([^)]*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*\)/;
-var PATHISH = /[\\/]|\.(?:rvdata2?|png|jpe?g|ogg|mp3|wav|bmp|json|txt|rb)\b|Graphics\/|Audio\/|Data\//i;
-var CODEISH = /&&|\|\||==|!=|\.(?:call|new|size|empty\?)\b|^\s*[\[{]|window\.|SceneManager|DataManager/;
-function unescapeRubyLiteral(raw) {
-  return raw.slice(1, -1).replace(/\\n/g, "\n").replace(/\\t/g, "	").replace(/\\"/g, '"').replace(/\\'/g, "'").replace(/\\\\/g, "\\");
-}
-function consider(raw, script, found) {
-  if (!raw) return;
-  const text4 = unescapeRubyLiteral(raw).trim();
-  if (!text4 || text4.length < 2 || text4.length > 200) return;
-  if (PATHISH.test(text4) || CODEISH.test(text4)) return;
-  if (!isSourceText(text4)) return;
-  if (!found.has(text4)) found.set(text4, script);
-}
-function extractRgssScriptUiStrings(contentRoot) {
-  const found = /* @__PURE__ */ new Map();
-  for (const script of readRgssScripts(contentRoot)) {
-    const name2 = script.name || "Scripts";
-    for (const line of script.source.split(/\r?\n/)) {
-      if (line.length > 400) continue;
-      consider(ASSIGN_RE.exec(line)?.[1], name2, found);
-      consider(RETURN_RE.exec(line)?.[1], name2, found);
-      consider(DRAW_RE.exec(line)?.[1], name2, found);
-    }
-  }
-  return [...found].map(([src, script]) => ({ src, script }));
-}
-
-// services/extract/lib/rgss/writeback.ts
-import fs20 from "node:fs";
-import path18 from "node:path";
-
-// lib/translate/name-glossary.ts
-init_sentence_units();
-var NAME_GLOSSARY_CATEGORIES = ["actor", "actor_nickname", "item", "weapon", "armor", "skill", "enemy", "state", "map"];
-var TOKEN_RE2 = new RegExp(SENTENCE_TOKEN_SOURCE, "g");
-var LATIN3 = /[A-Za-z]/u;
-var LATIN_OR_DIGIT = /[A-Za-z0-9]/u;
-var APOSTROPHE_S = ["'s", "\u2019s"];
-function isNameGlossaryCategory(value) {
-  return !!value && NAME_GLOSSARY_CATEGORIES.includes(value);
-}
-function isZhNameTarget(toLang) {
-  if (!toLang) return true;
-  const lower2 = toLang.toLowerCase();
-  return lower2 === "zh" || lower2 === "ch" || lower2 === "zh-cn" || lower2 === "zh-hans";
-}
-function isUsableNamePair(src, zh) {
-  const from = String(src ?? "").trim();
-  const to = String(zh ?? "").trim();
-  if (!from || !to || from === to) return false;
-  if ([...from].length < 2) return false;
-  if (/^[A-Za-z]$/.test(from)) return false;
-  return true;
-}
-function expandNameVariants(entry, toLang) {
-  if (!isUsableNamePair(entry.src, entry.zh)) return [];
-  const out = [{ src: entry.src, zh: entry.zh, category: entry.category }];
-  if (!isZhNameTarget(toLang) || !LATIN3.test(entry.src)) return out;
-  if (APOSTROPHE_S.some((suffix) => entry.src.endsWith(suffix))) return out;
-  const possessiveZh = entry.zh.endsWith("\u7684") ? entry.zh : `${entry.zh}\u7684`;
-  for (const suffix of APOSTROPHE_S) {
-    out.push({ src: `${entry.src}${suffix}`, zh: possessiveZh, category: entry.category });
-  }
-  return out;
-}
-function entriesFromNamePairs(pairs, toLang) {
-  const usable = [...pairs].filter((pair) => isUsableNamePair(pair.src, pair.zh));
-  const sources2 = new Set(usable.map((pair) => pair.src));
-  const bySrc = /* @__PURE__ */ new Map();
-  for (const pair of usable) {
-    const owner = pair.src.match(/^(.+?)['\u2019]s\s+\S/u)?.[1];
-    if (owner && sources2.has(owner)) continue;
-    for (const entry of expandNameVariants(pair, toLang)) {
-      if (!bySrc.has(entry.src) || entry.src.length > (bySrc.get(entry.src)?.src.length || 0)) bySrc.set(entry.src, entry);
-    }
-  }
-  return [...bySrc.values()].sort((a, b) => b.src.length - a.src.length || a.src.localeCompare(b.src));
-}
-function tokenRanges(text4) {
-  const ranges = [];
-  TOKEN_RE2.lastIndex = 0;
-  for (const match of text4.matchAll(TOKEN_RE2)) {
-    const start = match.index ?? 0;
-    ranges.push({ start, end: start + match[0].length });
-  }
-  return ranges;
-}
-function overlaps(start, end, ranges) {
-  return ranges.some((range) => start < range.end && end > range.start);
-}
-function latinBoundary(text4, start, end, src) {
-  if (!LATIN3.test(src)) return true;
-  const left = text4[start - 1] || "";
-  const right = text4[end] || "";
-  if (LATIN_OR_DIGIT.test(text4[start] || "") && LATIN_OR_DIGIT.test(left)) return false;
-  if (LATIN_OR_DIGIT.test(text4[end - 1] || "") && LATIN_OR_DIGIT.test(right)) return false;
-  return true;
-}
-function findNameSpans(text4, entries2, toLang) {
-  const source = String(text4 ?? "");
-  if (!source || !entries2.length) return [];
-  const variants = entriesFromNamePairs(entries2, toLang);
-  const blocked = tokenRanges(source);
-  const spans = [];
-  for (const entry of variants) {
-    let from = 0;
-    while (from < source.length) {
-      const start = source.indexOf(entry.src, from);
-      if (start < 0) break;
-      const end = start + entry.src.length;
-      from = start + 1;
-      if (overlaps(start, end, blocked) || overlaps(start, end, spans)) continue;
-      if (!latinBoundary(source, start, end, entry.src)) continue;
-      spans.push({ start, end, src: entry.src, zh: entry.zh });
-      blocked.push({ start, end });
-    }
-  }
-  return spans.sort((a, b) => a.start - b.start);
-}
-function nameGaps(src, spans) {
-  const gaps = [];
-  let at = 0;
-  for (const span of [...spans].sort((a, b) => a.start - b.start)) {
-    if (span.start > at) gaps.push({ id: `${at}:${span.start}`, start: at, end: span.start, text: src.slice(at, span.start) });
-    at = Math.max(at, span.end);
-  }
-  if (at < src.length) gaps.push({ id: `${at}:${src.length}`, start: at, end: src.length, text: src.slice(at) });
-  return gaps;
-}
-function isLiteralNameGap(text4) {
-  return !text4 || !text4.replace(/\s+/g, "") || /^[\s\p{P}\p{S}]+$/u.test(text4);
-}
-function padGapTranslation(original, translated) {
-  if (isLiteralNameGap(original)) return original;
-  const lead = original.match(/^\s*/)?.[0] || "";
-  const trail = original.match(/\s*$/)?.[0] || "";
-  return lead + String(translated ?? "").trim() + trail;
-}
-function stitchNameLocks(src, spans, gapZh) {
-  const ordered = [...spans].sort((a, b) => a.start - b.start);
-  let out = "";
-  let at = 0;
-  function appendGap(end, nextName = "") {
-    const gap = src.slice(at, end);
-    const translated = gapZh.get(`${at}:${end}`);
-    let text4 = padGapTranslation(gap, translated ?? gap);
-    if (translated !== void 0 && !isLiteralNameGap(gap)) {
-      if (/[\u3400-\u9fff]$/u.test(out)) text4 = text4.replace(/^ +(?=[\u3400-\u9fff])/u, "");
-      if (/^[\u3400-\u9fff]/u.test(nextName)) text4 = text4.replace(/([\u3400-\u9fff]) +$/u, "$1");
-    }
-    out += text4;
-  }
-  for (const span of ordered) {
-    if (span.start > at) appendGap(span.start, span.zh);
-    out += span.zh;
-    at = span.end;
-  }
-  if (at < src.length) appendGap(src.length);
-  return out;
-}
-
-// services/extract/lib/rgss/writeback.ts
-init_source_text();
-function translatedString(source, value) {
-  const next = { kind: "string", value };
-  if (source.ivars) {
-    next.ivars = {
-      kind: "hash",
-      pairs: source.ivars.pairs.filter((pair) => !(pair.key && typeof pair.key === "object" && pair.key.kind === "symbol" && ["E", "encoding"].includes(pair.key.value)))
-    };
-    next.ivars.pairs.push({ key: { kind: "symbol", value: "E" }, value: true });
-  }
-  return next;
-}
-function commentCommand(value) {
-  if (!value || typeof value !== "object" || value.kind !== "object" || value.className !== "RPG::EventCommand") return null;
-  const code = rubyObjectField(value, "code");
-  const parameters = rubyObjectField(value, "parameters");
-  if (code !== 108 && code !== 408 || !parameters || typeof parameters !== "object" || parameters.kind !== "array") return null;
-  const text4 = parameters.items[0];
-  return text4 && typeof text4 === "object" && text4.kind === "string" ? { code, parameters, text: text4 } : null;
-}
-function extendedChoiceSlots(list, slot, result) {
-  for (let i = 0; i < list.items.length; i++) {
-    const first = commentCommand(list.items[i]);
-    if (first?.code !== 108) continue;
-    const start = i;
-    const comments = [first];
-    while (i + 1 < list.items.length) {
-      const next = commentCommand(list.items[i + 1]);
-      if (next?.code !== 408) break;
-      comments.push(next);
-      i++;
-    }
-    const raw = comments.map((comment) => comment.text.value).join("");
-    const choices = parseRgssExtendedChoices(raw);
-    if (!choices) continue;
-    const values = choices.map((choice) => ({ kind: "string", value: choice.text }));
-    const lengths = comments.map((comment) => comment.text.value.length);
-    for (const [index2, choice] of choices.entries()) {
-      result.set(`${slot}/${start}/choice/${index2}`, {
-        get value() {
-          return values[index2];
-        },
-        category: "choice",
-        set(next) {
-          assertExtendedChoiceTranslation(choice.text, next.value);
-          values[index2] = next;
-          let text4 = "";
-          let offset = 0;
-          for (const [j, span] of choices.entries()) {
-            text4 += raw.slice(offset, span.start) + values[j].value;
-            offset = span.end;
-          }
-          text4 += raw.slice(offset);
-          offset = 0;
-          comments.forEach((comment, j) => {
-            let end = j === comments.length - 1 ? text4.length : Math.min(offset + lengths[j], text4.length);
-            if (end < text4.length && /[\uD800-\uDBFF]/.test(text4[end - 1] ?? "") && /[\uDC00-\uDFFF]/.test(text4[end])) end--;
-            comment.parameters.items[0] = translatedString(comment.text, text4.slice(offset, end));
-            offset = end;
-          });
-        }
-      });
-    }
-  }
-}
-function strings(value) {
-  const result = /* @__PURE__ */ new Map();
-  const seen2 = /* @__PURE__ */ new WeakSet();
-  const walk = (entry, slot, text4, set, category = "other") => {
-    if (!entry || typeof entry !== "object") return;
-    if (entry.kind === "string") {
-      if (text4) result.set(slot, { value: entry, set, category });
-      return;
-    }
-    if (seen2.has(entry)) return;
-    seen2.add(entry);
-    if (entry.kind === "array") {
-      extendedChoiceSlots(entry, slot, result);
-      entry.items.forEach(
-        (child, index2) => walk(
-          child,
-          `${slot}/${index2}`,
-          text4,
-          (next) => {
-            entry.items[index2] = next;
-          },
-          category
-        )
-      );
-    } else if (entry.kind === "hash") {
-      entry.pairs.forEach((pair, index2) => {
-        const name2 = pair.key && typeof pair.key === "object" && (pair.key.kind === "symbol" || pair.key.kind === "string") ? pair.key.value : "";
-        walk(
-          pair.value,
-          `${slot}/h${index2}`,
-          !isTechnicalField(name2) && (text4 || isTextField(name2)),
-          (next) => {
-            pair.value = next;
-          },
-          category
-        );
-      });
-    } else if (entry.kind === "object") {
-      if (/^RPG::(?:AudioFile|BGM|BGS|ME|SE)$/.test(entry.className)) return;
-      const command = entry.className === "RPG::EventCommand";
-      const code = command ? rubyObjectField(entry, "code") : null;
-      entry.ivars.pairs.forEach((pair, index2) => {
-        const name2 = pair.key && typeof pair.key === "object" && pair.key.kind === "symbol" ? pair.key.value.replace(/^@/, "") : "";
-        if (command) {
-          if (name2 !== "parameters" || !pair.value || typeof pair.value !== "object" || pair.value.kind !== "array") return;
-          const parameter = code === 401 || code === 405 || code === 102 ? 0 : code === 402 || code === 320 || code === 324 || code === 325 ? 1 : -1;
-          const child = pair.value.items[parameter];
-          const parameters = pair.value;
-          if (child !== void 0)
-            walk(
-              child,
-              `${slot}/o${index2}/${parameter}`,
-              true,
-              (next) => {
-                parameters.items[parameter] = next;
-              },
-              code === 102 || code === 402 ? "choice" : "dialogue"
-            );
-        } else {
-          if (name2 === "name" && ["RPG::Event", "RPG::CommonEvent", "RPG::Troop", "RPG::Animation", "RPG::Tileset"].includes(entry.className)) return;
-          if (/^(?:character|battler|face|picture|animation\d*|battleback\d*|title\d*|parallax)_name$/i.test(name2)) return;
-          const systemText = /^(?:terms|words|basic|params|etypes|commands|elements|skill_types|weapon_types|armor_types|currency_unit|game_title)$/i.test(name2);
-          walk(
-            pair.value,
-            `${slot}/o${index2}`,
-            (systemText || !isTechnicalField(name2)) && (isTextField(name2) || systemText || text4),
-            (next) => {
-              pair.value = next;
-            },
-            fieldCategory(entry.className, name2, category)
-          );
-        }
-      });
-    }
-  };
-  walk(value, "", false, () => {
-  });
-  return result;
-}
-function fieldCategory(className, field, fallback) {
-  const base = {
-    "RPG::Actor": "actor",
-    "RPG::Item": "item",
-    "RPG::Weapon": "weapon",
-    "RPG::Armor": "armor",
-    "RPG::Skill": "skill",
-    "RPG::Enemy": "enemy",
-    "RPG::State": "state",
-    "RPG::Map": "map",
-    "RPG::MapInfo": "map",
-    "RPG::System": "system"
-  };
-  if (className === "RPG::Actor" && field === "nickname") return "actor_nickname";
-  if (className === "RPG::Actor" && (field === "profile" || field === "description")) return "actor_profile";
-  const category = base[className] ?? fallback;
-  if (field === "description" && (category === "item" || category === "weapon" || category === "armor" || category === "skill")) return `${category}_desc`;
-  if (category === "state" && /^message/.test(field)) return "state_msg";
-  return category;
-}
-function loadOneDataFile(dataDir, name2) {
-  const file = path18.join(dataDir, name2);
-  const value = parseRubyMarshal(fs20.readFileSync(file));
-  const backup = `${file}.chaya.bak`;
-  const original = fs20.existsSync(backup) ? parseRubyMarshal(fs20.readFileSync(backup)) : value;
-  const current = strings(value);
-  const texts = [];
-  for (const [location, source] of strings(original)) {
-    if (!isSourceText(source.value.value)) continue;
-    const target2 = current.get(location);
-    if (!target2) throw new Error(`RGSS data structure changed since backup: ${name2}${location}`);
-    texts.push({ source: source.value.value.trim(), current: target2, file: name2, location });
-  }
-  return { file, value, texts };
-}
-var SKIP_DATA_STEMS = /^(?:FileSystem|Animations|Tilesets)(?:\.|$)/i;
-function listDataFileNames(dataDir) {
-  const names = fs20.readdirSync(dataDir).filter((name2) => /\.rvdata2?$/i.test(name2) && !SKIP_DATA_STEMS.test(name2)).sort();
-  if (!names.length) throw new Error("RGSS data is unavailable. Unpack the encrypted archive into Data/ first.");
-  return names;
-}
-function loadFiles(dataDir) {
-  return listDataFileNames(dataDir).map((name2) => loadOneDataFile(dataDir, name2));
-}
-function itemsFromFiles(files2) {
-  const groups = /* @__PURE__ */ new Map();
-  for (const file of files2) {
-    for (const text4 of file.texts) {
-      const group = groups.get(text4.source) ?? [];
-      group.push(text4);
-      groups.set(text4.source, group);
-    }
-  }
-  return [...groups].map(([src, locations], index2) => {
-    const translated = locations.every((item) => item.current.value.value === locations[0].current.value.value) ? locations[0].current.value.value : "";
-    const zh = translated.trim() !== src ? translated : "";
-    return {
-      id: String(index2 + 1),
-      src,
-      zh,
-      savedZh: zh || void 0,
-      initialZh: zh || void 0,
-      meta: { category: locations[0].current.category, label: "RGSS", file: `Data/${locations[0].file}` }
-    };
-  });
-}
-function loadRgssItems(dataDir) {
-  return itemsFromFiles(loadFiles(dataDir));
-}
-
-// services/extract/lib/rgss-sources-index.ts
-init_content_files();
-import fs21 from "node:fs";
-import path19 from "node:path";
-var SOURCE_INDEX_VERSION = 2;
-function rgssDataSignature(dataDir) {
-  const files2 = fs21.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
-  return JSON.stringify([
-    SOURCE_INDEX_VERSION,
-    ...files2.map((name2) => {
-      const stat = fs21.statSync(path19.join(dataDir, name2));
-      return [name2, stat.size, stat.mtimeMs, stat.ctimeMs];
-    })
-  ]);
-}
-function readIndex(contentRoot) {
-  const file = localGameContentFile(contentRoot, "rgssSourcesIndex");
-  if (!file) return null;
-  try {
-    const raw = JSON.parse(fs21.readFileSync(file, "utf8"));
-    if (!raw || typeof raw.signature !== "string" || !Array.isArray(raw.sources)) return null;
-    return raw;
-  } catch {
-    return null;
-  }
-}
-function writeRgssSourcesIndex(contentRoot, signature, sources2) {
-  const file = ensureGameContentDir(contentRoot, "rgssSourcesIndex");
-  const payload = {
-    signature,
-    sources: [...sources2],
-    updatedAt: Date.now()
-  };
-  fs21.writeFileSync(file, `${JSON.stringify(payload)}
-`);
-}
-function ensureRgssSourcesIndex(contentRoot, dataDir, build) {
-  const signature = rgssDataSignature(dataDir);
-  const hit = readIndex(contentRoot);
-  if (hit && hit.signature === signature) return new Set(hit.sources);
-  const sources2 = build();
-  writeRgssSourcesIndex(contentRoot, signature, sources2);
-  return new Set(sources2);
-}
-
-// services/extract/lib/rgss.ts
-function findChild(dir, name2) {
-  try {
-    const hit = fs22.readdirSync(dir).find((entry) => entry.toLowerCase() === name2.toLowerCase());
-    return hit ? path20.join(dir, hit) : null;
-  } catch {
-    return null;
-  }
-}
-function extensionFor(dataDir) {
-  try {
-    const names = fs22.readdirSync(dataDir).map((name2) => name2.toLowerCase());
-    if (names.some((name2) => name2.endsWith(".rvdata2"))) return ".rvdata2";
-    if (names.some((name2) => name2.endsWith(".rvdata"))) return ".rvdata";
-  } catch {
-  }
-  return null;
-}
-var seedSources = /* @__PURE__ */ new Map();
-function filterRgssSeedKeys(contentRoot, keys) {
-  const dir = findChild(contentRoot, "data");
-  if (!dir || !extensionFor(dir)) return keys;
-  const signature = rgssDataSignature(dir);
-  let entry = seedSources.get(contentRoot);
-  if (entry?.signature !== signature) {
-    const sources2 = ensureRgssSourcesIndex(contentRoot, dir, () => loadRgssItems(dir).map((item) => item.src));
-    entry = { signature, sources: sources2 };
-    if (seedSources.size >= 20) seedSources.delete(seedSources.keys().next().value);
-    seedSources.set(contentRoot, entry);
-  }
-  const scripts = new Set(extractRgssScriptUiStrings(contentRoot).map((item) => item.src));
-  return keys.filter((key3) => entry.sources.has(key3) || scripts.has(key3));
-}
-
-// services/translate/fill-missing.ts
+import fs39 from "node:fs";
 init_cache_lookup();
 init_game_cache_context();
 
@@ -44752,7 +43455,7 @@ init_game_files();
 
 // services/game-agent/model-cache.ts
 init_paths();
-import path21 from "node:path";
+import path15 from "node:path";
 
 // services/game-agent/ollama-client.ts
 var DEFAULT_GAME_AGENT_MODEL = "qwen3:4b";
@@ -44797,7 +43500,7 @@ function pickAvailableModel(models, preferred) {
 }
 
 // services/game-agent/model-cache.ts
-var GAME_AGENT_MODEL_CACHE_PATH = path21.join(DATA_DIR, "game-agent", "models.json");
+var GAME_AGENT_MODEL_CACHE_PATH = path15.join(DATA_DIR, "game-agent", "models.json");
 
 // services/game-agent/proxy/agent-proxy.ts
 var import_undici = __toESM(require_undici());
@@ -45180,30 +43883,30 @@ function ollamaFetch(profile) {
 // services/game-agent/secrets.ts
 init_paths();
 import { createCipheriv, createDecipheriv, randomBytes as randomBytes2 } from "node:crypto";
-import fs23 from "node:fs";
-import path22 from "node:path";
-var GAME_AGENT_SECRETS_PATH = path22.join(DATA_DIR, "game-agent", "secrets.json");
-var GAME_AGENT_SECRET_KEY_PATH = path22.join(DATA_DIR, "game-agent", "secret.key");
+import fs15 from "node:fs";
+import path16 from "node:path";
+var GAME_AGENT_SECRETS_PATH = path16.join(DATA_DIR, "game-agent", "secrets.json");
+var GAME_AGENT_SECRET_KEY_PATH = path16.join(DATA_DIR, "game-agent", "secret.key");
 function files(input = {}) {
   return { secretsFile: input.secretsFile || GAME_AGENT_SECRETS_PATH, keyFile: input.keyFile || GAME_AGENT_SECRET_KEY_PATH };
 }
 function ensureKey(file) {
-  fs23.mkdirSync(path22.dirname(file), { recursive: true, mode: 448 });
-  if (!fs23.existsSync(file)) {
+  fs15.mkdirSync(path16.dirname(file), { recursive: true, mode: 448 });
+  if (!fs15.existsSync(file)) {
     try {
-      fs23.writeFileSync(file, randomBytes2(32).toString("base64"), { flag: "wx", mode: 384 });
+      fs15.writeFileSync(file, randomBytes2(32).toString("base64"), { flag: "wx", mode: 384 });
     } catch (error) {
       if (error.code !== "EEXIST") throw error;
     }
   }
-  const key3 = Buffer.from(fs23.readFileSync(file, "utf8").trim(), "base64");
+  const key3 = Buffer.from(fs15.readFileSync(file, "utf8").trim(), "base64");
   if (key3.length !== 32) throw new Error("Invalid agent credentials secret key");
   return key3;
 }
 function readDocument(file) {
   try {
-    if (!fs23.existsSync(file)) return { version: 1, tokens: {} };
-    const value = JSON.parse(fs23.readFileSync(file, "utf8"));
+    if (!fs15.existsSync(file)) return { version: 1, tokens: {} };
+    const value = JSON.parse(fs15.readFileSync(file, "utf8"));
     if (value?.version !== 1 || !value.tokens || typeof value.tokens !== "object" || Array.isArray(value.tokens)) throw new Error("Invalid agent credentials file format");
     return value;
   } catch (error) {
@@ -45233,8 +43936,8 @@ function readGameAgentToken(profileId, input = {}) {
 // services/game-agent/settings.ts
 init_paths();
 import { randomUUID as randomUUID5 } from "node:crypto";
-import fs24 from "node:fs";
-import path23 from "node:path";
+import fs16 from "node:fs";
+import path17 from "node:path";
 
 // lib/game-agent/providers.ts
 var GAME_AGENT_PROVIDERS = ["ollama", "cursor", "codex", "claude", "gemini", "cc", "codex-api", "gemini-api"];
@@ -45293,33 +43996,33 @@ function normalizeAgentTimeouts(value) {
 
 // services/game-agent/settings.ts
 init_client();
-var GAME_AGENT_SETTINGS_PATH = path23.join(GAME_AGENT_DIR, "settings.json");
-var GAME_AGENT_SYNC_PATH = path23.join(GAME_AGENT_DIR, "settings.sync.json");
-var _LEGACY_GAME_AGENT_SETTINGS_PATH = path23.join(DATA_DIR, "game-agent-settings.json");
-var _LEGACY_GAME_AGENT_SYNC_PATH = path23.join(DATA_DIR, "game-agent-settings.sync.json");
+var GAME_AGENT_SETTINGS_PATH = path17.join(GAME_AGENT_DIR, "settings.json");
+var GAME_AGENT_SYNC_PATH = path17.join(GAME_AGENT_DIR, "settings.sync.json");
+var _LEGACY_GAME_AGENT_SETTINGS_PATH = path17.join(DATA_DIR, "game-agent-settings.json");
+var _LEGACY_GAME_AGENT_SYNC_PATH = path17.join(DATA_DIR, "game-agent-settings.sync.json");
 function migrateLegacyAgentFile(from, to) {
   try {
-    if (!fs24.existsSync(from) || fs24.existsSync(to)) return;
-    fs24.mkdirSync(path23.dirname(to), { recursive: true });
-    fs24.renameSync(from, to);
+    if (!fs16.existsSync(from) || fs16.existsSync(to)) return;
+    fs16.mkdirSync(path17.dirname(to), { recursive: true });
+    fs16.renameSync(from, to);
   } catch {
     try {
-      if (!fs24.existsSync(from) || fs24.existsSync(to)) return;
-      fs24.mkdirSync(path23.dirname(to), { recursive: true });
-      fs24.copyFileSync(from, to);
-      fs24.rmSync(from, { force: true });
+      if (!fs16.existsSync(from) || fs16.existsSync(to)) return;
+      fs16.mkdirSync(path17.dirname(to), { recursive: true });
+      fs16.copyFileSync(from, to);
+      fs16.rmSync(from, { force: true });
     } catch {
     }
   }
 }
 function resolveAgentSettingsFile(preferred, legacy) {
   migrateLegacyAgentFile(legacy, preferred);
-  if (fs24.existsSync(preferred)) return preferred;
-  if (fs24.existsSync(legacy)) return legacy;
+  if (fs16.existsSync(preferred)) return preferred;
+  if (fs16.existsSync(legacy)) return legacy;
   return preferred;
 }
 function legacyAgentFile(file, name2) {
-  return path23.join(path23.dirname(path23.dirname(file)), name2);
+  return path17.join(path17.dirname(path17.dirname(file)), name2);
 }
 function settingsFilePath(file = GAME_AGENT_SETTINGS_PATH) {
   return resolveAgentSettingsFile(file, legacyAgentFile(file, "game-agent-settings.json"));
@@ -45343,11 +44046,11 @@ function defaultGameAgentSettings() {
   const profile = defaultGameAgentProfile();
   return { version: 1, defaultProfileId: profile.id, profiles: [profile] };
 }
-function text2(value, fallback) {
+function text(value, fallback) {
   return typeof value === "string" && value.trim() ? value.trim() : fallback;
 }
 function normalizeGameAgentEndpoint(value) {
-  const raw = text2(value, DEFAULT_OLLAMA_HOST2);
+  const raw = text(value, DEFAULT_OLLAMA_HOST2);
   let url;
   try {
     url = new URL(raw);
@@ -45369,8 +44072,8 @@ function normalizeGameAgentProfile(value, fallbackId = randomUUID5()) {
   const enabled = enabledModels ? { enabledModels } : {};
   if (isCliProvider(provider)) {
     return {
-      id: text2(value.id, fallbackId),
-      label: text2(value.label, PROVIDER_META[provider].label),
+      id: text(value.id, fallbackId),
+      label: text(value.label, PROVIDER_META[provider].label),
       provider,
       endpoint: "",
       modelsEndpoint: "",
@@ -45386,12 +44089,12 @@ function normalizeGameAgentProfile(value, fallbackId = randomUUID5()) {
   }
   const temperature = Number(value.temperature ?? 0.2);
   if (!Number.isFinite(temperature) || temperature < 0 || temperature > 2) throw new Error("Temperature must be between 0 and 2");
-  const keepAlive = text2(value.keepAlive, "10m");
+  const keepAlive = text(value.keepAlive, "10m");
   if (!/^(?:-1|0|\d+(?:\.\d+)?(?:ms|s|m|h))$/.test(keepAlive)) throw new Error("Invalid Keep Alive format, e.g. 10m, 1h, 0, or -1");
   if (isOpenApiProvider(provider)) {
     return {
-      id: text2(value.id, fallbackId),
-      label: text2(value.label, PROVIDER_META[provider].label),
+      id: text(value.id, fallbackId),
+      label: text(value.label, PROVIDER_META[provider].label),
       provider,
       endpoint: normalizeGameAgentEndpoint(value.endpoint || PROVIDER_META[provider].defaultEndpoint || ""),
       modelsEndpoint,
@@ -45406,8 +44109,8 @@ function normalizeGameAgentProfile(value, fallbackId = randomUUID5()) {
     };
   }
   return {
-    id: text2(value.id, fallbackId),
-    label: text2(value.label, "Ollama"),
+    id: text(value.id, fallbackId),
+    label: text(value.label, "Ollama"),
     provider: "ollama",
     endpoint: normalizeGameAgentEndpoint(value.endpoint),
     modelsEndpoint: "",
@@ -45430,8 +44133,8 @@ function normalizeGameAgentSettings(value) {
 function loadOwnedGameAgentSettings(file = GAME_AGENT_SETTINGS_PATH) {
   const resolved = settingsFilePath(file);
   try {
-    if (!fs24.existsSync(resolved)) return defaultGameAgentSettings();
-    return normalizeGameAgentSettings(JSON.parse(fs24.readFileSync(resolved, "utf8")));
+    if (!fs16.existsSync(resolved)) return defaultGameAgentSettings();
+    return normalizeGameAgentSettings(JSON.parse(fs16.readFileSync(resolved, "utf8")));
   } catch (error) {
     if (error instanceof SyntaxError) throw new Error("Agent configuration file is not valid JSON");
     throw error;
@@ -46042,23 +44745,23 @@ function bergamotLanguage(input) {
 }
 
 // services/translate/bergamot/binary.ts
-import fs25 from "node:fs";
+import fs17 from "node:fs";
 import os2 from "node:os";
-import path24 from "node:path";
+import path18 from "node:path";
 function resolveBergamotBinary() {
   if (!["darwin", "linux"].includes(process.platform)) throw new Error("BERGAMOT_PLATFORM_UNSUPPORTED");
   const platform = process.platform === "darwin" ? "macos" : "linux";
   const candidates2 = [
-    ...process.env.CHAYA_BERGAMOT_BINARY ? [path24.resolve(process.env.CHAYA_BERGAMOT_BINARY)] : [],
-    path24.resolve(process.cwd(), `native/bin/${platform}-${process.arch}/chaya-bergamot-translator`),
-    path24.resolve(process.cwd(), "native/bin/chaya-bergamot-translator"),
-    path24.join(os2.homedir(), ".local/bin/chaya-bergamot-translator"),
-    ...(process.env.PATH || "").split(path24.delimiter).filter(Boolean).map((dir) => path24.join(dir, "chaya-bergamot-translator"))
+    ...process.env.CHAYA_BERGAMOT_BINARY ? [path18.resolve(process.env.CHAYA_BERGAMOT_BINARY)] : [],
+    path18.resolve(process.cwd(), `native/bin/${platform}-${process.arch}/chaya-bergamot-translator`),
+    path18.resolve(process.cwd(), "native/bin/chaya-bergamot-translator"),
+    path18.join(os2.homedir(), ".local/bin/chaya-bergamot-translator"),
+    ...(process.env.PATH || "").split(path18.delimiter).filter(Boolean).map((dir) => path18.join(dir, "chaya-bergamot-translator"))
   ];
   const binary = candidates2.find((file) => {
     try {
-      fs25.accessSync(file, fs25.constants.X_OK);
-      return fs25.statSync(file).isFile();
+      fs17.accessSync(file, fs17.constants.X_OK);
+      return fs17.statSync(file).isFile();
     } catch {
       return false;
     }
@@ -46129,21 +44832,21 @@ function findPack(source, target2) {
 }
 
 // services/translate/bergamot/readiness.ts
-import fs27 from "node:fs";
-import path27 from "node:path";
+import fs19 from "node:fs";
+import path21 from "node:path";
 
 // services/translate/bergamot/download.ts
-import { createHash as createHash3 } from "node:crypto";
+import { createHash as createHash2 } from "node:crypto";
 import { createReadStream, createWriteStream } from "node:fs";
-import path25 from "node:path";
+import path19 from "node:path";
 init_operation();
 async function hashFile(file) {
   return measureOperation(
     "translate",
     "bergamot.pack.hash",
-    { file: path25.basename(file) },
+    { file: path19.basename(file) },
     async () => {
-      const hash = createHash3("sha256");
+      const hash = createHash2("sha256");
       for await (const chunk of createReadStream(file)) hash.update(chunk);
       return hash.digest("hex");
     },
@@ -46201,27 +44904,27 @@ function validate(root, source, target2, sample, signal) {
 
 // services/translate/bergamot/store.ts
 init_paths();
-import { createHash as createHash4, randomUUID as randomUUID6 } from "node:crypto";
-import fs26 from "node:fs";
+import { createHash as createHash3, randomUUID as randomUUID6 } from "node:crypto";
+import fs18 from "node:fs";
 import os3 from "node:os";
-import path26 from "node:path";
+import path20 from "node:path";
 function legacyPacksRoot() {
-  return path26.join(process.env.XDG_DATA_HOME || path26.join(os3.homedir(), ".local/share"), "chaya/translation-packs");
+  return path20.join(process.env.XDG_DATA_HOME || path20.join(os3.homedir(), ".local/share"), "chaya/translation-packs");
 }
 function adoptLegacyPacks(preferred, legacy) {
   try {
-    if (fs26.existsSync(preferred) || !fs26.existsSync(legacy)) return;
-    fs26.mkdirSync(path26.dirname(preferred), { recursive: true });
-    fs26.renameSync(legacy, preferred);
+    if (fs18.existsSync(preferred) || !fs18.existsSync(legacy)) return;
+    fs18.mkdirSync(path20.dirname(preferred), { recursive: true });
+    fs18.renameSync(legacy, preferred);
   } catch {
   }
 }
 function packsRoot() {
-  if (process.env.CHAYA_BERGAMOT_PACKS_DIR) return path26.resolve(process.env.CHAYA_BERGAMOT_PACKS_DIR);
-  const preferred = path26.resolve(TRANSLATION_PACKS_DIR);
-  const legacy = path26.resolve(legacyPacksRoot());
+  if (process.env.CHAYA_BERGAMOT_PACKS_DIR) return path20.resolve(process.env.CHAYA_BERGAMOT_PACKS_DIR);
+  const preferred = path20.resolve(TRANSLATION_PACKS_DIR);
+  const legacy = path20.resolve(legacyPacksRoot());
   adoptLegacyPacks(preferred, legacy);
-  if (!fs26.existsSync(preferred) && fs26.existsSync(legacy)) return legacy;
+  if (!fs18.existsSync(preferred) && fs18.existsSync(legacy)) return legacy;
   return preferred;
 }
 function safeId(value) {
@@ -46229,7 +44932,7 @@ function safeId(value) {
   return value;
 }
 function installationRoot(ref) {
-  return path26.join(packsRoot(), "packs", safeId(ref.packId), safeId(ref.version), safeId(ref.installId));
+  return path20.join(packsRoot(), "packs", safeId(ref.packId), safeId(ref.version), safeId(ref.installId));
 }
 function pairFolder(source, target2) {
   return `${safeId(bergamotLanguage(source))}_${safeId(bergamotLanguage(target2))}`;
@@ -46237,26 +44940,26 @@ function pairFolder(source, target2) {
 function installedPack(source, target2) {
   try {
     const packId = `${bergamotLanguage(source)}-${bergamotLanguage(target2)}`;
-    const ref = JSON.parse(fs26.readFileSync(path26.join(packsRoot(), "active", `${safeId(packId)}.json`), "utf8"));
+    const ref = JSON.parse(fs18.readFileSync(path20.join(packsRoot(), "active", `${safeId(packId)}.json`), "utf8"));
     if (ref.packId !== packId) return;
     const root = installationRoot(ref);
-    if (!fs26.realpathSync(root).startsWith(fs26.realpathSync(packsRoot()) + path26.sep)) return;
-    const manifest = JSON.parse(fs26.readFileSync(path26.join(root, "manifest.json"), "utf8"));
+    if (!fs18.realpathSync(root).startsWith(fs18.realpathSync(packsRoot()) + path20.sep)) return;
+    const manifest = JSON.parse(fs18.readFileSync(path20.join(root, "manifest.json"), "utf8"));
     if (JSON.stringify(manifest.reference) !== JSON.stringify(ref) || manifest.source !== bergamotLanguage(source) || manifest.target !== bergamotLanguage(target2)) return;
     const pack = findPack(source, target2);
     if (!pack || ref.version !== pack.version || manifest.files.length !== pack.files.length + 1) return;
     const expected = new Map([
       ...pack.files.map((file) => [file.name, file.unpackedSha256]),
-      ["config.yml", createHash4("sha256").update(pack.config).digest("hex")]
+      ["config.yml", createHash3("sha256").update(pack.config).digest("hex")]
     ]);
-    const folder = path26.join(root, pairFolder(source, target2));
-    if (fs26.lstatSync(folder).isSymbolicLink() || fs26.realpathSync(folder) !== path26.join(fs26.realpathSync(root), pairFolder(source, target2))) return;
+    const folder = path20.join(root, pairFolder(source, target2));
+    if (fs18.lstatSync(folder).isSymbolicLink() || fs18.realpathSync(folder) !== path20.join(fs18.realpathSync(root), pairFolder(source, target2))) return;
     for (const item of manifest.files) {
       if (expected.get(item.name) !== item.sha256) return;
       expected.delete(item.name);
-      const file = path26.join(root, pairFolder(source, target2), item.name);
+      const file = path20.join(root, pairFolder(source, target2), item.name);
       safeId(item.name.replaceAll(".", "_"));
-      const stat = fs26.lstatSync(file);
+      const stat = fs18.lstatSync(file);
       if (!stat.isFile() || stat.isSymbolicLink() || stat.size !== item.bytes || stat.mtimeMs !== item.mtimeMs) return;
     }
     if (expected.size) return;
@@ -46266,7 +44969,7 @@ function installedPack(source, target2) {
   }
 }
 function contentId(value) {
-  return createHash4("sha256").update(JSON.stringify(value)).digest("hex");
+  return createHash3("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
 // services/translate/bergamot/readiness.ts
@@ -46282,7 +44985,7 @@ async function verifiedPack(source, target2, refresh = false) {
   } catch {
     return;
   }
-  const stat = fs27.statSync(binary);
+  const stat = fs19.statSync(binary);
   const key3 = contentId({ installed, binary, size: stat.size, mtime: stat.mtimeMs });
   if (refresh) checks.delete(key3);
   let check = checks.get(key3);
@@ -46290,7 +44993,7 @@ async function verifiedPack(source, target2, refresh = false) {
     check = queue2.then(async () => {
       if (await hashFile(binary) !== installed.manifest.binaryHash) return false;
       for (const item of installed.manifest.files) {
-        if (await hashFile(path27.join(installed.root, pairFolder(source, target2), item.name)) !== item.sha256) return false;
+        if (await hashFile(path21.join(installed.root, pairFolder(source, target2), item.name)) !== item.sha256) return false;
       }
       await validateBergamotPack(installed.root, pack.source, pack.target, pack.sample);
       return true;
@@ -46533,7 +45236,8 @@ var AppleTranslatorClient = class {
     this.binaryStamp = "";
     this.reqSeq = 0;
     this.idleTimer = null;
-    this.idleTimeoutMs = 6e4;
+    this.idleTimeoutMs = 3e5;
+    this.statusCache = /* @__PURE__ */ new Map();
   }
   getBinaryPath() {
     const binPath = resolve2(process.cwd(), "native/bin/chaya-apple-translator");
@@ -46739,14 +45443,14 @@ var AppleTranslatorClient = class {
         chars = 0;
       };
       for (const item of items) {
-        if (batch.length >= 40 || chars + (item.text?.length || 0) > 4e4) flush();
+        if (batch.length >= 80 || chars + (item.text?.length || 0) > 8e4) flush();
         batch.push(item);
         chars += item.text?.length || 0;
       }
       flush();
     }
   }
-  async sendRequest(req, timeoutMs = 15e3, signal, onTrace) {
+  async sendRequest(req, timeoutMs = 3e4, signal, onTrace) {
     if (req.type === "translate") return this.sendRequestOnce(req, timeoutMs, signal, onTrace);
     return measureOperation(
       "communication",
@@ -46790,17 +45494,27 @@ var AppleTranslatorClient = class {
     });
   }
   async checkStatus(source = "ja", target2 = "zh-Hans") {
+    const appleSource = toAppleLanguage(source, "ja");
+    const appleTarget = toAppleLanguage(target2, "zh-Hans");
+    const cacheKey = `${appleSource}->${appleTarget}`;
+    const cached = this.statusCache.get(cacheKey);
+    if (cached && Date.now() - cached.at < 3e5) {
+      return cached.result;
+    }
     try {
       const res = await this.sendRequest({
         type: "check",
-        source: toAppleLanguage(source, "ja"),
-        target: toAppleLanguage(target2, "zh-Hans")
+        source: appleSource,
+        target: appleTarget
       });
-      return {
+      const isInstalledOrSupported = res.status === "installed" || res.status === "supported";
+      const result = {
         status: res.status || "unknown",
-        installed: res.status === "installed",
+        installed: isInstalledOrSupported,
         message: res.message
       };
+      this.statusCache.set(cacheKey, { result, at: Date.now() });
+      return result;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       return {
@@ -46820,7 +45534,7 @@ var AppleTranslatorClient = class {
         source: toAppleLanguage(options?.source, "ja"),
         target: toAppleLanguage(options?.target, "zh-Hans")
       },
-      15e3,
+      3e4,
       options?.signal,
       options?.onTrace
     );
@@ -46836,7 +45550,9 @@ var AppleTranslatorClient = class {
     return res.result || "";
   }
 };
-var appleTranslator = new AppleTranslatorClient();
+var GLOBAL_KEY = "__chayaAppleTranslatorClient";
+var g = globalThis;
+var appleTranslator = g[GLOBAL_KEY] ??= new AppleTranslatorClient();
 async function appleTranslate(text4, options) {
   return appleTranslator.translate(text4, options);
 }
@@ -46858,32 +45574,310 @@ function trackLiveTranslateRequest(fn) {
 
 // services/translate/name-glossary-game.ts
 init_paths();
-import fs30 from "node:fs";
+import fs24 from "node:fs";
 import { readFile, unlink } from "node:fs/promises";
-import path29 from "node:path";
+import path25 from "node:path";
+
+// lib/translate/name-glossary.ts
+init_sentence_units();
+var NAME_GLOSSARY_CATEGORIES = ["actor", "actor_nickname", "item", "weapon", "armor", "skill", "enemy", "state", "map"];
+var TOKEN_RE2 = new RegExp(SENTENCE_TOKEN_SOURCE, "g");
+var LATIN3 = /[A-Za-z]/u;
+var LATIN_OR_DIGIT = /[A-Za-z0-9]/u;
+var APOSTROPHE_S = ["'s", "\u2019s"];
+function isNameGlossaryCategory(value) {
+  return !!value && NAME_GLOSSARY_CATEGORIES.includes(value);
+}
+function isZhNameTarget(toLang) {
+  if (!toLang) return true;
+  const lower2 = toLang.toLowerCase();
+  return lower2 === "zh" || lower2 === "ch" || lower2 === "zh-cn" || lower2 === "zh-hans";
+}
+function isUsableNamePair(src, zh) {
+  const from = String(src ?? "").trim();
+  const to = String(zh ?? "").trim();
+  if (!from || !to || from === to) return false;
+  if ([...from].length < 2) return false;
+  if (/^[A-Za-z]$/.test(from)) return false;
+  return true;
+}
+function expandNameVariants(entry, toLang) {
+  if (!isUsableNamePair(entry.src, entry.zh)) return [];
+  const out = [{ src: entry.src, zh: entry.zh, category: entry.category }];
+  if (!isZhNameTarget(toLang) || !LATIN3.test(entry.src)) return out;
+  if (APOSTROPHE_S.some((suffix) => entry.src.endsWith(suffix))) return out;
+  const possessiveZh = entry.zh.endsWith("\u7684") ? entry.zh : `${entry.zh}\u7684`;
+  for (const suffix of APOSTROPHE_S) {
+    out.push({ src: `${entry.src}${suffix}`, zh: possessiveZh, category: entry.category });
+  }
+  return out;
+}
+function entriesFromNamePairs(pairs, toLang) {
+  const usable = [...pairs].filter((pair) => isUsableNamePair(pair.src, pair.zh));
+  const sources2 = new Set(usable.map((pair) => pair.src));
+  const bySrc = /* @__PURE__ */ new Map();
+  for (const pair of usable) {
+    const owner = pair.src.match(/^(.+?)['\u2019]s\s+\S/u)?.[1];
+    if (owner && sources2.has(owner)) continue;
+    for (const entry of expandNameVariants(pair, toLang)) {
+      if (!bySrc.has(entry.src) || entry.src.length > (bySrc.get(entry.src)?.src.length || 0)) bySrc.set(entry.src, entry);
+    }
+  }
+  return [...bySrc.values()].sort((a, b) => b.src.length - a.src.length || a.src.localeCompare(b.src));
+}
+function tokenRanges(text4) {
+  const ranges = [];
+  TOKEN_RE2.lastIndex = 0;
+  for (const match of text4.matchAll(TOKEN_RE2)) {
+    const start = match.index ?? 0;
+    ranges.push({ start, end: start + match[0].length });
+  }
+  return ranges;
+}
+function overlaps(start, end, ranges) {
+  return ranges.some((range) => start < range.end && end > range.start);
+}
+function latinBoundary(text4, start, end, src) {
+  if (!LATIN3.test(src)) return true;
+  const left = text4[start - 1] || "";
+  const right = text4[end] || "";
+  if (LATIN_OR_DIGIT.test(text4[start] || "") && LATIN_OR_DIGIT.test(left)) return false;
+  if (LATIN_OR_DIGIT.test(text4[end - 1] || "") && LATIN_OR_DIGIT.test(right)) return false;
+  return true;
+}
+function findNameSpans(text4, entries2, toLang) {
+  const source = String(text4 ?? "");
+  if (!source || !entries2.length) return [];
+  const variants = entriesFromNamePairs(entries2, toLang);
+  const blocked = tokenRanges(source);
+  const spans = [];
+  for (const entry of variants) {
+    let from = 0;
+    while (from < source.length) {
+      const start = source.indexOf(entry.src, from);
+      if (start < 0) break;
+      const end = start + entry.src.length;
+      from = start + 1;
+      if (overlaps(start, end, blocked) || overlaps(start, end, spans)) continue;
+      if (!latinBoundary(source, start, end, entry.src)) continue;
+      spans.push({ start, end, src: entry.src, zh: entry.zh });
+      blocked.push({ start, end });
+    }
+  }
+  return spans.sort((a, b) => a.start - b.start);
+}
+function nameGaps(src, spans) {
+  const gaps = [];
+  let at = 0;
+  for (const span of [...spans].sort((a, b) => a.start - b.start)) {
+    if (span.start > at) gaps.push({ id: `${at}:${span.start}`, start: at, end: span.start, text: src.slice(at, span.start) });
+    at = Math.max(at, span.end);
+  }
+  if (at < src.length) gaps.push({ id: `${at}:${src.length}`, start: at, end: src.length, text: src.slice(at) });
+  return gaps;
+}
+var LITERAL_GAP_CODE = /^[-_+#/:.()\[\]【】\s]*(?:[A-Za-z]{1,2}\d+|\d+[A-Za-z]{1,2}|[A-Za-z]\d+[A-Za-z]|\d+|[A-Za-z]{1,2})[-_+#/:.()\[\]【】\s]*$/;
+function isLiteralNameGap(text4) {
+  if (!text4 || !text4.replace(/\s+/g, "")) return true;
+  const compact = text4.trim();
+  if (/^[\s\p{P}\p{S}]+$/u.test(compact)) return true;
+  if (LITERAL_GAP_CODE.test(compact)) return true;
+  return false;
+}
+function padGapTranslation(original, translated) {
+  if (isLiteralNameGap(original)) return original;
+  const lead = original.match(/^\s*/)?.[0] || "";
+  const trail = original.match(/\s*$/)?.[0] || "";
+  return lead + String(translated ?? "").trim() + trail;
+}
+function stitchNameLocks(src, spans, gapZh) {
+  const ordered = [...spans].sort((a, b) => a.start - b.start);
+  let out = "";
+  let at = 0;
+  function appendGap(end, nextName = "") {
+    const gap = src.slice(at, end);
+    const translated = gapZh.get(`${at}:${end}`);
+    let text4 = padGapTranslation(gap, translated ?? gap);
+    if (translated !== void 0 && !isLiteralNameGap(gap)) {
+      if (/[\u3400-\u9fff]$/u.test(out)) text4 = text4.replace(/^ +(?=[\u3400-\u9fff])/u, "");
+      if (/^[\u3400-\u9fff]/u.test(nextName)) text4 = text4.replace(/([\u3400-\u9fff]) +$/u, "$1");
+    }
+    out += text4;
+  }
+  for (const span of ordered) {
+    if (span.start > at) appendGap(span.start, span.zh);
+    out += span.zh;
+    at = span.end;
+  }
+  if (at < src.length) appendGap(src.length);
+  return out;
+}
 
 // services/extract/lib/extract-items.ts
 init_content_files();
 init_segments();
 init_game_lookup();
 init_game_records();
-import fs29 from "node:fs";
+import fs23 from "node:fs";
+
+// services/translate/seed-failures.ts
+import fs21 from "node:fs";
+import path23 from "node:path";
+
+// services/translate/seed-job-state.ts
+init_paths();
+import { createHash as createHash4 } from "node:crypto";
+import fs20 from "node:fs";
+import path22 from "node:path";
+var MAX_SEED_JOB_LOGS = 120;
+function idleSeedJob(contentRoot = "") {
+  return {
+    contentRoot,
+    status: "idle",
+    startedAt: null,
+    updatedAt: Date.now(),
+    sessionDone: 0,
+    rounds: 0,
+    performance: null,
+    liveStatus: "",
+    error: null,
+    engines: [],
+    logs: [],
+    failedSources: [],
+    inventoryPreparing: false
+  };
+}
+function emptySeedProgress(contentRoot) {
+  return {
+    contentRoot,
+    hasSeed: false,
+    total: 0,
+    done: 0,
+    missing: 0,
+    needCount: 0,
+    skipCount: 0,
+    needChars: 0,
+    skipChars: 0,
+    missingChars: 0,
+    doneChars: 0,
+    lines: 0,
+    batchSize: 40,
+    batchesLeft: 0
+  };
+}
+function seedJobKey(contentRoot) {
+  return createHash4("sha1").update(path22.resolve(contentRoot)).digest("hex").slice(0, 16);
+}
+function seedJobFile(contentRoot) {
+  return path22.join(TRANSLATE_JOBS_DIR, `${seedJobKey(contentRoot)}.json`);
+}
+function readSeedJobState(contentRoot) {
+  const file = seedJobFile(contentRoot);
+  if (!fs20.existsSync(file)) return null;
+  try {
+    const raw = JSON.parse(fs20.readFileSync(file, "utf8"));
+    if (!raw || typeof raw !== "object") return null;
+    return {
+      ...idleSeedJob(contentRoot),
+      ...raw,
+      contentRoot,
+      failedSources: Array.isArray(raw.failedSources) ? raw.failedSources.filter((s) => typeof s === "string") : [],
+      logs: Array.isArray(raw.logs) ? raw.logs.slice(-MAX_SEED_JOB_LOGS) : []
+    };
+  } catch {
+    return null;
+  }
+}
+function writeSeedJobState(state) {
+  fs20.mkdirSync(TRANSLATE_JOBS_DIR, { recursive: true });
+  const file = seedJobFile(state.contentRoot);
+  const tmp = `${file}.${process.pid}.tmp`;
+  fs20.writeFileSync(tmp, `${JSON.stringify(state, null, 2)}
+`, "utf8");
+  fs20.renameSync(tmp, file);
+}
+function isObsoleteCacheWorkerLog(text4) {
+  if (/Cannot find module .+chaya-cache-worker/i.test(text4)) return true;
+  if (fs20.existsSync(CACHE_WORKER_PATH) && /Cache scan unavailable:.*(?:worker not built|CACHE_WORKER_MISSING|chaya-cache-worker)/i.test(text4)) return true;
+  return false;
+}
+function visibleSeedJobState(state) {
+  const logs = process.env.CHAYA_TRANSLATE_DEBUG === "1" ? state.logs : state.logs.filter(
+    (entry) => !isObsoleteCacheWorkerLog(entry.text) && !/^\[translation-timing\]|^Requesting batch |^\.\.\. \d+ additional items omitted|^Skipping \d+ failed items this round/.test(entry.text) && !(entry.level === "ok" && entry.text.includes(" \u2192 "))
+  );
+  return { ...state, logs: [...logs] };
+}
+function scrubSeedJobLogs(state) {
+  const next = state.logs.filter((entry) => !/Cannot find module .+chaya-cache-worker/i.test(entry.text));
+  if (next.length === state.logs.length) return false;
+  state.logs = next;
+  return true;
+}
+
+// services/translate/seed-failures.ts
+init_text_classify();
+function seedFailureFile(contentRoot) {
+  return seedJobFile(contentRoot).replace(/\.json$/, ".failures.ndjson");
+}
+function readSeedFailures(contentRoot) {
+  const failures = new Map((readSeedJobState(contentRoot)?.failedSources ?? []).map((src) => [src, ""]));
+  const file = seedFailureFile(contentRoot);
+  let text4;
+  try {
+    text4 = fs21.readFileSync(file, "utf8");
+  } catch (error) {
+    if (error.code === "ENOENT") return failures;
+    throw error;
+  }
+  for (const line of text4.split("\n")) {
+    if (!line.trim()) continue;
+    try {
+      const event = JSON.parse(line);
+      if (event.error === null) failures.delete(event.src);
+      else failures.set(event.src, event.error);
+    } catch {
+    }
+  }
+  return failures;
+}
+function writeSeedFailure(contentRoot, src, error) {
+  const file = seedFailureFile(contentRoot);
+  fs21.mkdirSync(path23.dirname(file), { recursive: true });
+  fs21.appendFileSync(file, `${JSON.stringify({ src, error, at: Date.now() })}
+`, "utf8");
+}
+function isSeedTarget(target2) {
+  return !target2 || /^(?:ch|zh|zh-cn|zh-hans)$/i.test(target2);
+}
+function attachSeedFailures(contentRoot, items, target2) {
+  const failures = isSeedTarget(target2) ? readSeedFailures(contentRoot) : /* @__PURE__ */ new Map();
+  return items.map(
+    (item) => !item.savedZh?.trim() && failures.has(item.src) ? { ...item, translationFailure: { error: failures.get(item.src) } } : item
+  );
+}
+function recordSeedFailure(contentRoot, item, progress) {
+  writeSeedFailure(contentRoot, item.src, item.error || "No valid translation returned");
+  progress.failedCount = (progress.failedCount ?? 0) + 1;
+  progress.failedChars = (progress.failedChars ?? 0) + charCount(item.src);
+  progress.missing--;
+  progress.missingChars -= charCount(item.src);
+}
 
 // services/extract/lib/game-locales.ts
-import fs28 from "node:fs";
-import path28 from "node:path";
+import fs22 from "node:fs";
+import path24 from "node:path";
 function isValidLocalesDir(dirPath) {
-  if (!fs28.existsSync(dirPath) || !fs28.statSync(dirPath).isDirectory()) return false;
-  const entries2 = fs28.readdirSync(dirPath, { withFileTypes: true });
+  if (!fs22.existsSync(dirPath) || !fs22.statSync(dirPath).isDirectory()) return false;
+  const entries2 = fs22.readdirSync(dirPath, { withFileTypes: true });
   const subDirs = entries2.filter((e) => e.isDirectory());
   if (!subDirs.length) {
     const jsonFiles = entries2.filter((e) => e.isFile() && /\.(json|csv)$/i.test(e.name));
     return jsonFiles.length > 0;
   }
   for (const sub of subDirs) {
-    const subPath = path28.join(dirPath, sub.name);
+    const subPath = path24.join(dirPath, sub.name);
     try {
-      const files2 = fs28.readdirSync(subPath);
+      const files2 = fs22.readdirSync(subPath);
       if (files2.some((f) => /\.(json|csv)$/i.test(f))) {
         return true;
       }
@@ -46894,25 +45888,27 @@ function isValidLocalesDir(dirPath) {
 }
 function findLocalesDirectory(contentRoot) {
   const candidates2 = [
-    path28.join(contentRoot, "locales"),
-    path28.join(contentRoot, "www", "locales"),
-    path28.join(contentRoot, "localization"),
-    path28.join(contentRoot, "www", "localization"),
-    path28.join(contentRoot, "languages"),
-    path28.join(contentRoot, "www", "languages"),
-    path28.join(contentRoot, "data", "locales"),
-    path28.join(contentRoot, "data", "localization")
+    path24.join(contentRoot, "locales"),
+    path24.join(contentRoot, "www", "locales"),
+    path24.join(contentRoot, "localization"),
+    path24.join(contentRoot, "www", "localization"),
+    path24.join(contentRoot, "languages"),
+    path24.join(contentRoot, "www", "languages"),
+    path24.join(contentRoot, "data", "locales"),
+    path24.join(contentRoot, "data", "localization"),
+    path24.join(contentRoot, "csv"),
+    path24.join(contentRoot, "www", "csv")
   ];
-  const pluginsPaths = [path28.join(contentRoot, "js", "plugins.js"), path28.join(contentRoot, "www", "js", "plugins.js")];
+  const pluginsPaths = [path24.join(contentRoot, "js", "plugins.js"), path24.join(contentRoot, "www", "js", "plugins.js")];
   for (const pp of pluginsPaths) {
-    if (fs28.existsSync(pp)) {
+    if (fs22.existsSync(pp)) {
       try {
-        const text4 = fs28.readFileSync(pp, "utf8");
+        const text4 = fs22.readFileSync(pp, "utf8");
         const locMatch = text4.match(/"Localization Folder"\s*:\s*"([^"]+)"/);
         if (locMatch && locMatch[1]) {
           const folder = locMatch[1].replace(/^[\\/]+|[\\/]+$/g, "");
-          candidates2.unshift(path28.join(path28.dirname(path28.dirname(pp)), folder));
-          candidates2.unshift(path28.join(contentRoot, folder));
+          candidates2.unshift(path24.join(path24.dirname(path24.dirname(pp)), folder));
+          candidates2.unshift(path24.join(contentRoot, folder));
         }
       } catch {
       }
@@ -46927,42 +45923,106 @@ function findLocalesDirectory(contentRoot) {
 }
 function normalizeLocalesKey(rawKey) {
   if (typeof rawKey !== "string") return "";
-  return rawKey.trim().replace(/^\{+/, "").replace(/\}+$/, "").trim();
+  const k = rawKey.trim().replace(/^\{+/, "").replace(/\}+$/, "").trim();
+  const tMatch = k.match(/^\\(?:T|t)\[([^\]]+)\]$/);
+  if (tMatch) return tMatch[1].trim();
+  return k;
+}
+function parseCsvRows(text4) {
+  const clean2 = text4.replace(/^\uFEFF/, "");
+  const rows = [];
+  let fields2 = [];
+  let field = "";
+  let quoted = false;
+  for (let i = 0; i < clean2.length; i++) {
+    const char = clean2[i];
+    if (char === '"') {
+      if (quoted && clean2[i + 1] === '"') {
+        field += '"';
+        i++;
+      } else {
+        quoted = !quoted;
+      }
+    } else if (!quoted && /[,\r\n]/.test(char)) {
+      fields2.push(field);
+      field = "";
+      if (char !== ",") {
+        rows.push(fields2);
+        fields2 = [];
+        if (char === "\r" && clean2[i + 1] === "\n") i++;
+      }
+    } else {
+      field += char;
+    }
+  }
+  fields2.push(field);
+  rows.push(fields2);
+  return rows.filter((r) => r.length > 1 || r.length === 1 && r[0].trim() !== "");
+}
+function canonicalLanguageCode(code, label) {
+  const normLabel = (label || "").toLowerCase().trim();
+  if (normLabel) {
+    if (/日[本語文]|japan/i.test(normLabel)) return "ja";
+    if (/中[文国]|繁[体體]|简[体體]|chinese/i.test(normLabel)) return "zh";
+    if (/英[语文]|english/i.test(normLabel)) return "en";
+    if (/俄[语文]|russian/i.test(normLabel)) return "ru";
+    if (/韩[语文]|韓[語文]|korean/i.test(normLabel)) return "ko";
+  }
+  const normCode = (code || "").toLowerCase().trim();
+  if (normCode === "tw" || normCode === "cn" || normCode === "ch" || normCode === "zh_cn" || normCode === "zh-cn") return "zh";
+  if (normCode === "jp" || normCode === "ja") return "ja";
+  if (normCode === "en") return "en";
+  if (normCode === "ru") return "ru";
+  if (normCode === "ko" || normCode === "kr") return "ko";
+  return normCode;
+}
+function parseArrayParam(param2) {
+  if (Array.isArray(param2)) return param2.map(String);
+  if (typeof param2 !== "string") return [];
+  const trimmed = param2.trim();
+  try {
+    const jsonStr = trimmed.replace(/'/g, '"');
+    const parsed = JSON.parse(jsonStr);
+    if (Array.isArray(parsed)) return parsed.map(String);
+  } catch {
+    const matches = trimmed.match(/['"]([^'"]+)['"]/g);
+    if (matches) return matches.map((m) => m.replace(/['"]/g, ""));
+  }
+  return [];
 }
 function loadGameLocalesCatalog(contentRoot) {
   const localesDir = findLocalesDirectory(contentRoot);
-  if (!localesDir) {
-    return {
-      hasLocales: false,
-      languages: [],
-      primaryLanguage: "",
-      dictionaries: {},
-      keyToFileMap: {}
-    };
-  }
-  const entries2 = fs28.readdirSync(localesDir, { withFileTypes: true });
-  const langDirs = entries2.filter((e) => e.isDirectory()).map((e) => e.name);
   const dictionaries = {};
   const keyToFileMap = {};
-  for (const lang of langDirs) {
-    const langPath = path28.join(localesDir, lang);
-    dictionaries[lang] = {};
+  const localesFiles = [];
+  if (localesDir && fs22.existsSync(localesDir)) {
     try {
-      const files2 = fs28.readdirSync(langPath).filter((f) => /\.json$/i.test(f));
-      for (const file of files2) {
-        const filePath2 = path28.join(langPath, file);
+      const entries2 = fs22.readdirSync(localesDir, { withFileTypes: true });
+      const langDirs = entries2.filter((e) => e.isDirectory()).map((e) => e.name);
+      for (const lang of langDirs) {
+        const langPath = path24.join(localesDir, lang);
+        dictionaries[lang] = dictionaries[lang] || {};
         try {
-          const data = JSON.parse(fs28.readFileSync(filePath2, "utf8"));
-          if (data && typeof data === "object") {
-            for (const [k, v] of Object.entries(data)) {
-              if (typeof v === "string") {
-                const normK = normalizeLocalesKey(k);
-                dictionaries[lang][normK] = v;
-                dictionaries[lang][k] = v;
-                if (!keyToFileMap[normK]) {
-                  keyToFileMap[normK] = file;
+          const files2 = fs22.readdirSync(langPath).filter((f) => /\.json$/i.test(f));
+          for (const file of files2) {
+            const filePath2 = path24.join(langPath, file);
+            const relPath = path24.relative(contentRoot, filePath2);
+            if (!localesFiles.includes(relPath)) localesFiles.push(relPath);
+            try {
+              const data = JSON.parse(fs22.readFileSync(filePath2, "utf8"));
+              if (data && typeof data === "object") {
+                for (const [k, v] of Object.entries(data)) {
+                  if (typeof v === "string") {
+                    const normK = normalizeLocalesKey(k);
+                    dictionaries[lang][normK] = v;
+                    dictionaries[lang][k] = v;
+                    if (!keyToFileMap[normK]) {
+                      keyToFileMap[normK] = file;
+                    }
+                  }
                 }
               }
+            } catch {
             }
           }
         } catch {
@@ -46971,13 +46031,106 @@ function loadGameLocalesCatalog(contentRoot) {
     } catch {
     }
   }
+  const pluginsPaths = [path24.join(contentRoot, "js", "plugins.js"), path24.join(contentRoot, "www", "js", "plugins.js")];
+  let chimakiConfig = null;
+  for (const pp of pluginsPaths) {
+    if (fs22.existsSync(pp)) {
+      try {
+        const code = fs22.readFileSync(pp, "utf8");
+        const pluginMatch = code.match(/\{[^{}]*"name"\s*:\s*"Chimaki_Lang"[\s\S]*?"parameters"\s*:\s*\{([^}]+)\}/);
+        if (pluginMatch) {
+          const paramsStr = `{${pluginMatch[1]}}`;
+          const params = JSON.parse(paramsStr);
+          chimakiConfig = {
+            defaultLang: params.defaultLang,
+            allLang: parseArrayParam(params.allLang),
+            allLangShow: parseArrayParam(params.allLangShow),
+            loadfileName: parseArrayParam(params.loadfileName)
+          };
+          break;
+        }
+      } catch {
+      }
+    }
+  }
+  const csvDirCandidates = [path24.join(contentRoot, "csv"), path24.join(contentRoot, "www", "csv"), ...localesDir ? [localesDir] : []];
+  let resolvedCsvDir = null;
+  for (const dir of csvDirCandidates) {
+    if (fs22.existsSync(dir) && fs22.statSync(dir).isDirectory()) {
+      resolvedCsvDir = dir;
+      break;
+    }
+  }
+  if (resolvedCsvDir) {
+    const csvFileNames = chimakiConfig?.loadfileName?.length ? chimakiConfig.loadfileName.map((f) => /\.csv$/i.test(f) ? f : `${f}.csv`) : fs22.readdirSync(resolvedCsvDir).filter((f) => /\.csv$/i.test(f));
+    for (const csvFileName of csvFileNames) {
+      const csvFullPath = path24.join(resolvedCsvDir, csvFileName);
+      if (!fs22.existsSync(csvFullPath)) continue;
+      const relCsvPath = path24.relative(contentRoot, csvFullPath);
+      if (!localesFiles.includes(relCsvPath)) localesFiles.push(relCsvPath);
+      try {
+        const content = fs22.readFileSync(csvFullPath, "utf8");
+        const rows = parseCsvRows(content);
+        if (rows.length < 2) continue;
+        const header = rows[0].map((h) => h.trim());
+        const idCol = header.findIndex((h) => /^id$/i.test(h));
+        const actualIdCol = idCol >= 0 ? idCol : 0;
+        const colToLang = {};
+        for (let c = 0; c < header.length; c++) {
+          if (c === actualIdCol) continue;
+          const colName = header[c];
+          if (/^who$/i.test(colName) || /^note$/i.test(colName) || /^remark$/i.test(colName)) continue;
+          let canon = "";
+          if (chimakiConfig?.allLang?.length && chimakiConfig.allLang.includes(colName)) {
+            const idx = chimakiConfig.allLang.indexOf(colName);
+            const show = chimakiConfig.allLangShow?.[idx];
+            canon = canonicalLanguageCode(colName, show);
+          } else {
+            canon = canonicalLanguageCode(colName);
+          }
+          if (canon) {
+            colToLang[c] = canon;
+            dictionaries[canon] = dictionaries[canon] || {};
+          }
+        }
+        for (let r = 1; r < rows.length; r++) {
+          const row = rows[r];
+          const id = row[actualIdCol]?.trim();
+          if (!id) continue;
+          for (const [colStr, lang] of Object.entries(colToLang)) {
+            const c = Number(colStr);
+            const val = row[c] ?? "";
+            dictionaries[lang][id] = val;
+            dictionaries[lang][`\\T[${id}]`] = val;
+            dictionaries[lang][`\\t[${id}]`] = val;
+          }
+          keyToFileMap[id] = relCsvPath;
+          keyToFileMap[`\\T[${id}]`] = relCsvPath;
+          keyToFileMap[`\\t[${id}]`] = relCsvPath;
+        }
+      } catch {
+      }
+    }
+  }
   const languages3 = Object.keys(dictionaries).filter((l) => Object.keys(dictionaries[l]).length > 0);
   let primaryLanguage = languages3[0] || "";
-  if (languages3.includes("ru")) primaryLanguage = "ru";
-  else if (languages3.includes("en")) primaryLanguage = "en";
+  if (chimakiConfig?.defaultLang) {
+    const idx = chimakiConfig.allLang?.indexOf(chimakiConfig.defaultLang) ?? -1;
+    const show = idx >= 0 ? chimakiConfig.allLangShow?.[idx] : void 0;
+    const canonDefault = canonicalLanguageCode(chimakiConfig.defaultLang, show);
+    if (languages3.includes(canonDefault)) {
+      primaryLanguage = canonDefault;
+    }
+  }
+  if (!primaryLanguage) {
+    if (languages3.includes("ja")) primaryLanguage = "ja";
+    else if (languages3.includes("ru")) primaryLanguage = "ru";
+    else if (languages3.includes("en")) primaryLanguage = "en";
+  }
   return {
     hasLocales: languages3.length > 0,
-    localesDir,
+    localesDir: localesDir || resolvedCsvDir || void 0,
+    localesFiles,
     languages: languages3,
     primaryLanguage,
     dictionaries,
@@ -46990,17 +46143,17 @@ function loadExtractedItemsWithLocales(contentRoot, opts) {
   const seedPath = gameContentReadPath(contentRoot, "seed", { alsoParent: true });
   const extractPath = gameContentReadPath(contentRoot, "extractStrings", { alsoParent: true });
   let seed = {};
-  if (seedPath && fs29.existsSync(seedPath)) {
+  if (seedPath && fs23.existsSync(seedPath)) {
     try {
-      seed = JSON.parse(fs29.readFileSync(seedPath, "utf8"));
+      seed = JSON.parse(fs23.readFileSync(seedPath, "utf8"));
     } catch {
       seed = {};
     }
   }
   let extractData = null;
-  if (extractPath && fs29.existsSync(extractPath)) {
+  if (extractPath && fs23.existsSync(extractPath)) {
     try {
-      extractData = JSON.parse(fs29.readFileSync(extractPath, "utf8"));
+      extractData = JSON.parse(fs23.readFileSync(extractPath, "utf8"));
     } catch {
       extractData = null;
     }
@@ -47306,14 +46459,14 @@ init_game_lookup();
 var tables = /* @__PURE__ */ new Map();
 var sources = /* @__PURE__ */ new Map();
 function rgssSourceStamp(root) {
-  const dir = fs30.readdirSync(root).find((name2) => name2.toLowerCase() === "data");
+  const dir = fs24.readdirSync(root).find((name2) => name2.toLowerCase() === "data");
   if (!dir) return null;
-  const dataDir = path29.join(root, dir);
-  const names = fs30.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
+  const dataDir = path25.join(root, dir);
+  const names = fs24.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
   if (!names.length) return null;
   return JSON.stringify(
     names.map((name2) => {
-      const stat = fs30.statSync(path29.join(dataDir, name2));
+      const stat = fs24.statSync(path25.join(dataDir, name2));
       return [name2, stat.ino, stat.size, stat.mtimeMs, stat.ctimeMs];
     })
   );
@@ -47425,22 +46578,22 @@ function stitchLockedNamePlan(src, plan, gapZh) {
 // services/translate/observations/spool.ts
 init_paths();
 import { randomUUID as randomUUID7 } from "node:crypto";
-import fs31 from "node:fs";
-import path30 from "node:path";
-var observationSpoolDirectory = () => path30.join(DATA_DIR, "translation-observations", "pending");
+import fs25 from "node:fs";
+import path26 from "node:path";
+var observationSpoolDirectory = () => path26.join(DATA_DIR, "translation-observations", "pending");
 function spoolTranslationObservations(events, directory = observationSpoolDirectory()) {
   if (!events.length) return;
-  fs31.mkdirSync(directory, { recursive: true });
-  const file = path30.join(directory, `${Date.now()}-${randomUUID7()}.jsonl`);
+  fs25.mkdirSync(directory, { recursive: true });
+  const file = path26.join(directory, `${Date.now()}-${randomUUID7()}.jsonl`);
   const partial = `${file}.partial`;
-  const fd = fs31.openSync(partial, "wx", 384);
+  const fd = fs25.openSync(partial, "wx", 384);
   try {
-    fs31.writeFileSync(fd, events.map((event) => JSON.stringify(event)).join("\n") + "\n");
-    fs31.fsyncSync(fd);
+    fs25.writeFileSync(fd, events.map((event) => JSON.stringify(event)).join("\n") + "\n");
+    fs25.fsyncSync(fd);
   } finally {
-    fs31.closeSync(fd);
+    fs25.closeSync(fd);
   }
-  fs31.renameSync(partial, file);
+  fs25.renameSync(partial, file);
 }
 
 // services/translate/ollama-translate.ts
@@ -47503,6 +46656,314 @@ ${q}`, temperature: 0.35, think: true }
   if (lastErr && !last) throw lastErr;
   if (!last) throw new Error("Model did not return a translation");
   return last;
+}
+
+// services/translate/resources/snapshot.ts
+init_paths();
+import fs26 from "node:fs";
+import { DatabaseSync as DatabaseSync2 } from "node:sqlite";
+
+// lib/translate/resource-matcher.ts
+init_segments();
+var key2 = (text4) => text4.normalize("NFC");
+function matchVocalRule(text4, rule) {
+  const source = key2(text4);
+  if (Array.from(source).length > rule.modifiers.maxInputLength) return null;
+  const units = Object.entries(rule.units).sort(([a], [b]) => b.length - a.length);
+  const punctuation = [...rule.modifiers.punctuation].sort((a, b) => b.length - a.length);
+  const states = Array.from({ length: source.length + 1 }, () => /* @__PURE__ */ new Map());
+  states[0].set(0, /* @__PURE__ */ new Set([""]));
+  let stateCount = 0;
+  for (let at = 0; at < source.length; at++) {
+    for (const [count2, outputs] of states[at]) {
+      const choices = units.filter(([unit]) => source.startsWith(unit, at)).map(([unit, target2]) => [unit, target2, 1]);
+      for (const mark of punctuation) if (source.startsWith(mark, at)) choices.push([mark, mark, 0]);
+      for (const [part, target2, increment] of choices) {
+        const nextCount = count2 + increment;
+        if (nextCount > rule.modifiers.maxUnits) continue;
+        const next = states[at + part.length];
+        const values = next.get(nextCount) || /* @__PURE__ */ new Set();
+        for (const output of outputs) {
+          const value = output + target2;
+          if (value.length > 16e3) return null;
+          values.add(value);
+          if (++stateCount > 4096 || values.size > 8) return null;
+        }
+        next.set(nextCount, values);
+      }
+    }
+  }
+  const results = /* @__PURE__ */ new Set();
+  for (const [count2, outputs] of states[source.length]) if (count2 >= rule.modifiers.minUnits) for (const output of outputs) results.add(output);
+  return results.size === 1 ? [...results][0] : null;
+}
+function createResourceMatcher(snapshot) {
+  const exact = /* @__PURE__ */ new Map();
+  const vocal = [];
+  for (const pack of snapshot.packs) {
+    for (const record of pack.records) {
+      if (record.reviewStatus !== "reviewed") continue;
+      const candidate = { pack, record };
+      if (record.type === "vocal_rule") vocal.push(candidate);
+      else
+        for (const text4 of [record.sourceText, ...record.aliases || []]) {
+          const id = JSON.stringify([record.sourceLanguage, record.targetLanguage, key2(text4)]);
+          exact.set(id, [...exact.get(id) || [], candidate]);
+        }
+    }
+  }
+  function eligible(record, context2) {
+    return record.sourceLanguage === context2.sourceLanguage && record.targetLanguage === context2.targetLanguage && (record.scope.kind === "global" || record.scope.gameId === context2.gameId) && Object.entries(record.conditions || {}).every(([name2, value]) => context2[name2] === value);
+  }
+  function choose(candidates2, context2) {
+    const available = candidates2.filter(({ record: record2 }) => eligible(record2, context2));
+    const score = ({ record: record2 }) => (record2.scope.kind === "game" ? 100 : 0) + Object.keys(record2.conditions || {}).length;
+    const best = Math.max(-1, ...available.map(score));
+    const winners = available.filter((candidate) => score(candidate) === best);
+    if (!winners.length) return { hit: null, conflict: false };
+    if (new Set(winners.map(({ output: output2 }) => output2)).size !== 1) return { hit: null, conflict: true };
+    const { pack, record, output } = winners[0];
+    return {
+      conflict: false,
+      hit: {
+        targetText: output,
+        packId: pack.manifest.packId,
+        version: pack.manifest.version,
+        entryId: record.entryId,
+        revision: snapshot.revision,
+        matchKind: record.type === "entry" ? "exact" : "vocal-template"
+      }
+    };
+  }
+  return {
+    revision: snapshot.revision,
+    match(text4, context2) {
+      const candidates2 = (source) => exact.get(JSON.stringify([context2.sourceLanguage, context2.targetLanguage, key2(source)])) || [];
+      const full = choose(
+        candidates2(text4).map((candidate) => ({ ...candidate, output: candidate.record.targetText })),
+        context2
+      );
+      if (full.hit || full.conflict) return full.hit;
+      const shell = translationSegmentContent(text4);
+      if (shell.core !== text4) {
+        const wrapped = choose(
+          candidates2(shell.core).filter(({ record }) => record.type === "entry" && record.match.allowBoundary).map((candidate) => ({ ...candidate, output: shell.lead + candidate.record.targetText + shell.trail })),
+          context2
+        );
+        if (wrapped.hit || wrapped.conflict) return wrapped.hit;
+      }
+      const generated = vocal.filter(({ record }) => eligible(record, context2)).flatMap((candidate) => {
+        const output = matchVocalRule(text4, candidate.record);
+        return output == null ? [] : [{ ...candidate, output }];
+      });
+      return choose(generated, context2).hit;
+    }
+  };
+}
+
+// services/translate/resources/defaults.ts
+init_default_game_terms();
+
+// services/translate/resources/defaults/fixed-phrases.json
+var fixed_phrases_default = {
+  \u306F\u3044: "\u662F",
+  \u3044\u3044\u3048: "\u5426",
+  \u3046\u3093: "\u55EF",
+  \u3059\u308B: "\u505A",
+  \u3057\u306A\u3044: "\u4E0D\u505A",
+  \u30B9\u30AD\u30C3\u30D7: "\u8DF3\u8FC7",
+  \u30C0\u30C3\u30B7\u30E5\u8A31\u53EF: "\u5141\u8BB8\u51B2\u523A",
+  \u30C0\u30C3\u30B7\u30E5\u7981\u6B62: "\u7981\u6B62\u51B2\u523A",
+  \u30B9\u30C6\u30FC\u30C8\u78BA\u8A8D: "\u72B6\u6001\u786E\u8BA4",
+  \u30D1\u30FC\u30C6\u30A3\u30FC\u30B3\u30DE\u30F3\u30C9: "\u961F\u4F0D\u6307\u4EE4",
+  \uFF33\u30DC\u30BF\u30F3: "S\u6309\u94AE",
+  \u30B8\u30E3\u30F3\u30D7: "\u8DF3\u8DC3",
+  \u30D5\u30A9\u30B0\u30B9\u30AD\u30C3\u30D7: "\u8FF7\u96FE\u8DF3\u8FC7",
+  \u623B\u308B: "\u8FD4\u56DE",
+  \u9032\u3080: "\u524D\u8FDB",
+  \u8A71\u3059: "\u4EA4\u8C08",
+  \u805E\u304F: "\u503E\u542C",
+  \u898B\u308B: "\u67E5\u770B",
+  \u5F85\u3064: "\u7B49\u5F85",
+  \u958B\u3051\u308B: "\u6253\u5F00",
+  \u9589\u3058\u308B: "\u5173\u95ED",
+  \u4F7F\u3046: "\u4F7F\u7528",
+  \u88C5\u5099: "\u88C5\u5907",
+  \u6368\u3066\u308B: "\u4E22\u5F03",
+  \u8CB7\u3046: "\u8D2D\u4E70",
+  \u58F2\u308B: "\u51FA\u552E"
+};
+
+// services/translate/resources/defaults.ts
+var languages = [
+  { tag: "ja", name: "\u65E5\u672C\u8A9E" },
+  { tag: "en", name: "English" },
+  { tag: "ru", name: "\u0420\u0443\u0441\u0441\u043A\u0438\u0439" },
+  { tag: "ko", name: "\uD55C\uAD6D\uC5B4" },
+  { tag: "zh", name: "\u4E2D\u6587" }
+];
+var records = [];
+for (const [id, term] of Object.entries(default_game_terms_default)) {
+  for (const [sourceLanguage, sourceText] of Object.entries(term.translations)) {
+    for (const [targetLanguage, targetText] of Object.entries(term.translations)) {
+      if (sourceLanguage === targetLanguage) continue;
+      const aliases = "aliases" in term ? term.aliases[sourceLanguage] : void 0;
+      records.push({
+        type: "entry",
+        entryId: `term.${id}.${sourceLanguage}.${targetLanguage}`,
+        sourceLanguage,
+        targetLanguage,
+        sourceText,
+        targetText,
+        aliases,
+        scope: { kind: "global" },
+        reviewStatus: "reviewed",
+        provenance: { kind: "legacy-game-term" },
+        match: { kind: "exact", allowBoundary: true }
+      });
+    }
+  }
+}
+for (const [index2, [sourceText, targetText]] of Object.entries(fixed_phrases_default).entries()) {
+  records.push({
+    type: "entry",
+    entryId: `fixed.${index2}`,
+    sourceLanguage: "ja",
+    targetLanguage: "zh",
+    sourceText,
+    targetText,
+    scope: { kind: "global" },
+    reviewStatus: "reviewed",
+    provenance: { kind: "legacy-fixed-phrase" },
+    match: { kind: "exact", allowBoundary: true }
+  });
+}
+var defaultResourcePack = {
+  manifest: { type: "manifest", schemaVersion: 1, packId: "chaya.defaults", version: "1", languages },
+  records
+};
+function bundledResourceSnapshot() {
+  return { revision: 0, languages, packs: [{ ...defaultResourcePack, hash: "bundled", revision: 0 }] };
+}
+
+// services/translate/resources/validate.ts
+init_resource_types();
+init_sentence_units();
+var RESOURCE_LIMITS = { bytes: 7e5, records: 1e3, lineLength: 32e3 };
+var object = (value) => !!value && typeof value === "object" && !Array.isArray(value);
+var text2 = (value, max2 = 16e3) => typeof value === "string" && !!value.trim() && value.length <= max2;
+var identifier = (value) => text2(value, 100) && /^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value);
+function fail(message) {
+  throw new TypeError(message);
+}
+function placeholders(value) {
+  return JSON.stringify([controlSignature(value), value.match(/%(?:\d+\$)?[-+#0 ]*(?:\d+|\*)?(?:\.(?:\d+|\*))?[sdifouxXeEgGc%]/g) || []]);
+}
+function parseResourcePack(input) {
+  if (Buffer.byteLength(input, "utf8") > RESOURCE_LIMITS.bytes) fail("Resource package exceeds size limit");
+  const lines = input.split(/\r?\n/).filter((line) => line.trim());
+  if (lines.length < 1 || lines.length > RESOURCE_LIMITS.records + 1) fail("Invalid resource record count");
+  const rows = lines.map((line, index2) => {
+    if (line.length > RESOURCE_LIMITS.lineLength) fail(`Resource line ${index2 + 1} is too long`);
+    let value;
+    try {
+      value = JSON.parse(line);
+    } catch {
+      return fail(`Invalid JSON at resource line ${index2 + 1}`);
+    }
+    if (!object(value)) fail(`Invalid object at resource line ${index2 + 1}`);
+    const queue3 = [[value, 0]];
+    while (queue3.length) {
+      const [item, depth] = queue3.pop();
+      if (depth > 16) fail("Resource nesting limit exceeded");
+      if (item && typeof item === "object") for (const child of Object.values(item)) queue3.push([child, depth + 1]);
+    }
+    return value;
+  });
+  const [manifest, ...records2] = rows;
+  if (manifest.type !== "manifest" || manifest.schemaVersion !== 1 || !identifier(manifest.packId) || !identifier(manifest.version)) fail("Invalid resource manifest");
+  if (!Array.isArray(manifest.languages) || manifest.languages.length > 100) fail("Invalid resource languages");
+  const languages3 = /* @__PURE__ */ new Set();
+  for (const language of manifest.languages) {
+    if (!object(language) || !text2(language.tag, 100) || !text2(language.name, 100)) fail("Invalid resource language");
+    if (canonicalResourceLanguage(language.tag) !== language.tag || languages3.has(language.tag)) fail("Languages must be canonical and unique");
+    languages3.add(language.tag);
+  }
+  const ids = /* @__PURE__ */ new Set();
+  for (const record of records2) {
+    if (!identifier(record.entryId) || ids.has(String(record.entryId))) fail("Invalid or duplicate resource entry ID");
+    ids.add(String(record.entryId));
+    for (const field of ["sourceLanguage", "targetLanguage"]) {
+      if (!text2(record[field], 100) || canonicalResourceLanguage(record[field]) !== record[field]) fail("Invalid resource language pair");
+    }
+    if (!object(record.scope) || !["global", "game"].includes(String(record.scope.kind)) || record.scope.kind === "game" && !text2(record.scope.gameId, 200))
+      fail("Invalid resource scope");
+    if (!["candidate", "reviewed"].includes(String(record.reviewStatus)) || !object(record.provenance) || !text2(record.provenance.kind, 100)) fail("Invalid resource provenance");
+    if (record.conditions !== void 0 && (!object(record.conditions) || Object.entries(record.conditions).some(([name2, value]) => !["category", "speaker", "scene"].includes(name2) || !text2(value, 200))))
+      fail("Invalid resource conditions");
+    if (record.type === "entry") {
+      if (!text2(record.sourceText) || !text2(record.targetText) || !object(record.match) || record.match.kind !== "exact") fail("Invalid exact resource entry");
+      if (record.match.allowBoundary !== void 0 && typeof record.match.allowBoundary !== "boolean") fail("Invalid boundary matching flag");
+      for (const name2 of ["aliases", "badTranslations"]) {
+        const values = record[name2];
+        if (values !== void 0 && (!Array.isArray(values) || values.length > 100 || values.some((value) => !text2(value)))) fail(`Invalid ${name2}`);
+      }
+      for (const source of [record.sourceText, ...record.aliases || []]) {
+        if (placeholders(source) !== placeholders(record.targetText)) fail("Resource controls or placeholders differ");
+      }
+    } else if (record.type === "vocal_rule") {
+      if (record.templateKind !== "vocal-sequence" || !object(record.units) || !object(record.modifiers)) fail("Invalid vocal template");
+      const units = Object.entries(record.units);
+      if (!units.length || units.length > 100 || units.some(([unit, target2]) => !text2(unit, 40) || !new RegExp("^\\p{L}[\\p{L}\\p{M}]*$", "u").test(unit) || unit.normalize("NFC") !== unit || !text2(target2, 100) || /[\\%{}<>]/.test(target2)))
+        fail("Invalid vocal units");
+      const modifiers = record.modifiers;
+      if (!Array.isArray(modifiers.punctuation) || modifiers.punctuation.length > 100 || modifiers.punctuation.some((mark) => typeof mark !== "string" || !mark.length || mark.length > 20 || !/^[\p{P}\p{Zs}]+$/u.test(mark) || /[\\%{}<>[\]]/.test(mark)))
+        fail("Invalid vocal punctuation");
+      if (![modifiers.minUnits, modifiers.maxUnits, modifiers.maxInputLength].every(Number.isSafeInteger) || Number(modifiers.minUnits) < 1 || Number(modifiers.maxUnits) < Number(modifiers.minUnits) || Number(modifiers.maxUnits) > 256 || Number(modifiers.maxInputLength) < 1 || Number(modifiers.maxInputLength) > 512)
+        fail("Invalid vocal bounds");
+    } else fail("Unknown resource record type");
+  }
+  return { manifest, records: records2 };
+}
+
+// services/storage/translation-resource-store.ts
+function readResourceRevision(db) {
+  return Number(db.prepare("SELECT revision FROM translation_resource_state WHERE id=1").get().revision);
+}
+function readResourceSnapshot(db) {
+  const revision = readResourceRevision(db);
+  const languages3 = db.prepare("SELECT tag, name FROM translation_languages ORDER BY tag").all();
+  const rows = db.prepare(
+    `SELECT v.* FROM translation_resource_versions v
+    JOIN translation_resource_activations a ON a.pack_id=v.pack_id AND a.version=v.version
+    WHERE a.enabled=1 ORDER BY v.pack_id`
+  ).all();
+  const packs = rows.map((row) => ({ ...parseResourcePack(row.content), hash: row.hash, revision }));
+  return { revision, languages: languages3, packs };
+}
+
+// services/translate/resources/snapshot.ts
+var matchers = /* @__PURE__ */ new Map();
+function loadResourceMatcher(file = TRANSLATE_CACHE_DB_PATH) {
+  if (!fs26.existsSync(file)) return createResourceMatcher(bundledResourceSnapshot());
+  const db = new DatabaseSync2(file, { readOnly: true });
+  try {
+    db.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=5000; BEGIN");
+    const ready = db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='translation_resource_state'").get();
+    if (!ready || !db.prepare("SELECT 1 FROM translation_resource_state WHERE id=1").get()) return createResourceMatcher(bundledResourceSnapshot());
+    const revision = readResourceRevision(db);
+    const stat = fs26.statSync(file);
+    const identity = `${stat.dev}:${stat.ino}:${stat.birthtimeMs}`;
+    const previous = matchers.get(file);
+    if (previous?.identity === identity && previous.revision === revision) return previous.matcher;
+    const matcher = createResourceMatcher(readResourceSnapshot(db));
+    if (matchers.size >= 8) matchers.clear();
+    matchers.set(file, { identity, revision, matcher });
+    return matcher;
+  } finally {
+    db.exec("ROLLBACK");
+    db.close();
+  }
 }
 
 // services/translate/runtime-log.ts
@@ -47655,6 +47116,807 @@ function joinTranslationRequest(key3, work, signal, onJoin) {
     );
     if (signal?.aborted) abort();
   });
+}
+
+// services/translate/seed-source-language.ts
+init_content_files();
+init_source_text();
+import fs32 from "node:fs";
+
+// services/extract/lib/rgss.ts
+init_content_files();
+init_cache_lang();
+init_source_text();
+import fs31 from "node:fs";
+import path30 from "node:path";
+
+// services/game/rgss-archive.ts
+import fs27 from "node:fs";
+import path27 from "node:path";
+import { inflateSync } from "node:zlib";
+
+// services/extract/lib/rgss/marshal.ts
+var HEADER_MAJOR = 4;
+var HEADER_MINOR = 8;
+function assert(condition, message) {
+  if (!condition) throw new Error(`Invalid Ruby Marshal data: ${message}`);
+}
+function decodeUtf8(bytes) {
+  return new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+}
+var Reader = class {
+  constructor(bytes) {
+    this.bytes = bytes;
+    this.offset = 0;
+    this.symbols = [];
+    this.objects = [];
+  }
+  readByte() {
+    assert(this.offset < this.bytes.length, "unexpected end of input");
+    return this.bytes[this.offset++];
+  }
+  readBytes(length) {
+    assert(length >= 0 && this.offset + length <= this.bytes.length, "truncated payload");
+    const value = this.bytes.subarray(this.offset, this.offset + length);
+    this.offset += length;
+    return value;
+  }
+  readIntegerBody() {
+    const first = this.readByte();
+    if (first === 0) return 0;
+    if (first >= 5 && first <= 127) return first - 5;
+    if (first >= 128 && first <= 250) return first - 251;
+    if (first >= 1 && first <= 4) {
+      let value2 = 0;
+      for (let i = 0; i < first; i += 1) value2 += this.readByte() * 2 ** (8 * i);
+      return value2;
+    }
+    const length = 256 - first;
+    assert(length <= 8, "integer is too large");
+    let value = 0;
+    for (let i = 0; i < length; i += 1) value += this.readByte() * 2 ** (8 * i);
+    return value - 2 ** (8 * length);
+  }
+  readSymbol() {
+    const tag = String.fromCharCode(this.readByte());
+    if (tag === ";") {
+      const index2 = this.readIntegerBody();
+      assert(index2 >= 0 && index2 < this.symbols.length, "symbol link out of range");
+      return { kind: "symbol", value: this.symbols[index2] };
+    }
+    assert(tag === ":", `expected symbol, got ${JSON.stringify(tag)}`);
+    const value = decodeUtf8(this.readBytes(this.readIntegerBody()));
+    this.symbols.push(value);
+    return { kind: "symbol", value };
+  }
+  readIvars(value) {
+    const count2 = this.readIntegerBody();
+    const pairs = [];
+    for (let i = 0; i < count2; i += 1) pairs.push({ key: this.readSymbol(), value: this.readValue() });
+    const ivars = { kind: "hash", pairs };
+    if (value && typeof value === "object" && "kind" in value) {
+      if (value.kind === "string" || value.kind === "array" || value.kind === "hash" || value.kind === "user-defined" || value.kind === "regexp") value.ivars = ivars;
+    }
+    return value;
+  }
+  readValue() {
+    const tag = String.fromCharCode(this.readByte());
+    switch (tag) {
+      case "0":
+        return null;
+      case "T":
+        return true;
+      case "F":
+        return false;
+      case "i":
+        return this.readIntegerBody();
+      case '"': {
+        const bytes = this.readBytes(this.readIntegerBody()).slice();
+        const value = { kind: "string", value: decodeUtf8(bytes) };
+        Object.defineProperty(value, "bytes", { value: bytes, writable: true });
+        this.objects.push(value);
+        return value;
+      }
+      case "f": {
+        const length = this.readIntegerBody();
+        const bytes = this.readBytes(length).slice();
+        const value = { kind: "float", value: decodeUtf8(bytes) };
+        Object.defineProperty(value, "bytes", { value: bytes, writable: true });
+        this.objects.push(value);
+        return value;
+      }
+      case "/": {
+        const value = { kind: "regexp", data: this.readBytes(this.readIntegerBody()).slice(), options: this.readByte() };
+        this.objects.push(value);
+        return value;
+      }
+      case ":":
+      case ";":
+        this.offset -= 1;
+        return this.readSymbol();
+      case "[": {
+        const result = { kind: "array", items: [] };
+        this.objects.push(result);
+        const count2 = this.readIntegerBody();
+        for (let i = 0; i < count2; i += 1) result.items.push(this.readValue());
+        return result;
+      }
+      case "{": {
+        const result = { kind: "hash", pairs: [] };
+        this.objects.push(result);
+        const count2 = this.readIntegerBody();
+        for (let i = 0; i < count2; i += 1) result.pairs.push({ key: this.readValue(), value: this.readValue() });
+        return result;
+      }
+      case "}": {
+        const result = { kind: "hash", pairs: [] };
+        this.objects.push(result);
+        const count2 = this.readIntegerBody();
+        for (let i = 0; i < count2; i += 1) result.pairs.push({ key: this.readValue(), value: this.readValue() });
+        result.defaultValue = this.readValue();
+        return result;
+      }
+      case "l": {
+        const sign = String.fromCharCode(this.readByte());
+        assert(sign === "+" || sign === "-", "invalid bignum sign");
+        const count2 = this.readIntegerBody();
+        const value = { kind: "bignum", sign, bytes: this.readBytes(count2 * 2).slice() };
+        this.objects.push(value);
+        return value;
+      }
+      case "I":
+        return this.readIvars(this.readValue());
+      case "o": {
+        const className = this.readSymbol().value;
+        const count2 = this.readIntegerBody();
+        const result = { kind: "object", className, ivars: { kind: "hash", pairs: [] } };
+        this.objects.push(result);
+        for (let i = 0; i < count2; i += 1) result.ivars.pairs.push({ key: this.readSymbol(), value: this.readValue() });
+        return result;
+      }
+      case "u": {
+        const className = this.readSymbol().value;
+        const length = this.readIntegerBody();
+        const result = { kind: "user-defined", className, data: this.readBytes(length).slice() };
+        this.objects.push(result);
+        return result;
+      }
+      case "U": {
+        const className = this.readSymbol().value;
+        const result = { kind: "user-marshal", className, value: null };
+        this.objects.push(result);
+        result.value = this.readValue();
+        return result;
+      }
+      case "C": {
+        const className = this.readSymbol().value;
+        const index2 = this.objects.length;
+        const result = { kind: "user-class", className, value: null };
+        result.value = this.readValue();
+        this.objects[index2] = result;
+        return result;
+      }
+      case "S": {
+        const className = this.readSymbol().value;
+        const count2 = this.readIntegerBody();
+        const result = { kind: "struct", className, members: [] };
+        this.objects.push(result);
+        for (let i = 0; i < count2; i += 1) result.members.push({ key: this.readSymbol(), value: this.readValue() });
+        return result;
+      }
+      case "@": {
+        const index2 = this.readIntegerBody();
+        assert(index2 >= 0 && index2 < this.objects.length, "object link out of range");
+        return this.objects[index2];
+      }
+      default:
+        throw new Error(`unsupported Ruby Marshal tag ${JSON.stringify(tag)}`);
+    }
+  }
+};
+function symbolName(value) {
+  return value && typeof value === "object" && value.kind === "symbol" ? value.value : String(plainValue(value));
+}
+function plainValue(value) {
+  if (value === null || typeof value === "boolean" || typeof value === "number") return value;
+  if (value.kind === "string" || value.kind === "symbol") return value.value;
+  if (value.kind === "array") return value.items.map(plainValue);
+  if (value.kind === "hash") {
+    const out2 = {};
+    for (const pair of value.pairs) out2[String(plainValue(pair.key))] = plainValue(pair.value);
+    return out2;
+  }
+  if (value.kind === "float") return Number(value.value.split("\0", 1)[0]);
+  if (value.kind === "regexp") return { __rubyRegexp: Array.from(value.data), options: value.options };
+  if (value.kind === "bignum") {
+    let integer2 = BigInt(0);
+    for (let i = value.bytes.length - 1; i >= 0; i -= 1) integer2 = integer2 * BigInt(256) + BigInt(value.bytes[i]);
+    return (value.sign === "+" ? integer2 : -integer2).toString();
+  }
+  if (value.kind === "user-defined") return { __rubyClass: value.className, data: Array.from(value.data) };
+  if (value.kind === "user-marshal" || value.kind === "user-class") return { __rubyClass: value.className, value: plainValue(value.value) };
+  if (value.kind === "struct") {
+    const out2 = { __rubyClass: value.className };
+    for (const member of value.members) out2[member.key.value] = plainValue(member.value);
+    return out2;
+  }
+  const out = {};
+  for (const pair of value.ivars.pairs) out[String(plainValue(pair.key)).replace(/^@/, "")] = plainValue(pair.value);
+  return out;
+}
+function parseRubyMarshal(bytes) {
+  if (bytes.length < 2 || bytes[0] !== HEADER_MAJOR || bytes[1] !== HEADER_MINOR) throw new Error("Not a Ruby Marshal 4.8 file");
+  return new Reader(bytes.subarray(2)).readValue();
+}
+function rubyObjectField(value, field) {
+  if (!value || typeof value !== "object" || value.kind !== "object") return void 0;
+  const pair = value.ivars.pairs.find((item) => symbolName(item.key) === `@${field}`);
+  return pair?.value;
+}
+
+// services/game/rgss-archive.ts
+function readAceMember(archive, member) {
+  const fd = fs27.openSync(archive, "r");
+  let cursor = 0;
+  const length = fs27.fstatSync(fd).size;
+  const read = (size, offset = cursor) => {
+    if (size < 0 || offset + size > length) throw new Error("Truncated RGSS archive");
+    const bytes = Buffer.alloc(size);
+    if (fs27.readSync(fd, bytes, 0, size, offset) !== size) throw new Error("Truncated RGSS archive");
+    cursor = offset + size;
+    return bytes;
+  };
+  try {
+    const header = read(12);
+    if (!header.subarray(0, 8).equals(Buffer.from("RGSSAD\0", "binary"))) throw new Error("Unsupported RGSS archive version");
+    const key3 = Math.imul(header.readUInt32LE(8), 9) + 3 >>> 0;
+    for (let count2 = 0; count2 < 1e5; count2++) {
+      const record = read(16);
+      const offset = (record.readUInt32LE(0) ^ key3) >>> 0;
+      if (!offset) return null;
+      const size = (record.readUInt32LE(4) ^ key3) >>> 0;
+      let fileKey = (record.readUInt32LE(8) ^ key3) >>> 0;
+      const nameSize = (record.readUInt32LE(12) ^ key3) >>> 0;
+      if (nameSize > 4096) throw new Error("Invalid RGSS archive filename");
+      const name2 = read(nameSize);
+      for (let i = 0; i < name2.length; i++) name2[i] ^= key3 >>> i % 4 * 8 & 255;
+      if (name2.toString().replaceAll("\\", "/").toLowerCase() !== member.toLowerCase()) continue;
+      if (size > 32 * 1024 * 1024) throw new Error("RGSS script archive exceeds 32 MiB");
+      const bytes = read(size, offset);
+      for (let i = 0; i < bytes.length; i++) {
+        bytes[i] ^= fileKey >>> i % 4 * 8 & 255;
+        if (i % 4 === 3) fileKey = Math.imul(fileKey, 7) + 3 >>> 0;
+      }
+      return bytes;
+    }
+    throw new Error("RGSS archive has too many members");
+  } finally {
+    fs27.closeSync(fd);
+  }
+}
+function readRgssScripts(contentRoot) {
+  const names = fs27.readdirSync(contentRoot);
+  const data = names.find((name2) => name2.toLowerCase() === "data");
+  const script = data && fs27.readdirSync(path27.join(contentRoot, data)).find((name2) => /^scripts\.rvdata2?$/i.test(name2));
+  const archive = names.find((name2) => name2.toLowerCase() === "game.rgss3a");
+  const bytes = script ? fs27.readFileSync(path27.join(contentRoot, data, script)) : archive ? readAceMember(path27.join(contentRoot, archive), "Data/Scripts.rvdata2") : null;
+  if (!bytes) return [];
+  const value = parseRubyMarshal(bytes);
+  if (!value || typeof value !== "object" || value.kind !== "array") return [];
+  return value.items.flatMap((entry) => {
+    if (!entry || typeof entry !== "object" || entry.kind !== "array") return [];
+    const [, name2, packed] = entry.items;
+    if (!packed || typeof packed !== "object" || packed.kind !== "string" || !packed.bytes) return [];
+    return [
+      {
+        name: name2 && typeof name2 === "object" && name2.kind === "string" ? name2.value : "",
+        source: inflateSync(packed.bytes, { maxOutputLength: 8 * 1024 * 1024 }).toString("utf8")
+      }
+    ];
+  });
+}
+
+// services/extract/lib/rgss.ts
+init_game_files();
+init_game_cache_context();
+
+// services/translate/game-coverage.ts
+init_paths();
+init_cache_lang();
+init_dynamic_template();
+init_sentence_plan();
+init_cache_lookup();
+init_game_lookup();
+init_match_index();
+import fs28 from "node:fs";
+import { DatabaseSync as DatabaseSync3 } from "node:sqlite";
+function createGameCoverage(records2, opts) {
+  const lookup = createGameTranslateLookup(records2);
+  const resolver = createSentenceResolver(records2);
+  const numeric2 = createNumericLabelIndex(records2);
+  let client;
+  let exactQuery;
+  let shared;
+  let opened = false;
+  const resolved = /* @__PURE__ */ new Map();
+  return {
+    resolve(src) {
+      if (resolved.has(src)) return resolved.get(src);
+      if (opts?.blocked?.(src)) return null;
+      let hit = lookup[src] ?? numeric2.resolve(src);
+      if (hit == null) {
+        hit = lookupCachedTranslation((key3) => lookup[key3], src);
+      }
+      if (hit == null) {
+        if (!opened) {
+          opened = true;
+          const database = opts?.database ?? TRANSLATE_CACHE_DB_PATH;
+          if (database && fs28.existsSync(database)) {
+            client = new DatabaseSync3(database, { readOnly: true });
+            client.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=250");
+            if (client.prepare("SELECT 1 FROM sqlite_master WHERE name='match_keys'").get()) {
+              shared = createMatchIndex(client);
+              exactQuery = client.prepare(
+                "SELECT t.zh FROM translation_records r JOIN translations t ON t.id=r.translation_id WHERE r.src=? AND r.src_lang=? AND r.tgt_lang=? LIMIT 1"
+              );
+            }
+          }
+        }
+        const pair = { from: detectCacheLang(src), to: "zh" };
+        if (exactQuery) {
+          const row = exactQuery.get(src, pair.from, pair.to);
+          if (row?.zh) hit = row.zh;
+        }
+        if (hit == null && shared && numericLabelFamily(src)) {
+          const rows = shared.numericRecords(pair, src);
+          if (!rows.limited) hit = createNumericLabelIndex([...rows, ...records2]).resolve(src);
+        }
+        if (hit == null && /[,\r\n，、。．.!！?？;；…\\]/.test(src)) {
+          const plan = shared ? shared.plan(src, pair, resolver.select(src)) : resolver.plan(src);
+          if (!plan.limited) {
+            hit = plan.status === "full" ? plan.zh : null;
+            if (hit == null && /\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(src)) {
+              hit = lookupCachedTranslation((key3) => lookup[key3] ?? shared?.record(key3, pair)?.zh, src);
+            }
+          }
+        }
+      }
+      resolved.set(src, hit ?? null);
+      return hit ?? null;
+    },
+    close() {
+      client?.close();
+    }
+  };
+}
+
+// services/extract/lib/rgss.ts
+init_game_lookup();
+init_game_records();
+
+// services/extract/lib/compare.ts
+init_segments();
+
+// services/extract/lib/data-fields.ts
+init_source_text();
+
+// services/extract/lib/text.ts
+init_source_text();
+
+// services/extract/lib/data-fields.ts
+var TEXT_FIELD = /^(?:name|displayName|nickname|description|profile|message\d*|text|label|title|help|caption|summary|dialogue|.*[ _-](?:text|message|label|title|description|name|help))$/i;
+var TECH_FIELD = /^(?:.*(?:path|url|script|formula|texture)|file(?:name)?|code|eval|callback|handler|condition|expression|Battle Show List|mode|blendMode|spawnType|(?:character|battler|face|picture|animation\d*|battleback\d*|title\d*|parallax)Name|tilesetNames|bgm|bgs|se|me|audio|image|sound|parameters|params|meta|frames|data|flags|traits|effects|damage|timings)$/i;
+var isTextField = (field) => TEXT_FIELD.test(field);
+var isTechnicalField = (field) => TECH_FIELD.test(field);
+
+// services/extract/lib/rgss/extended-choices.ts
+var CONTROLS2 = /\\(?:[A-Za-z]+(?:\[[^\]\r\n]*\])?|[^A-Za-z\r\n])/g;
+function literal(text4) {
+  return !/[,[\]\r\n]/.test(text4.replace(CONTROLS2, "")) && !/@m\(|<s>/i.test(text4);
+}
+function fields(raw, start, end) {
+  const result = [];
+  let depth = 0;
+  let from = start;
+  const push = (to) => {
+    const value = raw.slice(from, to);
+    const text4 = value.trim();
+    const offset = value.length - value.trimStart().length;
+    result.push({ text: text4, start: from + offset, end: from + offset + text4.length });
+  };
+  for (let i = start; i < end; i++) {
+    if (raw[i] === "[") depth++;
+    else if (raw[i] === "]" && --depth < 0) return null;
+    else if (raw[i] === "," && depth === 0) {
+      push(i);
+      from = i + 1;
+    }
+  }
+  if (depth !== 0) return null;
+  push(end);
+  return result;
+}
+function parseRgssExtendedChoices(raw) {
+  if (raw.length > 1e5) return null;
+  const header = /^拡張選択肢[ \t\u3000]+/.exec(raw);
+  if (!header) return null;
+  const args = fields(raw, header[0].length, raw.length);
+  if (!args || args.length < 3 || !/^-?\d+$/.test(args[0].text) || !/^\d*$/.test(args[1].text)) return null;
+  const third = args[2];
+  let choices;
+  if (third.text.startsWith("[")) {
+    if (!third.text.endsWith("]") || args.length > 5) return null;
+    if (args.slice(3).some((arg) => !/^(?:-?\d+|左|中|右|上|下)?$/.test(arg.text))) return null;
+    choices = fields(raw, third.start + 1, third.end - 1);
+  } else choices = args.slice(2);
+  return choices && choices.every((choice) => literal(choice.text)) ? choices : null;
+}
+function assertExtendedChoiceTranslation(source, target2) {
+  if (!literal(target2) || JSON.stringify(source.match(CONTROLS2) || []) !== JSON.stringify(target2.match(CONTROLS2) || [])) {
+    throw new Error("Extended choice translation must preserve escape controls and cannot contain commas, brackets or executable expressions");
+  }
+}
+
+// services/extract/lib/rgss/script-strings.ts
+init_source_text();
+var ASSIGN_RE = /^\s*(?:[A-Z][\w:]*::)*[A-Z]\w*\s*=\s*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')/;
+var RETURN_RE = /^\s*return\s+("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*(?:#.*)?$/;
+var DRAW_RE = /\bdraw_text(?:_ex)?\s*\([^)]*("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')\s*\)/;
+var PATHISH = /[\\/]|\.(?:rvdata2?|png|jpe?g|ogg|mp3|wav|bmp|json|txt|rb)\b|Graphics\/|Audio\/|Data\//i;
+var CODEISH = /&&|\|\||==|!=|\.(?:call|new|size|empty\?)\b|^\s*[\[{]|window\.|SceneManager|DataManager/;
+function unescapeRubyLiteral(raw) {
+  return raw.slice(1, -1).replace(/\\n/g, "\n").replace(/\\t/g, "	").replace(/\\"/g, '"').replace(/\\'/g, "'").replace(/\\\\/g, "\\");
+}
+function consider(raw, script, found) {
+  if (!raw) return;
+  const text4 = unescapeRubyLiteral(raw).trim();
+  if (!text4 || text4.length < 2 || text4.length > 200) return;
+  if (PATHISH.test(text4) || CODEISH.test(text4)) return;
+  if (!isSourceText(text4)) return;
+  if (!found.has(text4)) found.set(text4, script);
+}
+function extractRgssScriptUiStrings(contentRoot) {
+  const found = /* @__PURE__ */ new Map();
+  for (const script of readRgssScripts(contentRoot)) {
+    const name2 = script.name || "Scripts";
+    for (const line of script.source.split(/\r?\n/)) {
+      if (line.length > 400) continue;
+      consider(ASSIGN_RE.exec(line)?.[1], name2, found);
+      consider(RETURN_RE.exec(line)?.[1], name2, found);
+      consider(DRAW_RE.exec(line)?.[1], name2, found);
+    }
+  }
+  return [...found].map(([src, script]) => ({ src, script }));
+}
+
+// services/extract/lib/rgss/writeback.ts
+import fs29 from "node:fs";
+import path28 from "node:path";
+init_source_text();
+function translatedString(source, value) {
+  const next = { kind: "string", value };
+  if (source.ivars) {
+    next.ivars = {
+      kind: "hash",
+      pairs: source.ivars.pairs.filter((pair) => !(pair.key && typeof pair.key === "object" && pair.key.kind === "symbol" && ["E", "encoding"].includes(pair.key.value)))
+    };
+    next.ivars.pairs.push({ key: { kind: "symbol", value: "E" }, value: true });
+  }
+  return next;
+}
+function commentCommand(value) {
+  if (!value || typeof value !== "object" || value.kind !== "object" || value.className !== "RPG::EventCommand") return null;
+  const code = rubyObjectField(value, "code");
+  const parameters = rubyObjectField(value, "parameters");
+  if (code !== 108 && code !== 408 || !parameters || typeof parameters !== "object" || parameters.kind !== "array") return null;
+  const text4 = parameters.items[0];
+  return text4 && typeof text4 === "object" && text4.kind === "string" ? { code, parameters, text: text4 } : null;
+}
+function extendedChoiceSlots(list, slot, result) {
+  for (let i = 0; i < list.items.length; i++) {
+    const first = commentCommand(list.items[i]);
+    if (first?.code !== 108) continue;
+    const start = i;
+    const comments = [first];
+    while (i + 1 < list.items.length) {
+      const next = commentCommand(list.items[i + 1]);
+      if (next?.code !== 408) break;
+      comments.push(next);
+      i++;
+    }
+    const raw = comments.map((comment) => comment.text.value).join("");
+    const choices = parseRgssExtendedChoices(raw);
+    if (!choices) continue;
+    const values = choices.map((choice) => ({ kind: "string", value: choice.text }));
+    const lengths = comments.map((comment) => comment.text.value.length);
+    for (const [index2, choice] of choices.entries()) {
+      result.set(`${slot}/${start}/choice/${index2}`, {
+        get value() {
+          return values[index2];
+        },
+        category: "choice",
+        set(next) {
+          assertExtendedChoiceTranslation(choice.text, next.value);
+          values[index2] = next;
+          let text4 = "";
+          let offset = 0;
+          for (const [j, span] of choices.entries()) {
+            text4 += raw.slice(offset, span.start) + values[j].value;
+            offset = span.end;
+          }
+          text4 += raw.slice(offset);
+          offset = 0;
+          comments.forEach((comment, j) => {
+            let end = j === comments.length - 1 ? text4.length : Math.min(offset + lengths[j], text4.length);
+            if (end < text4.length && /[\uD800-\uDBFF]/.test(text4[end - 1] ?? "") && /[\uDC00-\uDFFF]/.test(text4[end])) end--;
+            comment.parameters.items[0] = translatedString(comment.text, text4.slice(offset, end));
+            offset = end;
+          });
+        }
+      });
+    }
+  }
+}
+function strings(value) {
+  const result = /* @__PURE__ */ new Map();
+  const seen2 = /* @__PURE__ */ new WeakSet();
+  const walk = (entry, slot, text4, set, category = "other") => {
+    if (!entry || typeof entry !== "object") return;
+    if (entry.kind === "string") {
+      if (text4) result.set(slot, { value: entry, set, category });
+      return;
+    }
+    if (seen2.has(entry)) return;
+    seen2.add(entry);
+    if (entry.kind === "array") {
+      extendedChoiceSlots(entry, slot, result);
+      entry.items.forEach(
+        (child, index2) => walk(
+          child,
+          `${slot}/${index2}`,
+          text4,
+          (next) => {
+            entry.items[index2] = next;
+          },
+          category
+        )
+      );
+    } else if (entry.kind === "hash") {
+      entry.pairs.forEach((pair, index2) => {
+        const name2 = pair.key && typeof pair.key === "object" && (pair.key.kind === "symbol" || pair.key.kind === "string") ? pair.key.value : "";
+        walk(
+          pair.value,
+          `${slot}/h${index2}`,
+          !isTechnicalField(name2) && (text4 || isTextField(name2)),
+          (next) => {
+            pair.value = next;
+          },
+          category
+        );
+      });
+    } else if (entry.kind === "object") {
+      if (/^RPG::(?:AudioFile|BGM|BGS|ME|SE)$/.test(entry.className)) return;
+      const command = entry.className === "RPG::EventCommand";
+      const code = command ? rubyObjectField(entry, "code") : null;
+      entry.ivars.pairs.forEach((pair, index2) => {
+        const name2 = pair.key && typeof pair.key === "object" && pair.key.kind === "symbol" ? pair.key.value.replace(/^@/, "") : "";
+        if (command) {
+          if (name2 !== "parameters" || !pair.value || typeof pair.value !== "object" || pair.value.kind !== "array") return;
+          const parameter = code === 401 || code === 405 || code === 102 ? 0 : code === 402 || code === 320 || code === 324 || code === 325 ? 1 : -1;
+          const child = pair.value.items[parameter];
+          const parameters = pair.value;
+          if (child !== void 0)
+            walk(
+              child,
+              `${slot}/o${index2}/${parameter}`,
+              true,
+              (next) => {
+                parameters.items[parameter] = next;
+              },
+              code === 102 || code === 402 ? "choice" : "dialogue"
+            );
+        } else {
+          if (name2 === "name" && ["RPG::Event", "RPG::CommonEvent", "RPG::Troop", "RPG::Animation", "RPG::Tileset"].includes(entry.className)) return;
+          if (/^(?:character|battler|face|picture|animation\d*|battleback\d*|title\d*|parallax)_name$/i.test(name2)) return;
+          const systemText = /^(?:terms|words|basic|params|etypes|commands|elements|skill_types|weapon_types|armor_types|currency_unit|game_title)$/i.test(name2);
+          walk(
+            pair.value,
+            `${slot}/o${index2}`,
+            (systemText || !isTechnicalField(name2)) && (isTextField(name2) || systemText || text4),
+            (next) => {
+              pair.value = next;
+            },
+            fieldCategory(entry.className, name2, category)
+          );
+        }
+      });
+    }
+  };
+  walk(value, "", false, () => {
+  });
+  return result;
+}
+function fieldCategory(className, field, fallback) {
+  const base = {
+    "RPG::Actor": "actor",
+    "RPG::Item": "item",
+    "RPG::Weapon": "weapon",
+    "RPG::Armor": "armor",
+    "RPG::Skill": "skill",
+    "RPG::Enemy": "enemy",
+    "RPG::State": "state",
+    "RPG::Map": "map",
+    "RPG::MapInfo": "map",
+    "RPG::System": "system"
+  };
+  if (className === "RPG::Actor" && field === "nickname") return "actor_nickname";
+  if (className === "RPG::Actor" && (field === "profile" || field === "description")) return "actor_profile";
+  const category = base[className] ?? fallback;
+  if (field === "description" && (category === "item" || category === "weapon" || category === "armor" || category === "skill")) return `${category}_desc`;
+  if (category === "state" && /^message/.test(field)) return "state_msg";
+  return category;
+}
+function loadOneDataFile(dataDir, name2) {
+  const file = path28.join(dataDir, name2);
+  const value = parseRubyMarshal(fs29.readFileSync(file));
+  const backup = `${file}.chaya.bak`;
+  const original = fs29.existsSync(backup) ? parseRubyMarshal(fs29.readFileSync(backup)) : value;
+  const current = strings(value);
+  const texts = [];
+  for (const [location, source] of strings(original)) {
+    if (!isSourceText(source.value.value)) continue;
+    const target2 = current.get(location);
+    if (!target2) throw new Error(`RGSS data structure changed since backup: ${name2}${location}`);
+    texts.push({ source: source.value.value.trim(), current: target2, file: name2, location });
+  }
+  return { file, value, texts };
+}
+var SKIP_DATA_STEMS = /^(?:FileSystem|Animations|Tilesets)(?:\.|$)/i;
+function listDataFileNames(dataDir) {
+  const names = fs29.readdirSync(dataDir).filter((name2) => /\.rvdata2?$/i.test(name2) && !SKIP_DATA_STEMS.test(name2)).sort();
+  if (!names.length) throw new Error("RGSS data is unavailable. Unpack the encrypted archive into Data/ first.");
+  return names;
+}
+function loadFiles(dataDir) {
+  return listDataFileNames(dataDir).map((name2) => loadOneDataFile(dataDir, name2));
+}
+function itemsFromFiles(files2) {
+  const groups = /* @__PURE__ */ new Map();
+  for (const file of files2) {
+    for (const text4 of file.texts) {
+      const group = groups.get(text4.source) ?? [];
+      group.push(text4);
+      groups.set(text4.source, group);
+    }
+  }
+  return [...groups].map(([src, locations], index2) => {
+    const translated = locations.every((item) => item.current.value.value === locations[0].current.value.value) ? locations[0].current.value.value : "";
+    const zh = translated.trim() !== src ? translated : "";
+    return {
+      id: String(index2 + 1),
+      src,
+      zh,
+      savedZh: zh || void 0,
+      initialZh: zh || void 0,
+      meta: { category: locations[0].current.category, label: "RGSS", file: `Data/${locations[0].file}` }
+    };
+  });
+}
+function loadRgssItems(dataDir) {
+  return itemsFromFiles(loadFiles(dataDir));
+}
+
+// services/extract/lib/rgss-sources-index.ts
+init_content_files();
+import fs30 from "node:fs";
+import path29 from "node:path";
+var SOURCE_INDEX_VERSION = 2;
+function rgssDataSignature(dataDir) {
+  const files2 = fs30.readdirSync(dataDir).filter((name2) => /\.rvdata2?(?:\.chaya\.bak)?$/i.test(name2)).sort();
+  return JSON.stringify([
+    SOURCE_INDEX_VERSION,
+    ...files2.map((name2) => {
+      const stat = fs30.statSync(path29.join(dataDir, name2));
+      return [name2, stat.size, stat.mtimeMs, stat.ctimeMs];
+    })
+  ]);
+}
+function readIndex(contentRoot) {
+  const file = localGameContentFile(contentRoot, "rgssSourcesIndex");
+  if (!file) return null;
+  try {
+    const raw = JSON.parse(fs30.readFileSync(file, "utf8"));
+    if (!raw || typeof raw.signature !== "string" || !Array.isArray(raw.sources)) return null;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+function writeRgssSourcesIndex(contentRoot, signature, sources2) {
+  const file = ensureGameContentDir(contentRoot, "rgssSourcesIndex");
+  const payload = {
+    signature,
+    sources: [...sources2],
+    updatedAt: Date.now()
+  };
+  fs30.writeFileSync(file, `${JSON.stringify(payload)}
+`);
+}
+function ensureRgssSourcesIndex(contentRoot, dataDir, build) {
+  const signature = rgssDataSignature(dataDir);
+  const hit = readIndex(contentRoot);
+  if (hit && hit.signature === signature) return new Set(hit.sources);
+  const sources2 = build();
+  writeRgssSourcesIndex(contentRoot, signature, sources2);
+  return new Set(sources2);
+}
+
+// services/extract/lib/rgss.ts
+function findChild(dir, name2) {
+  try {
+    const hit = fs31.readdirSync(dir).find((entry) => entry.toLowerCase() === name2.toLowerCase());
+    return hit ? path30.join(dir, hit) : null;
+  } catch {
+    return null;
+  }
+}
+function extensionFor(dataDir) {
+  try {
+    const names = fs31.readdirSync(dataDir).map((name2) => name2.toLowerCase());
+    if (names.some((name2) => name2.endsWith(".rvdata2"))) return ".rvdata2";
+    if (names.some((name2) => name2.endsWith(".rvdata"))) return ".rvdata";
+  } catch {
+  }
+  return null;
+}
+var seedSources = /* @__PURE__ */ new Map();
+function filterRgssSeedKeys(contentRoot, keys) {
+  const dir = findChild(contentRoot, "data");
+  if (!dir || !extensionFor(dir)) return keys;
+  const signature = rgssDataSignature(dir);
+  let entry = seedSources.get(contentRoot);
+  if (entry?.signature !== signature) {
+    const sources2 = ensureRgssSourcesIndex(contentRoot, dir, () => loadRgssItems(dir).map((item) => item.src));
+    entry = { signature, sources: sources2 };
+    if (seedSources.size >= 20) seedSources.delete(seedSources.keys().next().value);
+    seedSources.set(contentRoot, entry);
+  }
+  const scripts = new Set(extractRgssScriptUiStrings(contentRoot).map((item) => item.src));
+  return keys.filter((key3) => entry.sources.has(key3) || scripts.has(key3));
+}
+
+// services/translate/seed-source-language.ts
+function loadSeedKeys(contentRoot) {
+  const file = gameContentReadPath(contentRoot, "seed", { alsoParent: true });
+  if (!file || !fs32.existsSync(file)) return [];
+  try {
+    const raw = JSON.parse(fs32.readFileSync(file, "utf8"));
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return [];
+    return filterRgssSeedKeys(
+      contentRoot,
+      Object.keys(raw).filter((key3) => key3.trim())
+    );
+  } catch {
+    return [];
+  }
+}
+function getSeedSourceLanguage(contentRoot) {
+  const resolved = getResolvedFromConfig();
+  const root = contentRoot || (resolved.ok ? resolved.contentRoot : "");
+  if (!root) return "";
+  const seedKeys = loadSeedKeys(root);
+  if (seedKeys.length) return detectSourceLanguage(seedKeys);
+  try {
+    const extractFile = localGameContentFile(root, "extractStrings");
+    if (extractFile && fs32.existsSync(extractFile)) {
+      const parsed = JSON.parse(fs32.readFileSync(extractFile, "utf8"));
+      if (parsed?.meta?.sourceLanguage && typeof parsed.meta.sourceLanguage === "string") {
+        return parsed.meta.sourceLanguage;
+      }
+    }
+  } catch {
+  }
+  return "";
 }
 
 // services/translate/live-translate.ts
@@ -47842,6 +48104,7 @@ async function liveTranslateTexts(texts, opts) {
     if (unique.length >= MAX_BATCH) break;
   }
   const contentRoot = opts?.contentRoot === void 0 ? resolveBoundContentRoot() : opts.contentRoot;
+  const sourceLang = opts?.sourceLang?.trim() || (contentRoot ? getSeedSourceLanguage(contentRoot) : void 0) || void 0;
   const explicitEngines = opts?.engines !== void 0;
   let engines = opts?.engines ? opts.engines.filter(Boolean) : [];
   let agents = [];
@@ -47860,7 +48123,7 @@ async function liveTranslateTexts(texts, opts) {
     `Pipeline configured: items=${unique.length}, sourceChars=${unique.reduce((sum2, src) => sum2 + Array.from(src).length, 0)}, engines=${engines.join(",")}, elapsedMs=${Math.round(performance.now() - started)}`
   );
   const bypassCache = opts?.cacheMode === "bypass";
-  const pairFor = (src) => resolveCacheLangPair({ from: opts?.sourceLang, to: opts?.targetLang, src });
+  const pairFor = (src) => resolveCacheLangPair({ from: sourceLang, to: opts?.targetLang, src });
   const chineseTarget = pairFor("").to === "zh";
   let cacheStore;
   const getCache = () => cacheStore ??= timed("Shared cache opened", () => opts?.sharedCache ? opts.sharedCache() : openSharedCache());
@@ -47910,6 +48173,8 @@ async function liveTranslateTexts(texts, opts) {
     trace?.(`Pipeline ready: localRecords=${localRecords.length}, elapsedMs=${Math.round(performance.now() - started)}`);
     const force = Boolean(opts?.force) || bypassCache;
     const persist2 = opts?.persist !== false;
+    const nameEntries = contentRoot ? await loadGameNameEntries(contentRoot, opts?.targetLang || "zh") : [];
+    const batchConcurrency = engines.includes("apple") ? 40 : 4;
     items.push(
       ...await mapTranslationBatch(
         unique,
@@ -47955,6 +48220,7 @@ async function liveTranslateTexts(texts, opts) {
                       gaps.map((gap) => gap.text),
                       {
                         ...opts,
+                        sourceLang,
                         onEngineDispatch,
                         onCacheWrite: (records2, sources3) => {
                           writes.push(...records2.map((record) => ({ record, sources: sources3 })));
@@ -48043,8 +48309,7 @@ async function liveTranslateTexts(texts, opts) {
                 });
                 if (resource) return { src, zh: resource.targetText, engine: "resource", resource, status: "full" };
               }
-              const nameEntries = contentRoot ? await loadGameNameEntries(contentRoot, opts?.targetLang || "zh") : [];
-              const namePlan = planLockedNames(src, nameEntries, { sourceLang: opts?.sourceLang, targetLang: opts?.targetLang || "zh" });
+              const namePlan = planLockedNames(src, nameEntries, { sourceLang, targetLang: opts?.targetLang || "zh" });
               if (namePlan && (!namePlan.wholeName || !opts?.optimizeWholeName)) {
                 const gapZh = /* @__PURE__ */ new Map();
                 const sources2 = /* @__PURE__ */ new Set(["cache"]);
@@ -48054,6 +48319,7 @@ async function liveTranslateTexts(texts, opts) {
                     namePlan.translatable.map((gap) => gap.text),
                     {
                       ...opts,
+                      sourceLang,
                       onEngineDispatch,
                       onItem: void 0,
                       preparedPlan: void 0,
@@ -48085,7 +48351,12 @@ async function liveTranslateTexts(texts, opts) {
                   if (contentRoot && chineseTarget) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records));
                   exactBackfillQueued = written.records.some((record) => record.src === src);
                   if (written.rejected.length) {
-                    return { src, zh: null, error: "Translation result did not pass storage validation" };
+                    if (contentRoot && isReusableTranslation(src, zh)) {
+                      appendGameNdjson(contentRoot, [[src, zh]]);
+                    }
+                    if (!isReusableTranslation(src, zh)) {
+                      return { src, zh: null, error: "Translation result did not pass storage validation" };
+                    }
                   }
                 }
                 items2.push({ src, zh, engine: tag, resultSources: [...sources2], status: "full" });
@@ -48107,7 +48378,7 @@ async function liveTranslateTexts(texts, opts) {
                 items2.push({ src, zh: null, error: engines.length ? "No eligible translation engines" : "No translation engines are enabled" });
                 return items2[0];
               }
-              const langPair = { from: opts?.sourceLang || detectCacheLang(sendText), to: opts?.targetLang || "zh" };
+              const langPair = { from: sourceLang || detectCacheLang(sendText), to: opts?.targetLang || "zh" };
               try {
                 const errors = [];
                 let winner;
@@ -48222,7 +48493,13 @@ async function liveTranslateTexts(texts, opts) {
                   if (!opts?.sharedCache && backfillRoot) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(backfillRoot, written.records));
                   exactBackfillQueued = written.records.some((record) => record.src === src);
                   if (written.rejected.length) {
-                    return { src, zh: null, error: "Translation result did not pass storage validation" };
+                    const currentZh = winner.zhCore || winner.zh;
+                    if (contentRoot && isReusableTranslation(src, currentZh)) {
+                      appendGameNdjson(contentRoot, [[src, currentZh]]);
+                    }
+                    if (!isReusableTranslation(src, currentZh)) {
+                      return { src, zh: null, error: "Translation result did not pass storage validation" };
+                    }
                   }
                 }
                 items2.push({ src, zh: winner.zh, engine: tag });
@@ -48264,7 +48541,7 @@ async function liveTranslateTexts(texts, opts) {
           trace?.(`Item ${itemId} finished: engine=${item.engine || "none"}, success=${item.zh != null && !item.error}, elapsedMs=${Math.round(performance.now() - itemStarted)}`);
           return item;
         },
-        engines.length === 1 && engines[0] === "apple" ? MAX_BATCH : 4
+        batchConcurrency
       )
     );
   } finally {
@@ -48293,7 +48570,7 @@ async function liveTranslateTexts(texts, opts) {
 // services/translate/scheduler/seed-inventory.ts
 init_paths();
 init_content_files();
-import fs36 from "node:fs";
+import fs37 from "node:fs";
 import { DatabaseSync as DatabaseSync7 } from "node:sqlite";
 init_game_cache_context();
 init_game_records();
@@ -48301,14 +48578,14 @@ init_text_classify();
 init_content_files();
 function seedFileStamp(contentRoot) {
   const file = localGameContentFile(contentRoot, "seed");
-  const stat = file ? fs36.statSync(file, { throwIfNoEntry: false }) : void 0;
+  const stat = file ? fs37.statSync(file, { throwIfNoEntry: false }) : void 0;
   return JSON.stringify([file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size]);
 }
 function readSeedInventory(contentRoot) {
   const stamp = seedFileStamp(contentRoot);
   const progressStamp = seedProgressStamp(contentRoot);
   const file = localGameContentFile(contentRoot, "seed");
-  const data = file ? JSON.parse(fs36.readFileSync(file, "utf8")) : {};
+  const data = file ? JSON.parse(fs37.readFileSync(file, "utf8")) : {};
   if (!data || typeof data !== "object" || Array.isArray(data)) throw new Error("Seed must be an object mapping source text to translation");
   const entries2 = data;
   const keys = filterRgssSeedKeys(
@@ -48345,7 +48622,7 @@ function readSeedInventory(contentRoot) {
         if (!revisions.has(key3)) {
           try {
             if (!client) {
-              if (!fs36.existsSync(TRANSLATE_CACHE_DB_PATH)) return false;
+              if (!fs37.existsSync(TRANSLATE_CACHE_DB_PATH)) return false;
               client = new DatabaseSync7(TRANSLATE_CACHE_DB_PATH, { readOnly: true });
               client.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=250; BEGIN");
               revisionQuery = client.prepare("SELECT revision FROM translation_records WHERE id=?");
@@ -48402,7 +48679,7 @@ function seedProgressStamp(contentRoot) {
   return JSON.stringify([
     7,
     files2.map((file) => {
-      const stat = file ? fs36.statSync(file, { throwIfNoEntry: false }) : void 0;
+      const stat = file ? fs37.statSync(file, { throwIfNoEntry: false }) : void 0;
       return [file, stat?.ino, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
     })
   ]);
@@ -48411,15 +48688,111 @@ function seedProgressStamp(contentRoot) {
 // services/translate/scheduler/seed-prepare.ts
 init_paths();
 init_jobs();
-import fs37 from "node:fs";
+init_game_lookup();
+init_game_records();
+import fs38 from "node:fs";
 import path34 from "node:path";
+init_text_classify();
 var flights2 = /* @__PURE__ */ new Map();
 var cache = /* @__PURE__ */ new Map();
 function keyFor(contentRoot) {
   return path34.resolve(contentRoot);
 }
+function seedInventoryFile(contentRoot) {
+  return seedJobFile(contentRoot).replace(/\.json$/, ".inventory.json");
+}
+function readPersistedSeedInventory(contentRoot) {
+  try {
+    const file = seedInventoryFile(contentRoot);
+    if (!fs38.existsSync(file)) return null;
+    const raw = JSON.parse(fs38.readFileSync(file, "utf8"));
+    if (!raw || !raw.progress || !Array.isArray(raw.pending) || !raw.stamp) return null;
+    return raw;
+  } catch {
+    return null;
+  }
+}
+function persistSeedInventory(contentRoot, bundle) {
+  try {
+    const file = seedInventoryFile(contentRoot);
+    fs38.mkdirSync(path34.dirname(file), { recursive: true });
+    const tmp = `${file}.${process.pid}.tmp`;
+    fs38.writeFileSync(tmp, JSON.stringify(bundle), "utf8");
+    fs38.renameSync(tmp, file);
+  } catch {
+  }
+}
+function reconcileSeedInventory(bundle, contentRoot) {
+  const seedStampNow = seedFileStamp(contentRoot);
+  if (bundle.stamp !== seedStampNow) return bundle;
+  const progressStampNow = seedProgressStamp(contentRoot);
+  if (bundle.progressStamp === progressStampNow) return bundle;
+  const records2 = loadGameTranslationRecords(contentRoot, void 0, { localOnly: true });
+  const doneLookup = createGameTranslateLookup(records2);
+  const failures = readSeedFailures(contentRoot);
+  const pending = [];
+  let done = 0;
+  let doneChars = 0;
+  let missing = 0;
+  let missingChars = 0;
+  let failedCount = 0;
+  let failedChars = 0;
+  for (const key3 of bundle.pending) {
+    const chars = charCount(key3);
+    if (doneLookup[key3] != null) {
+      done++;
+      doneChars += chars;
+    } else if (failures.has(key3)) {
+      failedCount++;
+      failedChars += chars;
+    } else {
+      missing++;
+      missingChars += chars;
+      pending.push(key3);
+    }
+  }
+  const previouslyDone = bundle.progress.done;
+  const totalDone = previouslyDone + done;
+  const progress = {
+    ...bundle.progress,
+    done: totalDone,
+    doneChars: bundle.progress.doneChars + doneChars,
+    missing,
+    missingChars,
+    failedCount,
+    failedChars,
+    batchesLeft: Math.ceil(missing / (bundle.progress.batchSize || 40))
+  };
+  return {
+    progress,
+    pending,
+    stamp: bundle.stamp,
+    progressStamp: progressStampNow
+  };
+}
+function setSeedInventory(contentRoot, bundle) {
+  const key3 = keyFor(contentRoot);
+  cache.set(key3, bundle);
+  persistSeedInventory(contentRoot, bundle);
+}
 function peekSeedInventory(contentRoot) {
-  return cache.get(keyFor(contentRoot)) ?? null;
+  const key3 = keyFor(contentRoot);
+  let bundle = cache.get(key3) ?? null;
+  if (!bundle) {
+    bundle = readPersistedSeedInventory(contentRoot);
+    if (bundle) cache.set(key3, bundle);
+  }
+  if (!bundle) return null;
+  const seedStampNow = seedFileStamp(contentRoot);
+  if (bundle.stamp === seedStampNow) {
+    const progressStampNow = seedProgressStamp(contentRoot);
+    if (bundle.progressStamp !== progressStampNow) {
+      bundle = reconcileSeedInventory(bundle, contentRoot);
+      cache.set(key3, bundle);
+      persistSeedInventory(contentRoot, bundle);
+    }
+  }
+  return bundle;
 }
 function isSeedInventoryPreparing(contentRoot) {
   return flights2.has(keyFor(contentRoot));
@@ -48431,20 +48804,26 @@ async function runSeedInventoryWorker(contentRoot) {
     missingError: "SEED_INVENTORY_WORKER_MISSING"
   });
   try {
-    return JSON.parse(fs37.readFileSync(out, "utf8"));
+    return JSON.parse(fs38.readFileSync(out, "utf8"));
   } finally {
-    fs37.unlink(out, () => {
+    fs38.unlink(out, () => {
     });
   }
 }
-function prepareSeedInventory(contentRoot) {
+function prepareSeedInventory(contentRoot, options) {
   const key3 = keyFor(contentRoot);
   return singleFlight(flights2, key3, async () => {
     await yieldEventLoop();
+    if (!options?.force) {
+      const peeked = peekSeedInventory(contentRoot);
+      if (peeked && peeked.stamp === seedFileStamp(contentRoot) && peeked.progressStamp === seedProgressStamp(contentRoot)) {
+        return peeked;
+      }
+    }
     let bundle;
     try {
       bundle = await runSeedInventoryWorker(contentRoot);
-    } catch {
+    } catch (_err) {
       await yieldEventLoop();
       const { openSharedCache: openSharedCache2 } = await Promise.resolve().then(() => (init_shared_cache(), shared_cache_exports));
       const store2 = openSharedCache2();
@@ -48457,6 +48836,7 @@ function prepareSeedInventory(contentRoot) {
       bundle = inv;
     }
     cache.set(key3, bundle);
+    persistSeedInventory(contentRoot, bundle);
     return bundle;
   });
 }
@@ -48739,16 +49119,6 @@ async function collectResultWindow(completed, options) {
 // services/translate/scheduler/seed-dispatch.ts
 init_text_classify();
 
-// services/translate/scheduler/seed-engine-budget.ts
-function seedEngineBudget(engine, agents, configs, options) {
-  if (!engine.startsWith("agent:")) return null;
-  const settings = resolveEngineCapacitySettings(engine, configs, agents);
-  const concurrency = settings.allowConcurrency === false ? 1 : settings.concurrencyLimit ?? 1;
-  const maxChars = settings.maxConcurrentChars ?? 3e3;
-  const items = options?.shareWithApple ? Math.min(48, Math.max(8, concurrency * 4)) : 4096;
-  return { items, chars: maxChars * (concurrency + 1) };
-}
-
 // services/translate/scheduler/seed-engine-queue.ts
 var UNKNOWN = 0;
 var MISS = 1;
@@ -48841,18 +49211,17 @@ function createSeedDispatcher(deps) {
   }
   function takeAppleSegment(first) {
     const ids = [first];
-    noteLoad(first, "apple");
+    let totalChars = charCount(deps.pending()[first]);
     deps.states[first] = RUNNING;
-    const budget = seedEngineBudget("apple", deps.agents(), deps.configs());
-    const slots = budget?.items ?? engineConfiguredCapacity("apple", resolveEngineCapacitySettings("apple", deps.configs(), deps.agents()));
-    while (ids.length < 40) {
-      const load = deps.loads.get("apple");
-      if ((load?.items || 0) >= slots || (load?.chars || 0) >= 4e4) break;
+    while (ids.length < 40 && totalChars < 3500) {
       const next = deps.nextTask("apple");
       if (next === void 0) break;
       ids.push(next);
-      noteLoad(next, "apple");
+      totalChars += charCount(deps.pending()[next]);
       deps.states[next] = RUNNING;
+    }
+    for (const id of ids) {
+      noteLoad(id, "apple");
     }
     return ids;
   }
@@ -48926,12 +49295,13 @@ function createSeedDispatcher(deps) {
           ids.map((current) => deps.pending()[current]),
           {
             contentRoot: deps.contentRoot,
+            sourceLang: deps.sourceLang,
             engines: [engine],
             sharedCache: deps.cache,
             cacheMode: singlePlan ? void 0 : "bypass",
             preparedPlan: singlePlan,
             local: { signal: controller.signal, batchScope: deps.batchScope },
-            itemTimeoutMs: engine.startsWith("agent:") ? 5 * 60 * 1e3 : 15e3,
+            itemTimeoutMs: engine.startsWith("agent:") ? 5 * 60 * 1e3 : 3e4,
             onTrace: deps.trace,
             onItem: (item) => {
               if (item.src) settleSrc(item.src, item);
@@ -48975,6 +49345,16 @@ function createSeedDispatcher(deps) {
     for (const current of ids) deps.active.set(current, { engine, controller, work });
   }
   return { dispatch };
+}
+
+// services/translate/scheduler/seed-engine-budget.ts
+function seedEngineBudget(engine, agents, configs, options) {
+  if (!engine.startsWith("agent:")) return null;
+  const settings = resolveEngineCapacitySettings(engine, configs, agents);
+  const concurrency = settings.allowConcurrency === false ? 1 : settings.concurrencyLimit ?? 1;
+  const maxChars = settings.maxConcurrentChars ?? 3e3;
+  const items = options?.shareWithApple ? Math.min(48, Math.max(8, concurrency * 4)) : 4096;
+  return { items, chars: maxChars * (concurrency + 1) };
 }
 
 // services/translate/scheduler/seed-session.ts
@@ -49195,7 +49575,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
         counters.cacheHit++;
         rememberBackfill(result.records);
         finish(id, { src: result.src, zh: result.plan.zh, status: "full", engine: "cache:scan", plan: result.plan }, result.elapsedMs);
-        if (active2.has(id)) {
+        if (active2.has(id) && active2.get(id).engine !== "apple") {
           counters.cacheCancelled++;
           active2.get(id).controller.abort(new Error("A valid cache result completed this translation task"));
         }
@@ -49215,7 +49595,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
             if (!misses.includes(id)) misses.push(id);
           }
         }
-        if (active2.has(id)) active2.get(id).controller.abort(new Error("Cache snapshot expired; rechecking before engine dispatch"));
+        if (active2.has(id) && active2.get(id).engine !== "apple") active2.get(id).controller.abort(new Error("Cache snapshot expired; rechecking before engine dispatch"));
       }
     } else if (waitingCache.has(id)) {
       finish(id, waitingCache.get(id));
@@ -49278,9 +49658,9 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     const chars = entries2.reduce((sum2, [, load]) => sum2 + load.chars, 0);
     return chars + charCount(inventory.pending[id]) <= (budget?.chars ?? options.maxChars ?? 3e3);
   }
-  const hasAgentEngine = () => engines.some((engine) => engine.startsWith("agent:"));
-  const maxBuffer = () => hasAgentEngine() ? 4096 : MAX_BUFFER;
-  const maxCachePending = () => hasAgentEngine() ? 4096 : MAX_CACHE_PENDING;
+  const hasFastOrAgentEngine = () => engines.some((engine) => engine === "apple" || engine.startsWith("agent:"));
+  const maxBuffer = () => hasFastOrAgentEngine() ? 4096 : MAX_BUFFER;
+  const maxCachePending = () => hasFastOrAgentEngine() ? 4096 : MAX_CACHE_PENDING;
   const batchScope = {
     waitForMore: () => !paused && !closed && hasPending() && (pendingCount > active2.size || misses.length > 0 || cachePending.size > 0 || cacheInFlight.size > 0) && [...loads].filter(([engine]) => engine.startsWith("agent:")).every(([, load]) => load.items < 4096)
   };
@@ -49291,7 +49671,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
       retries,
       deferred,
       cursors: freshCursors,
-      maxPending: seedEngineBudget(engine, agents) ? 4096 : MAX_BUFFER,
+      maxPending: engine === "apple" || seedEngineBudget(engine, agents) ? 4096 : MAX_BUFFER,
       excluded: (id2) => Boolean(options.exclude?.has(inventory.pending[id2])),
       exclude: (id2) => {
         if (states[id2] === UNKNOWN || states[id2] === MISS) {
@@ -49349,7 +49729,9 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
         const ordinary = [...loads].filter(([key3]) => !key3.startsWith("agent:")).reduce((sum2, [, load]) => sum2 + load.items, 0);
         if (engine !== "apple" && !budget && (ordinary >= cap() || completed.length + ordinary >= MAX_BUFFER)) continue;
         const count2 = loads.get(engine)?.items || 0;
-        if (count2 >= (budget?.items ?? engineConfiguredCapacity(engine, resolveEngineCapacitySettings(engine, configs, agents)))) continue;
+        const appleCapacity = engines.length > 1 ? 40 : 80;
+        const configuredCapacity = engine === "apple" ? appleCapacity : engineConfiguredCapacity(engine, resolveEngineCapacitySettings(engine, configs, agents));
+        if (count2 >= (budget?.items ?? configuredCapacity)) continue;
         const id = nextTask(engine);
         if (id === void 0) continue;
         dispatch(id, engine);
@@ -49478,6 +49860,7 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
   }
   dispatch = createSeedDispatcher({
     contentRoot,
+    sourceLang: getSeedSourceLanguage(contentRoot) || void 0,
     pending: () => inventory.pending,
     states,
     loads,
@@ -49517,6 +49900,15 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
     },
     get processed() {
       return processed;
+    },
+    get inventoryBundle() {
+      const remainingPending = inventory.pending.filter((_, id) => states[id] !== DONE);
+      return {
+        progress: { ...progress },
+        pending: remainingPending,
+        stamp: inventory.stamp,
+        progressStamp: seedProgressStamp(contentRoot)
+      };
     },
     pause() {
       paused = true;
@@ -49616,7 +50008,11 @@ function createScheduledSeedSession(contentRoot, initialTrace, opts) {
         notify,
         wait: async () => {
           await new Promise((resolve3) => {
-            resolveWait = resolve3;
+            const fallbackTimer = setTimeout(resolve3, 1e3);
+            resolveWait = () => {
+              clearTimeout(fallbackTimer);
+              resolve3();
+            };
           });
           resolveWait = void 0;
         }
@@ -49659,16 +50055,6 @@ init_shared_cache();
 init_text_classify();
 var DEFAULT_BATCH = 40;
 var scans = /* @__PURE__ */ new Map();
-function loadSeedKeys(contentRoot) {
-  const file = gameContentReadPath(contentRoot, "seed", { alsoParent: true });
-  if (!file || !fs38.existsSync(file)) return [];
-  const raw = JSON.parse(fs38.readFileSync(file, "utf8"));
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("seed must be an object mapping source text to translation");
-  return filterRgssSeedKeys(
-    contentRoot,
-    Object.keys(raw).filter((key3) => key3.trim())
-  );
-}
 function seedCoverage(contentRoot, keys, cache2, trace) {
   const started = performance.now();
   const context2 = getGameCacheContext(contentRoot);
@@ -49704,11 +50090,11 @@ function scanSeed(contentRoot, fresh = false, repair = false) {
       cache2.path,
       cache2.version(),
       keys,
-      fs38.statSync(seedFailureFile(contentRoot), { throwIfNoEntry: false })?.mtimeMs,
+      fs39.statSync(seedFailureFile(contentRoot), { throwIfNoEntry: false })?.mtimeMs,
       [...readSeedFailures(contentRoot).keys()],
       ...["seed", "cacheNdjson"].map((kind) => {
         const file = gameContentReadPath(contentRoot, kind, { alsoParent: true });
-        const stat = file ? fs38.statSync(file, { throwIfNoEntry: false }) : void 0;
+        const stat = file ? fs39.statSync(file, { throwIfNoEntry: false }) : void 0;
         return [file, stat?.mtimeMs, stat?.ctimeMs, stat?.size];
       })
     ]);
@@ -49777,7 +50163,7 @@ function createSeedFillSession(contentRoot, onTrace, opts) {
   let cursor = 0;
   function seedStamp() {
     const file = localGameContentFile(contentRoot, "seed");
-    const stat = file ? fs38.statSync(file, { throwIfNoEntry: false }) : void 0;
+    const stat = file ? fs39.statSync(file, { throwIfNoEntry: false }) : void 0;
     return JSON.stringify([file, stat?.mtimeMs, stat?.ctimeMs, stat?.size]);
   }
   let stamp = seedStamp();
@@ -49794,6 +50180,9 @@ function createSeedFillSession(contentRoot, onTrace, opts) {
       return { ...progress };
     },
     get processed() {
+      return void 0;
+    },
+    get inventoryBundle() {
       return void 0;
     },
     pause() {
@@ -49832,14 +50221,14 @@ function createSeedFillSession(contentRoot, onTrace, opts) {
       );
       let cacheMs = 0;
       const translateStarted = performance.now();
-      const deadline = AbortSignal.timeout(15e3);
+      const deadline = AbortSignal.timeout(45e3);
       let items = [];
       const terminalFailures = /* @__PURE__ */ new Map();
       try {
         const result = await liveTranslateTexts(batch, {
           contentRoot,
           local: { signal: deadline },
-          itemTimeoutMs: 15e3,
+          itemTimeoutMs: 45e3,
           onTrace: trace,
           onCacheMatch: (ms) => {
             cacheMs += ms;
@@ -49904,18 +50293,21 @@ function createSeedFillSession(contentRoot, onTrace, opts) {
 }
 
 // services/translate/seed-batch.ts
-function createSeedBatchBudget(initialLimit = 12) {
-  let limit = Math.max(4, Math.min(40, initialLimit));
-  let maxChars = 3e3;
-  const targetMs = 5e3;
+function createSeedBatchBudget(initialLimit = 12, isBatchEngine = false) {
+  const minLimit = isBatchEngine ? 30 : 4;
+  const minChars = isBatchEngine ? 2800 : 500;
+  const defaultChars = isBatchEngine ? 3500 : 3e3;
+  let limit = Math.max(minLimit, Math.min(40, initialLimit));
+  let maxChars = defaultChars;
+  const targetMs = isBatchEngine ? 15e3 : 5e3;
   return {
     current: () => ({ limit, maxChars }),
     observe(elapsedMs, failed, scanned) {
       if (!scanned) return;
       const ratio = Math.max(0.5, Math.min(1.5, targetMs / Math.max(1, elapsedMs)));
-      const factor = failed ? Math.min(0.75, ratio) : ratio;
-      limit = Math.max(4, Math.min(40, Math.floor(limit * factor)));
-      maxChars = Math.max(500, Math.min(1e4, Math.floor(maxChars * factor)));
+      const factor = failed ? isBatchEngine ? Math.min(0.85, ratio) : Math.min(0.75, ratio) : ratio;
+      limit = Math.max(minLimit, Math.min(40, Math.floor(limit * factor)));
+      maxChars = Math.max(minChars, Math.min(1e4, Math.floor(maxChars * factor)));
     }
   };
 }
@@ -49989,7 +50381,7 @@ function getRuntime(contentRoot) {
 function peekHasSeed(contentRoot) {
   const file = localGameContentFile(contentRoot, "seed");
   if (!file) return false;
-  const stat = fs39.statSync(file, { throwIfNoEntry: false });
+  const stat = fs40.statSync(file, { throwIfNoEntry: false });
   return !!stat && stat.size > 2;
 }
 function pushLog(rt, level, text4, metadata) {
@@ -50033,7 +50425,7 @@ async function runLoop(contentRoot) {
   rt.state.performance = null;
   const initialSessionDone = rt.state.sessionDone;
   const isBatchEngine = rt.state.engines.length > 0 && rt.state.engines.some((e) => e === "apple" || e.startsWith("agent:"));
-  const budget = createSeedBatchBudget(isBatchEngine ? 40 : 4);
+  const budget = createSeedBatchBudget(isBatchEngine ? 40 : 4, isBatchEngine);
   const trace = (message) => {
     const previousLogSeq = rt.logSeq;
     const request = /^(Agent|Apple) request submitted: items=(\d+), sourceChars=(\d+)$/.exec(message);
@@ -50107,6 +50499,7 @@ async function runLoop(contentRoot) {
           }
         });
         rt.progress = rt.session.progress;
+        if (rt.session?.inventoryBundle) setSeedInventory(contentRoot, rt.session.inventoryBundle);
         const measuredNow = performance.now();
         const elapsedMs = measuredNow - started;
         const sampleElapsedMs = measuredNow - measuredAt;
@@ -50194,6 +50587,7 @@ async function runLoop(contentRoot) {
     }
   } finally {
     try {
+      if (rt.session?.inventoryBundle) setSeedInventory(contentRoot, rt.session.inventoryBundle);
       await rt.session?.close?.();
       if (rt.session) {
         rt.progress = rt.session.progress;
@@ -50282,6 +50676,10 @@ function applyInventoryBundle(rt, bundle) {
   } else if (progress.missing && rt.state.status === "done") {
     rt.state.status = "paused";
     rt.state.liveStatus = "";
+  } else if (rt.state.status === "idle" || rt.state.status === "paused") {
+    if (rt.state.liveStatus === "\u6B63\u5728\u51C6\u5907\u539F\u6587\u5E93\u5B58\u2026") {
+      rt.state.liveStatus = "";
+    }
   }
   persist(rt);
 }
@@ -50405,6 +50803,9 @@ function startSeedJob(opts) {
   if (peeked && peeked.stamp === seedStampNow && peeked.progressStamp === seedProgressStamp(contentRoot)) {
     beginSeedLoop(contentRoot, peeked, fixedEngines);
     const rt2 = getRuntime(contentRoot);
+    rt2.state.inventoryPreparing = false;
+    rt2.state.liveStatus = "\u6B63\u5728\u7FFB\u8BD1\u2026";
+    persist(rt2);
     return { ...rt2.progress ?? peeked.progress, job: visibleSeedJobState(rt2.state) };
   }
   const rt = getRuntime(contentRoot);
@@ -50412,8 +50813,8 @@ function startSeedJob(opts) {
   rt.state.contentRoot = contentRoot;
   rt.state.status = "running";
   rt.state.engines = engines;
-  rt.state.liveStatus = resume ? "\u6B63\u5728\u51C6\u5907\u5E93\u5B58\u4EE5\u7EE7\u7EED\u2026" : "\u6B63\u5728\u51C6\u5907\u539F\u6587\u5E93\u5B58\u2026";
   rt.state.error = null;
+  rt.state.liveStatus = resume ? "\u6B63\u5728\u51C6\u5907\u5E93\u5B58\u4EE5\u7EE7\u7EED\u2026" : "\u6B63\u5728\u51C6\u5907\u539F\u6587\u5E93\u5B58\u2026";
   rt.state.inventoryPreparing = true;
   persist(rt);
   void prepareSeedInventory(contentRoot).then((bundle) => {
@@ -50448,6 +50849,9 @@ function pauseSeedJob(opts) {
     return getSeedJobSnapshot();
   }
   rt.stopRequested = true;
+  if (rt.session?.inventoryBundle) {
+    setSeedInventory(contentRoot, rt.session.inventoryBundle);
+  }
   rt.session?.pause?.();
   rt.state.liveStatus = "\u6B63\u5728\u6682\u505C\u2026";
   pushLog(rt, "warn", "Pausing: will stop after the current batch.");

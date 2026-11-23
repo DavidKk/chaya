@@ -163,6 +163,71 @@ export function installEngineHooks(translate: Translate, getMode: () => Translat
       )
     )
   }
+  if (typeof Window_ActorCommand !== 'undefined' && Window_ActorCommand.prototype) {
+    remove.push(
+      hookMethod(
+        Window_ActorCommand.prototype,
+        'addCommand',
+        (original) =>
+          function (this: any, name: any, symbol: any, enabled = true, ext: any = null, ...args: unknown[]) {
+            let safeName = name
+            let safeExt = ext
+            // Defensive fallback: skill command with invalid/missing stypeId fallback to primary skill type
+            if (symbol === 'skill' && (typeof ext !== 'number' || ext <= 0)) {
+              const actor = this._actor
+              const types = actor && typeof actor.addedSkillTypes === 'function' ? actor.addedSkillTypes() : []
+              safeExt = types.length > 0 ? types[0] : 1
+              if (!safeName || safeName === 'undefined') {
+                const sys = typeof globalThis !== 'undefined' ? (globalThis as any).$dataSystem : undefined
+                safeName = (sys?.skillTypes && sys.skillTypes[safeExt]) || 'Skill'
+              }
+            }
+            return original.call(this, safeName, symbol, enabled, safeExt, ...args)
+          }
+      )
+    )
+    remove.push(
+      hookMethod(
+        Window_ActorCommand.prototype,
+        'makeCommandList',
+        (original) =>
+          function (this: any, ...args: unknown[]) {
+            const res = original.apply(this, args)
+            // Defensive fallback: if actor command list ended up empty due to broken plugin filters, add attack fallback
+            if (Array.isArray(this._list) && this._list.length === 0 && this._actor) {
+              if (typeof this.addAttackCommand === 'function') {
+                this.addAttackCommand()
+              } else if (typeof this.addCommand === 'function') {
+                const tm = typeof globalThis !== 'undefined' ? (globalThis as any).TextManager : undefined
+                const attackName = tm?.attack || 'Attack'
+                const canAttack = typeof this._actor.canAttack === 'function' ? this._actor.canAttack() : true
+                this.addCommand(attackName, 'attack', canAttack)
+              }
+            }
+            return res
+          }
+      )
+    )
+  }
+  if (typeof Window_SkillList !== 'undefined' && Window_SkillList.prototype) {
+    remove.push(
+      hookMethod(
+        Window_SkillList.prototype,
+        'setStypeId',
+        (original) =>
+          function (this: any, stypeId: any, ...args: unknown[]) {
+            let safeId = stypeId
+            // Defensive fallback: prevent opening empty skill list when stypeId is invalid or negative
+            if (typeof stypeId === 'number' && stypeId <= 0) {
+              const actor = this._actor
+              const types = actor && typeof actor.addedSkillTypes === 'function' ? actor.addedSkillTypes() : []
+              safeId = types.length > 0 ? types[0] : 1
+            }
+            return original.call(this, safeId, ...args)
+          }
+      )
+    )
+  }
   // Do not register third-party globals such as window.TranslationManager: game plugins may assume a complete API and call missing methods.
   return () => {
     for (const dispose of remove.reverse()) dispose()

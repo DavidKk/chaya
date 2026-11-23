@@ -1,7 +1,7 @@
 'use client'
 
 import { type ReactNode, useCallback, useEffect, useId, useRef, useState } from 'react'
-import { IoCloudUploadOutline, IoPauseOutline, IoPlayOutline } from 'react-icons/io5'
+import { IoCloudUploadOutline, IoPauseOutline, IoPlayOutline, IoRefreshOutline } from 'react-icons/io5'
 import { LuScanText } from 'react-icons/lu'
 
 import { useT } from '@/components/i18n/LocaleProvider'
@@ -158,12 +158,39 @@ function ProgressMeter({ label, pct, hint, indeterminate = false }: { label: str
   )
 }
 
-function StatTile({ label, value, hint, tone = 'ink' }: { label: string; value: number; hint?: ReactNode; tone?: 'ink' | 'ok' | 'warn' | 'accent' }) {
+function StatTile({
+  label,
+  value,
+  hint,
+  tone = 'ink',
+  onClick,
+}: {
+  label: string
+  value: number
+  hint?: ReactNode
+  tone?: 'ink' | 'ok' | 'warn' | 'accent'
+  onClick?: () => void
+}) {
   const animated = useAnimatedNumber(value, 650)
   const valueTone = tone === 'ok' ? 'text-ok' : tone === 'warn' ? 'text-warn' : tone === 'accent' ? 'text-accent' : 'text-ink'
 
   return (
-    <div className="rounded-[0.3rem] bg-inset/80 px-4 py-3">
+    <div
+      className={cn('rounded-[0.3rem] bg-inset/80 px-4 py-3', onClick && 'cursor-pointer hover:bg-inset transition-colors')}
+      onClick={onClick}
+      role={onClick ? 'button' : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault()
+                onClick()
+              }
+            }
+          : undefined
+      }
+    >
       <div className="text-[0.6875rem] font-medium tracking-wide text-ink-soft">{label}</div>
       <div className={cn('mt-2 text-[1.35rem] font-semibold leading-none tabular-nums tracking-tight', valueTone)}>{animated.toLocaleString()}</div>
       {hint ? <div className="mt-2 text-[0.6875rem] leading-snug text-ink-soft/90">{hint}</div> : null}
@@ -199,6 +226,7 @@ export function TranslateRunPane({
   const [pausing, setPausing] = useState(false)
   const [importing, setImporting] = useState(false)
   const [exporting, setExporting] = useState(false)
+  const [retryingFailures, setRetryingFailures] = useState(false)
   const [displayPerformance, setDisplayPerformance] = useState<TranslationPerformance | null>(null)
   const [clock, setClock] = useState(0)
   const [playSettingsMounted, setPlaySettingsMounted] = useState(tab === 'play')
@@ -206,7 +234,7 @@ export function TranslateRunPane({
 
   const running = job.status === 'running'
   const preparing = progress.preparing === true
-  const busy = loading || extracting || running || importing || exporting || starting || pausing || preparing
+  const busy = loading || extracting || running || importing || exporting || starting || pausing || preparing || retryingFailures
 
   const applySnapshot = useCallback((json: Partial<Progress> & { job?: Partial<JobState>; activity?: Partial<ActivityState>; preparing?: boolean }) => {
     setProgress(readProgress(json))
@@ -350,6 +378,7 @@ export function TranslateRunPane({
   async function pauseJob() {
     if (pausing || !running) return
     setPausing(true)
+    setJob((prev) => ({ ...prev, liveStatus: '正在暂停…' }))
     try {
       const res = await translationFetch('/api/translate', {
         method: 'POST',
@@ -366,6 +395,26 @@ export function TranslateRunPane({
       notify.error(thrownMessage(err, t, t('translate.pauseFailed')))
     } finally {
       setPausing(false)
+    }
+  }
+
+  async function retryFailures() {
+    if (retryingFailures || busy) return
+    setRetryingFailures(true)
+    try {
+      const res = await translationFetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'job', action: 'retry-failures', ...(urlGameId ? { game: urlGameId } : {}) }),
+      })
+      const json = (await res.json()) as { ok?: boolean; retriedCount?: number; error?: unknown }
+      if (!res.ok || json.error) throw new Error(readApiErrorMessage(json, t('translate.requestFailed')))
+      notify.success(t('translate.retryFailuresDone', { count: json.retriedCount ?? progress.failedCount ?? 0 }))
+      await refresh({ rescan: true })
+    } catch (err) {
+      notify.error(thrownMessage(err, t, t('translate.requestFailed')))
+    } finally {
+      setRetryingFailures(false)
     }
   }
 
@@ -449,6 +498,8 @@ export function TranslateRunPane({
   const liveStatus = job.liveStatus || (extracting ? t('translate.extractingText') : preparing ? t('translate.preparingInventory') : '')
   const canStart = progress.missing > 0 && !preparing
   const startLabel = job.status === 'paused' ? t('translate.continue') : progress.missing > 0 ? t('translate.start') : t('translate.completed')
+  const isTranslationComplete = progress.hasSeed && (progress.missing === 0 || job.status === 'done')
+  const hasFailures = (progress.failedCount ?? 0) > 0
   const perf =
     running && !pausing && displayPerformance && displayPerformance.charsPerSecond > 0
       ? freshTranslationPerformance(displayPerformance, displayPerformance.measuredAt ?? job.updatedAt, clock)
@@ -539,11 +590,6 @@ export function TranslateRunPane({
                             tone="warn"
                           />
                           <StatTile
-                            label={t('translate.skipChars')}
-                            value={progress.skipChars}
-                            hint={t('translate.skipLinesHint', { count: progress.skipCount.toLocaleString() })}
-                          />
-                          <StatTile
                             label={t('translate.lines')}
                             value={progress.lines}
                             hint={
@@ -553,6 +599,15 @@ export function TranslateRunPane({
                             }
                             tone="accent"
                           />
+                          {(progress.failedCount ?? 0) > 0 ? (
+                            <StatTile
+                              label={t('translate.failedCount') || '失败项'}
+                              value={progress.failedCount ?? 0}
+                              hint={t('translate.failedCharsHint', { count: (progress.failedChars ?? 0).toLocaleString() })}
+                              tone="warn"
+                              onClick={() => setTab('list')}
+                            />
+                          ) : null}
                         </div>
                         <div>
                           <ProgressMeter label={t('translate.processedLabel')} pct={translatePct} hint={statusHint} />
@@ -570,7 +625,13 @@ export function TranslateRunPane({
                         ) : running ? (
                           <Button variant="fail" disabled={pausing} loading={pausing} onClick={() => void pauseJob()}>
                             <IoPauseOutline size={16} aria-hidden />
-                            {t('translate.pause')}
+                            {pausing ? '正在暂停…' : t('translate.pause')}
+                          </Button>
+                        ) : isTranslationComplete && hasFailures ? (
+                          <Button variant="warn" disabled={busy} loading={retryingFailures} onClick={() => void retryFailures()}>
+                            <IoRefreshOutline size={16} aria-hidden />
+                            {t('translate.retryFailuresBtn') || '一键重试失败项'}
+                            {progress.failedCount ? ` (${progress.failedCount.toLocaleString()})` : ''}
                           </Button>
                         ) : (
                           <Button variant="ok" disabled={busy || !canStart} loading={starting} onClick={() => void startJob()}>

@@ -35,13 +35,21 @@ export function benchmarkStoryGuide(
     guided,
   })
   if (mapId === 1) {
+    if (switchOn(30) && !switchOn(31)) {
+      return target(17, 11, 3, 'Master Boris', '试炼已完成，与鲍里斯 (11, 3) 汇报对话', 150)
+    }
+    if (switchOn(31)) {
+      return target(12, 8, 3, 'Master of Shadows', '与暗影大师 (8, 3) 对话出发前往第一章', 150)
+    }
     const chest = () => target(3, 8, 8, 'Weapon Chest', '拾取盗贼匕首')
     const stairs = () => target(14, 15, 11, 'Secret Stairs', '进入试炼秘密地下室')
     if (playerGuidance && /宝箱|箱子|武器|匕首/i.test(playerGuidance) && !blocked(3)) return { ...chest(), priority: 150, guided: true }
     if (playerGuidance && /地下室|试炼|楼梯|暗门/i.test(playerGuidance) && !blocked(14)) return { ...stairs(), priority: 150, guided: true }
     const leader = party.leader?.()
     const weapon = engine.$dataWeapons?.[5]
-    return leader && weapon && (leader.hasWeapon?.(weapon) || leader.isEquipped?.(weapon)) ? stairs() : chest()
+    const equipped = Boolean(leader && weapon && leader.isEquipped?.(weapon))
+    const inBag = Boolean(leader && weapon && (leader.hasWeapon?.(weapon) || equipped))
+    return inBag ? stairs() : chest()
   }
   if (mapId === 4) {
     const boris = () => target(5, 3, 4, 'Master Boris', '与会长鲍里斯对话')
@@ -75,7 +83,19 @@ export function benchmarkStoryGuide(
     if (playerPos.y > 3) return target(5, 20, 7, 'Passage Clearance', '清理通道提示')
     return target(26, 21, 3, 'Deep Dungeon Portal', '前往序章终点深处')
   }
-  if (mapId !== 6 || switchOn(30) || switchOn(683)) return null
+  if (mapId === 9) {
+    if (!switchOn(52)) return null
+    if (!switchOn(54)) return target(33, 45, 30, 'Crying Girl', '调查小女孩 (45, 30) 询问菲利西亚下落', 140)
+    if (!switchOn(55)) return target(75, 31, 27, 'Thief Chase 1', '追赶盗贼 (31, 27)', 150)
+    if (!switchOn(57)) return target(76, 18, 24, 'Thief Chase 2', '沿小巷追击至 (18, 24)', 150)
+    if (!switchOn(59)) return target(77, 20, 22, 'Svetlana', '与斯维特拉娜 (20, 22) 会合', 150)
+    if (!switchOn(60)) return target(78, 12, 19, 'Cornered Thief', '堵截盗贼 (12, 19)', 150)
+    return null
+  }
+  if (mapId !== 6 || switchOn(683)) return null
+  if (switchOn(30)) {
+    return target(58, 3, 2, 'Trial Portal', '试炼已完成，进入神坛传送门返回公会', 150)
+  }
   if (switchOn(27)) {
     const count = variable(7)
     if (count < 4) {

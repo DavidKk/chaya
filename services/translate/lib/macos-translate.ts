@@ -73,7 +73,8 @@ class AppleTranslatorClient {
   private binaryStamp = ''
   private reqSeq = 0
   private idleTimer: NodeJS.Timeout | null = null
-  private readonly idleTimeoutMs = 60_000
+  private readonly idleTimeoutMs = 300_000
+  private statusCache = new Map<string, { result: { status: string; installed: boolean; message?: string }; at: number }>()
 
   private getBinaryPath(): string | null {
     const binPath = resolve(process.cwd(), 'native/bin/chaya-apple-translator')
@@ -297,7 +298,7 @@ class AppleTranslatorClient {
         chars = 0
       }
       for (const item of items) {
-        if (batch.length >= 40 || chars + (item.text?.length || 0) > 40_000) flush()
+        if (batch.length >= 80 || chars + (item.text?.length || 0) > 80_000) flush()
         batch.push(item)
         chars += item.text?.length || 0
       }
@@ -305,7 +306,7 @@ class AppleTranslatorClient {
     }
   }
 
-  private async sendRequest(req: Omit<DaemonRequest, 'id'>, timeoutMs = 15_000, signal?: AbortSignal, onTrace?: (message: string) => void): Promise<DaemonResponse> {
+  private async sendRequest(req: Omit<DaemonRequest, 'id'>, timeoutMs = 30_000, signal?: AbortSignal, onTrace?: (message: string) => void): Promise<DaemonResponse> {
     if (req.type === 'translate') return this.sendRequestOnce(req, timeoutMs, signal, onTrace)
     return measureOperation('communication', 'apple.native.request', { action: req.type, source: req.source, target: req.target }, () =>
       this.sendRequestOnce(req, timeoutMs, signal, onTrace)
@@ -327,7 +328,6 @@ class AppleTranslatorClient {
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         this.finishRequest(id, undefined, new Error(`Apple translation request ${id} timed out after ${timeoutMs}ms`))
-        // Do not leave timed-out native work in front of the next batch.
         if (!this.pendingRequests.size) this.stopDaemon()
       }, timeoutMs)
 
@@ -353,17 +353,27 @@ class AppleTranslatorClient {
   }
 
   async checkStatus(source = 'ja', target = 'zh-Hans'): Promise<{ status: string; installed: boolean; message?: string }> {
+    const appleSource = toAppleLanguage(source, 'ja')
+    const appleTarget = toAppleLanguage(target, 'zh-Hans')
+    const cacheKey = `${appleSource}->${appleTarget}`
+    const cached = this.statusCache.get(cacheKey)
+    if (cached && Date.now() - cached.at < 300_000) {
+      return cached.result
+    }
     try {
       const res = await this.sendRequest({
         type: 'check',
-        source: toAppleLanguage(source, 'ja'),
-        target: toAppleLanguage(target, 'zh-Hans'),
+        source: appleSource,
+        target: appleTarget,
       })
-      return {
+      const isInstalledOrSupported = res.status === 'installed' || res.status === 'supported'
+      const result = {
         status: res.status || 'unknown',
-        installed: res.status === 'installed',
+        installed: isInstalledOrSupported,
         message: res.message,
       }
+      this.statusCache.set(cacheKey, { result, at: Date.now() })
+      return result
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err)
       return {
@@ -385,7 +395,7 @@ class AppleTranslatorClient {
         source: toAppleLanguage(options?.source, 'ja'),
         target: toAppleLanguage(options?.target, 'zh-Hans'),
       },
-      15_000,
+      30_000,
       options?.signal,
       options?.onTrace
     )
@@ -404,7 +414,10 @@ class AppleTranslatorClient {
   }
 }
 
-export const appleTranslator = new AppleTranslatorClient()
+const GLOBAL_KEY = '__chayaAppleTranslatorClient'
+const g = globalThis as typeof globalThis & { [GLOBAL_KEY]?: AppleTranslatorClient }
+
+export const appleTranslator = (g[GLOBAL_KEY] ??= new AppleTranslatorClient())
 
 export async function appleTranslate(text: string, options?: { source?: string; target?: string; signal?: AbortSignal; onTrace?: (message: string) => void }): Promise<string> {
   return appleTranslator.translate(text, options)

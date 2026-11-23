@@ -10,7 +10,12 @@ export function createRealtimeClient(contentRoot: string) {
     settings: runtime.settings,
     remoteOnline: runtime.remoteOnline,
     activity: runtime.recordActivity,
-    dispose: runtime.dispose,
+    dispose: () => {
+      runtime.dispose()
+      if (host.__chayaTranslationRuntime === runtime) {
+        delete host.__chayaTranslationRuntime
+      }
+    },
     request: (texts: string[], signal: AbortSignal) => runtime.translate(texts, { signal, interactive: true }),
     requestBackground: (texts: string[], signal: AbortSignal) => runtime.translate(texts, { signal }),
   }

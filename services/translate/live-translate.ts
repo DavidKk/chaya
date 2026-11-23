@@ -44,6 +44,7 @@ import { loadResourceMatcher } from './resources/snapshot'
 import { logTranslationEvent } from './runtime-log'
 import { withEngineCapacity } from './scheduler/engine-capacity'
 import { joinTranslationRequest } from './scheduler/in-flight'
+import { getSeedSourceLanguage } from './seed-source-language'
 import { isSensitiveForCloud } from './sensitive-text'
 import { openSharedCache } from './shared-cache'
 import { writeTranslationBatch } from './shared-cache/batch-writes'
@@ -246,6 +247,7 @@ export async function liveTranslateTexts(
   }
 
   const contentRoot = opts?.contentRoot === undefined ? resolveBoundContentRoot() : opts.contentRoot
+  const sourceLang = opts?.sourceLang?.trim() || (contentRoot ? getSeedSourceLanguage(contentRoot) : undefined) || undefined
   const explicitEngines = opts?.engines !== undefined
   let engines: TranslateRunEngine[] = opts?.engines ? opts.engines.filter(Boolean) : []
   let agents: TranslateAgentEntry[] = []
@@ -266,7 +268,7 @@ export async function liveTranslateTexts(
     `Pipeline configured: items=${unique.length}, sourceChars=${unique.reduce((sum, src) => sum + Array.from(src).length, 0)}, engines=${engines.join(',')}, elapsedMs=${Math.round(performance.now() - started)}`
   )
   const bypassCache = opts?.cacheMode === 'bypass'
-  const pairFor = (src: string) => resolveCacheLangPair({ from: opts?.sourceLang, to: opts?.targetLang, src })
+  const pairFor = (src: string) => resolveCacheLangPair({ from: sourceLang, to: opts?.targetLang, src })
   const chineseTarget = pairFor('').to === 'zh'
   let cacheStore: ReturnType<typeof openSharedCache> | undefined
   const getCache = () => (cacheStore ??= timed('Shared cache opened', () => (opts?.sharedCache ? opts.sharedCache() : openSharedCache())))
@@ -322,6 +324,8 @@ export async function liveTranslateTexts(
 
     const force = Boolean(opts?.force) || bypassCache
     const persist = opts?.persist !== false
+    const nameEntries = contentRoot ? await loadGameNameEntries(contentRoot, opts?.targetLang || 'zh') : []
+    const batchConcurrency = engines.includes('apple') ? 40 : 4
 
     items.push(
       ...(await mapTranslationBatch(
@@ -376,6 +380,7 @@ export async function liveTranslateTexts(
                       gaps.map((gap) => gap.text),
                       {
                         ...opts,
+                        sourceLang,
                         onEngineDispatch,
                         onCacheWrite: (records, sources) => {
                           writes.push(...records.map((record) => ({ record, sources })))
@@ -470,8 +475,7 @@ export async function liveTranslateTexts(
                 })
                 if (resource) return { src, zh: resource.targetText, engine: 'resource', resource, status: 'full' as const }
               }
-              const nameEntries = contentRoot ? await loadGameNameEntries(contentRoot, opts?.targetLang || 'zh') : []
-              const namePlan = planLockedNames(src, nameEntries, { sourceLang: opts?.sourceLang, targetLang: opts?.targetLang || 'zh' })
+              const namePlan = planLockedNames(src, nameEntries, { sourceLang, targetLang: opts?.targetLang || 'zh' })
               if (namePlan && (!namePlan.wholeName || !opts?.optimizeWholeName)) {
                 const gapZh = new Map<string, string>()
                 const sources = new Set<string>(['cache'])
@@ -481,6 +485,7 @@ export async function liveTranslateTexts(
                     namePlan.translatable.map((gap) => gap.text),
                     {
                       ...opts,
+                      sourceLang,
                       onEngineDispatch,
                       onItem: undefined,
                       preparedPlan: undefined,
@@ -512,7 +517,12 @@ export async function liveTranslateTexts(
                   if (contentRoot && chineseTarget) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(contentRoot, written.records))
                   exactBackfillQueued = written.records.some((record) => record.src === src)
                   if (written.rejected.length) {
-                    return { src, zh: null, error: 'Translation result did not pass storage validation' }
+                    if (contentRoot && isReusableTranslation(src, zh)) {
+                      appendGameNdjson(contentRoot, [[src, zh]])
+                    }
+                    if (!isReusableTranslation(src, zh)) {
+                      return { src, zh: null, error: 'Translation result did not pass storage validation' }
+                    }
                   }
                 }
                 items.push({ src, zh, engine: tag, resultSources: [...sources], status: 'full' })
@@ -539,7 +549,7 @@ export async function liveTranslateTexts(
                 return items[0]
               }
 
-              const langPair = { from: opts?.sourceLang || detectCacheLang(sendText), to: opts?.targetLang || 'zh' }
+              const langPair = { from: sourceLang || detectCacheLang(sendText), to: opts?.targetLang || 'zh' }
               try {
                 const errors: Error[] = []
                 let winner: { engine: TranslateRunEngine; rawZh: string; zhCore: string; zh: string } | undefined
@@ -659,7 +669,13 @@ export async function liveTranslateTexts(
                   if (!opts?.sharedCache && backfillRoot) timed(`Item ${itemId} backfill queued`, () => getCache().queueBackfill(backfillRoot, written.records))
                   exactBackfillQueued = written.records.some((record) => record.src === src)
                   if (written.rejected.length) {
-                    return { src, zh: null, error: 'Translation result did not pass storage validation' }
+                    const currentZh = winner.zhCore || winner.zh
+                    if (contentRoot && isReusableTranslation(src, currentZh)) {
+                      appendGameNdjson(contentRoot, [[src, currentZh]])
+                    }
+                    if (!isReusableTranslation(src, currentZh)) {
+                      return { src, zh: null, error: 'Translation result did not pass storage validation' }
+                    }
                   }
                 }
                 items.push({ src, zh: winner.zh, engine: tag })
@@ -701,7 +717,7 @@ export async function liveTranslateTexts(
           trace?.(`Item ${itemId} finished: engine=${item.engine || 'none'}, success=${item.zh != null && !item.error}, elapsedMs=${Math.round(performance.now() - itemStarted)}`)
           return item
         },
-        engines.length === 1 && engines[0] === 'apple' ? MAX_BATCH : 4
+        batchConcurrency
       ))
     )
   } finally {

@@ -249,10 +249,19 @@ export function isIdenticalTranslation(src: string, zh: string): boolean {
 export function isStorableTranslation(src: string, zh: string, targetLang = 'zh'): boolean {
   if (!validDynamicTranslation(src, zh)) return false
   if (translationRubyChunks(zh).some((part) => part.ruby && JAPANESE.test(part.base! + part.reading!))) return false
-  if (!String(src ?? '').trim() || !String(zh ?? '').trim() || isIdenticalTranslation(src, zh)) return false
+  if (!String(src ?? '').trim() || !String(zh ?? '').trim()) return false
   const sourceText = normCmp(stripControlNoise(src))
   const translatedText = normCmp(stripControlNoise(zh))
-  if (!translatedText || (sourceText && sourceText === translatedText)) return false
+  if (!translatedText) return false
+  if (isIdenticalTranslation(src, zh)) {
+    // If the source has kana, an unchanged translation is an untranslated failure.
+    // But if the source has no kana, is valid Chinese Han text, and does not retain Japanese-specific variant forms,
+    // identical Han characters are a legitimate Chinese translation (e.g. 雪山, 地震, 自慰, 吸血, 毒爪).
+    if (JAPANESE.test(sourceText) || !HAN.test(sourceText)) return false
+    if (retainsJapaneseHanPhrase(sourceText, translatedText) || /[応駅図広気帰転戦楽読売発変実対観関験険値]/.test(translatedText)) return false
+    return true
+  }
+  if (sourceText && sourceText === translatedText) return false
   if (JAPANESE.test(translatedText)) return false
   if (retainsJapaneseHanPhrase(sourceText, translatedText)) return false
   const isTargetZh =
@@ -275,7 +284,11 @@ export function isReusableTranslation(src: string, zh: string): boolean {
 export function isUsefulTranslation(src: string, send: string, raw: string, zh: string, targetLang = 'zh'): boolean {
   if (!String(raw ?? '').trim() || !String(zh ?? '').trim()) return false
   if (!isStorableTranslation(src, zh, targetLang)) return false
-  if (normCmp(raw) === normCmp(send)) return false
+  if (normCmp(raw) === normCmp(send)) {
+    const cleanSend = stripControlNoise(send)
+    if (JAPANESE.test(cleanSend) || !HAN.test(cleanSend)) return false
+    if (retainsJapaneseHanPhrase(cleanSend, raw) || /[応駅図広気帰転戦楽読売発变实对观关验险値]/.test(cleanSend)) return false
+  }
   const placeholders = send.match(/__C\d+__/g) || []
   if (JSON.stringify([...placeholders].sort()) !== JSON.stringify((raw.match(/__C\d+__/g) || []).sort())) return false
   if (/__C\d+____C\d+__/.test(raw) && !/__C\d+____C\d+__/.test(send)) return false
@@ -296,7 +309,7 @@ export function shouldTranslate(text: string, sourceLang?: string | number): boo
     return compact.length > 0 && !/^[\p{P}\p{S}]+$/u.test(compact)
   }
   // Japanese map names and UI labels may contain only Han characters.
-  if (!JAPANESE.test(core) && !isSourceText(core, sourceLang === 'en' ? 'en' : 'all')) return false
+  if (!JAPANESE.test(core) && !isSourceText(core, sourceLang === 'en' ? 'en' : sourceLang === 'ja' ? 'ja' : 'all')) return false
   const compact = core.replace(/[\s\u3000]+/g, '')
   return !(compact.length > 0 && /^[\p{P}\p{S}]+$/u.test(compact))
 }

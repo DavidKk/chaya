@@ -407,22 +407,14 @@ export function createMatchIndex(client: DatabaseSync) {
       return records.every((r) => Number((prepare(joined + ' WHERE r.id=?').get(r.id) as { revision: number } | undefined)?.revision) === r.revision)
     },
     plan(src: string, pair: CacheLangPair, local: SentenceRecord[] & { limited?: boolean } = [], opts?: PlanSentenceOptions) {
-      client.exec('BEGIN')
-      try {
-        const selected = candidates(src, pair, opts)
-        const limited = selected.limited || local.limited === true
-        const resolved = planSentenceTranslation(src, limited ? [] : [...local, ...selected.records].filter((r) => pair.to !== 'zh' || isReusableTranslation(r.src, r.zh)), opts)
-        const plan = {
-          ...resolved,
-          limited: limited || resolved.limited,
-          ruleVersion: SENTENCE_RULE_VERSION,
-          corpusVersion: String((prepare("SELECT value FROM cache_meta WHERE key='sentence_version'").get() as { value: string }).value),
-        }
-        client.exec('COMMIT')
-        return plan
-      } catch (e) {
-        client.exec('ROLLBACK')
-        throw e
+      const selected = candidates(src, pair, opts)
+      const limited = selected.limited || local.limited === true
+      const resolved = planSentenceTranslation(src, limited ? [] : [...local, ...selected.records].filter((r) => pair.to !== 'zh' || isReusableTranslation(r.src, r.zh)), opts)
+      return {
+        ...resolved,
+        limited: limited || resolved.limited,
+        ruleVersion: SENTENCE_RULE_VERSION,
+        corpusVersion: String((prepare("SELECT value FROM cache_meta WHERE key='sentence_version'").get() as { value: string }).value),
       }
     },
 

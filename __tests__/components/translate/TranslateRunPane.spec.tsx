@@ -142,3 +142,44 @@ it('hides an expired rate even while request logs keep updating the job snapshot
   expect(host.textContent).not.toContain('字/s')
   expect(host.textContent).not.toContain('剩余')
 })
+
+it('shows retry failures button only after translation is complete with failures and hides completed button', async () => {
+  // Case 1: In progress with failures -> retry button hidden, continue/start button shown
+  mockFetch.mockResolvedValue(
+    respond({
+      ...snapshot('paused', 'Paused batch'),
+      missing: 5,
+      failedCount: 3,
+      failedChars: 30,
+    })
+  )
+  await render()
+  expect(host.textContent).toContain('继续翻译')
+  expect(host.textContent).not.toContain('一键重试失败项')
+
+  // Case 2: Complete with failures -> retry button shown, normal translate button hidden
+  mockFetch.mockResolvedValue(
+    respond({
+      ...snapshot('done', 'All batches complete'),
+      missing: 0,
+      failedCount: 3,
+      failedChars: 30,
+    })
+  )
+  await tick(3000)
+  expect(host.textContent).toContain('一键重试失败项 (3)')
+  expect(host.textContent).not.toContain('已完成')
+
+  // Case 3: Complete with 0 failures -> completed button shown, retry button hidden
+  mockFetch.mockResolvedValue(
+    respond({
+      ...snapshot('done', 'All batches complete'),
+      missing: 0,
+      failedCount: 0,
+      failedChars: 0,
+    })
+  )
+  await tick(3000)
+  expect(host.textContent).toContain('已完成')
+  expect(host.textContent).not.toContain('一键重试失败项')
+})

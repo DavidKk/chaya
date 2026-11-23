@@ -106,8 +106,16 @@ function withEntryIds(contentRoot: string, state: TranslateEngineState): Transla
   return next
 }
 
+function defaultAppleOn(): boolean {
+  if (process.platform !== 'darwin') return false
+  const bin = path.resolve(process.cwd(), 'native/bin/chaya-apple-translator')
+  return fs.existsSync(bin)
+}
+
 function combine(contentRoot: string, raw: unknown): TranslateEngineState {
-  const local = mergeEngineState(raw)
+  const hasRaw = raw && typeof raw === 'object' && Object.keys(raw).length > 0
+  const appleDefault = !hasRaw && defaultAppleOn()
+  const local = mergeEngineState(raw, appleDefault ? { switches: { apple: true }, configs: { apple: { enabled: true } } } : undefined)
   let shared = readSharedTranslateAgents()
   if (!shared.stored && local.agents.length) {
     shared = writeSharedTranslateAgents({ agents: local.agents, order: local.order })
@@ -133,16 +141,19 @@ export function getTranslateEngineSwitches(contentRoot = resolveContentRoot(fals
   if (!contentRoot) {
     const sharedAgents = readSharedTranslateAgents() || { agents: [], order: [] }
     const sharedSwitches = readSharedSwitches()
+    const appleDefault = !sharedSwitches && defaultAppleOn()
     const initialConfigs = sharedSwitches?.configs || {
       ...DEFAULT_ENGINE_SETTINGS,
+      ...(appleDefault ? { apple: { ...DEFAULT_ENGINE_SETTINGS.apple, enabled: true } } : {}),
       bergamot: { ...DEFAULT_ENGINE_SETTINGS.bergamot, id: 'mvsd812nzmca' },
     }
     const combined = mergeEngineState({
       ...DEFAULT_ENGINE_SWITCHES,
+      ...(appleDefault ? { apple: true } : {}),
       ...(sharedSwitches?.switches || {}),
       configs: initialConfigs,
       agents: sharedAgents.agents,
-      order: sharedSwitches?.order || [...sharedAgents.order, ...DEFAULT_ENGINE_ORDER],
+      order: sharedSwitches?.order || [...sharedAgents.order, ...(appleDefault ? ['apple', ...DEFAULT_ENGINE_ORDER.filter((e) => e !== 'apple')] : DEFAULT_ENGINE_ORDER)],
     })
     const assigned = assignMissingEngineEntryIds(combined.configs)
     if (assigned.changed || !sharedSwitches) {

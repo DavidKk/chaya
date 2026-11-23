@@ -17,7 +17,8 @@ export function createGameProjections(client: DatabaseSync, index: MatchIndex, d
   client.exec(`CREATE TABLE IF NOT EXISTS game_projections (
     root TEXT NOT NULL, src TEXT NOT NULL, src_lang TEXT NOT NULL, tgt_lang TEXT NOT NULL,
     signature TEXT NOT NULL DEFAULT '', revision INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY(root,src,src_lang,tgt_lang))`)
+    PRIMARY KEY(root,src,src_lang,tgt_lang));
+  CREATE INDEX IF NOT EXISTS idx_game_projections_order ON game_projections(root, revision, src, src_lang, tgt_lang);`)
   const originDatabase = `${database}:game-projection`
   function signature(root: string) {
     return JSON.stringify([SENTENCE_RULE_VERSION, index.version(), getGameCacheContext(root).authorityVersion])
@@ -40,14 +41,19 @@ export function createGameProjections(client: DatabaseSync, index: MatchIndex, d
       const started = performance.now()
       const context = getGameCacheContext(root)
       const nextSignature = signature(root)
+      const limit = budgetMs < Infinity ? Math.max(100, Math.ceil(budgetMs * 4)) : -1
       // Older revisions go first so continuous corpus writes cannot starve later sources.
-      const pending = client
-        .prepare('SELECT * FROM game_projections WHERE root=? AND signature<>? ORDER BY revision,src,src_lang,tgt_lang')
-        .all(root, nextSignature) as Projection[]
+      const query =
+        limit > 0
+          ? client.prepare('SELECT * FROM game_projections WHERE root=? AND signature<>? ORDER BY revision,src,src_lang,tgt_lang LIMIT ?')
+          : client.prepare('SELECT * FROM game_projections WHERE root=? AND signature<>? ORDER BY revision,src,src_lang,tgt_lang')
+      const pending = (limit > 0 ? query.all(root, nextSignature, limit + 1) : query.all(root, nextSignature)) as Projection[]
+      const hasMore = limit > 0 && pending.length > limit
+      const entries = hasMore ? pending.slice(0, limit) : pending
       const updateProjection = client.prepare('UPDATE game_projections SET signature=?,revision=? WHERE root=? AND src=? AND src_lang=? AND tgt_lang=?')
       const events: CacheRow[] = []
       const acknowledge: Array<() => void> = []
-      for (const entry of pending) {
+      for (const entry of entries) {
         if (acknowledge.length && performance.now() - started >= budgetMs) break
         const pair = { from: entry.src_lang, to: entry.tgt_lang } as CacheLangPair
         const exact = !context.blocked(entry.src) && context.lookup[entry.src] == null ? index.record(entry.src, pair) : null
@@ -74,7 +80,7 @@ export function createGameProjections(client: DatabaseSync, index: MatchIndex, d
           updateProjection.run(nextSignature, revision, root, entry.src, entry.src_lang, entry.tgt_lang)
         })
       }
-      return { events, acknowledge, pending: acknowledge.length < pending.length }
+      return { events, acknowledge, pending: hasMore || acknowledge.length < entries.length }
     },
   }
 }

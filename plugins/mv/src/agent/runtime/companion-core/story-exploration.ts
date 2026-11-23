@@ -485,13 +485,17 @@ export class StoryExplorationPlanner {
 
     // Sort with immediate proximity bonus: clickable objects right next to the player take precedence
     candidates.sort((a, b) => {
-      if (!storyTravelPolicy(this.playerGuidance).explicitTravel && (a.kind === 'transfer') !== (b.kind === 'transfer')) return a.kind === 'transfer' ? 1 : -1
+      const isStoryExitA = a.guided || a.priority >= 120
+      const isStoryExitB = b.guided || b.priority >= 120
+      if (!isStoryExitA && !isStoryExitB && !storyTravelPolicy(this.playerGuidance).explicitTravel && (a.kind === 'transfer') !== (b.kind === 'transfer')) {
+        return a.kind === 'transfer' ? 1 : -1
+      }
       const distA = Math.abs(a.x - playerPos.x) + Math.abs(a.y - playerPos.y)
       const distB = Math.abs(b.x - playerPos.x) + Math.abs(b.y - playerPos.y)
       const isPickupA = a.kind === 'chest' && (a.name?.includes('Pickup') || a.priority < 100)
       const isPickupB = b.kind === 'chest' && (b.name?.includes('Pickup') || b.priority < 100)
-      const boostA = a.kind !== 'transfer' ? (distA <= 1 ? (isPickupA ? 85 : 55) : distA <= 2 ? (isPickupA ? 70 : 40) : distA <= 4 ? (isPickupA ? 45 : 20) : 0) : 0
-      const boostB = b.kind !== 'transfer' ? (distB <= 1 ? (isPickupB ? 85 : 55) : distB <= 2 ? (isPickupB ? 70 : 40) : distB <= 4 ? (isPickupB ? 45 : 20) : 0) : 0
+      const boostA = a.kind !== 'transfer' || isStoryExitA ? (distA <= 1 ? (isPickupA ? 85 : 55) : distA <= 2 ? (isPickupA ? 70 : 40) : distA <= 4 ? (isPickupA ? 45 : 20) : 0) : 0
+      const boostB = b.kind !== 'transfer' || isStoryExitB ? (distB <= 1 ? (isPickupB ? 85 : 55) : distB <= 2 ? (isPickupB ? 70 : 40) : distB <= 4 ? (isPickupB ? 45 : 20) : 0) : 0
       const scoreA = a.priority + boostA
       const scoreB = b.priority + boostB
       if (scoreB !== scoreA) return scoreB - scoreA

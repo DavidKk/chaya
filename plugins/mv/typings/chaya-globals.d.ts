@@ -158,6 +158,9 @@ declare global {
   var Window_Message: any
   var Window_ChoiceList: any
   var Window_ScrollText: any
+  var Window_ActorCommand: any
+  var Window_SkillList: any
+  var TextManager: any
   var Bitmap: any
   var Game_Message: any
   var Graphics: { boxWidth: number; boxHeight: number }

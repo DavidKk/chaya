@@ -4,11 +4,35 @@ import path from 'node:path'
 
 import type { SeedProgress } from '@/lib/translate/runtime-api'
 
-import { readSeedJobState, seedJobFile } from './seed-job-state'
+import { readSeedJobState, seedJobFile, writeSeedJobState } from './seed-job-state'
 import { charCount } from './text-classify'
 
 export function seedFailureFile(contentRoot: string) {
   return seedJobFile(contentRoot).replace(/\.json$/, '.failures.ndjson')
+}
+
+export function clearSeedFailures(contentRoot: string, sources?: string[]) {
+  const file = seedFailureFile(contentRoot)
+  if (!sources || sources.length === 0) {
+    try {
+      if (fs.existsSync(file)) fs.unlinkSync(file)
+    } catch {
+      /* ignore */
+    }
+    const state = readSeedJobState(contentRoot)
+    if (state && (state.failedSources.length > 0 || (state.progress?.failedCount ?? 0) > 0)) {
+      state.failedSources = []
+      if (state.progress) {
+        state.progress.failedCount = 0
+        state.progress.failedChars = 0
+      }
+      writeSeedJobState(state)
+    }
+  } else {
+    for (const src of sources) {
+      writeSeedFailure(contentRoot, src, null)
+    }
+  }
 }
 
 export function readSeedFailures(contentRoot: string): Map<string, string> {

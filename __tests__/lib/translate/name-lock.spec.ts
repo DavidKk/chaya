@@ -39,6 +39,28 @@ describe('name-lock', () => {
     expect(stitchLockedNamePlan(multiline, lines, new Map([['5:13', '母亲']]))).toBe('蕾的\n母亲')
   })
 
+  it('treats alphanumeric codes and model suffixes like D3 as literal gaps in Japanese text', () => {
+    const jpNames = [
+      { src: 'エネミー', zh: '敌人' },
+      { src: 'ボス', zh: '老板' },
+      { src: '灯火', zh: '光' },
+      { src: '移動：2F', zh: '移动：2楼' },
+    ]
+    const planD3 = planLockedNames('エネミーD3', jpNames, { sourceLang: 'ja' })!
+    expect(planD3.spans.map((s) => [s.src, s.zh])).toEqual([['エネミー', '敌人']])
+    expect(planD3.translatable).toEqual([])
+    expect(stitchLockedNamePlan('エネミーD3', planD3, new Map())).toBe('敌人D3')
+
+    const planA1 = planLockedNames('灯火-A1', jpNames, { sourceLang: 'ja' })!
+    expect(planA1.translatable).toEqual([])
+    expect(stitchLockedNamePlan('灯火-A1', planA1, new Map())).toBe('光-A1')
+
+    const planBoss = planLockedNames('【Q201aボス】赤x2+僧', jpNames, { sourceLang: 'ja' })!
+    expect(planBoss.spans.map((s) => [s.src, s.zh])).toEqual([['ボス', '老板']])
+    expect(planBoss.translatable.map((g) => g.text)).toEqual(['】赤x2+僧'])
+    expect(stitchLockedNamePlan('【Q201aボス】赤x2+僧', planBoss, new Map([['planBossGap', '】红x2+僧']]))).toBe('【Q201a老板】赤x2+僧')
+  })
+
   it.each(['en', 'cht', 'zh-tw'])('does not apply simplified name locks to target %s', (targetLang) => {
     expect(planLockedNames("Rei's mother.", entries, { targetLang })).toBeNull()
   })

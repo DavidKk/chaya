@@ -20,6 +20,7 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
   const rows = new Map<string, TranslationRow>()
   const sourceRows = new Map<string, CacheRow>()
   const deleted = new Set<string>()
+  const resolved = new Map<string, string | null>()
   function apply(row: CacheRow) {
     applyCacheRow(sourceRows, row)
     if (!row.origin) {
@@ -34,6 +35,7 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
   let seedStamp = ''
   let libraryStamp = ''
   let loadedBytes = 0
+  let revision = 0
   let writes = Promise.resolve()
   let directory = ''
   let libraryFile = ''
@@ -136,6 +138,8 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
     })
   }
   function syncRows() {
+    revision++
+    resolved.clear()
     cachedRecords = null
     resolver = null
     numeric = null
@@ -163,22 +167,39 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
   const plan = (src: string) => (deleted.has(src) ? createSentenceResolver([]).plan(src) : (resolver ??= createSentenceResolver(records())).plan(src))
   function lookup(src: string, trackHit = false): string | null {
     if (deleted.has(src)) return null
-    const planned = plan(src)
+    if (!trackHit && resolved.has(src)) return resolved.get(src)!
+    const plans = new Map<string, ReturnType<typeof plan>>()
+    const query = (text: string) => {
+      let result = plans.get(text)
+      if (!result) {
+        result = plan(text)
+        plans.set(text, result)
+      }
+      return result
+    }
+    const remember = (value: string | null) => {
+      if (resolved.size >= 50_000) resolved.clear()
+      resolved.set(src, value)
+      return value
+    }
+    const planned = query(src)
     if (planned.status === 'full') {
       if (trackHit)
         for (const match of planned.matches) {
           const row = rows.get(match.record.src)
           if (row) row.hitCount++
         }
-      return planned.zh
+      return remember(planned.zh)
     }
     const numericHit = (numeric ??= createNumericLabelIndex(records())).resolve(src)
-    if (numericHit) return numericHit
-    return lookupCachedTranslation((key) => {
-      const row = rows.get(key)
-      if (row && trackHit) row.hitCount++
-      return row?.zh ?? (plan(key).status === 'full' ? plan(key).zh : null)
-    }, src)
+    if (numericHit) return remember(numericHit)
+    return remember(
+      lookupCachedTranslation((key) => {
+        const row = rows.get(key)
+        if (row && trackHit) row.hitCount++
+        return row?.zh ?? (query(key).status === 'full' ? query(key).zh : null)
+      }, src)
+    )
   }
   async function put(pairs: Array<[string, string | null]>, engine = 'manual', alignments?: Array<{ src: string; groups: AlignmentGroup[] }>) {
     await load()
@@ -266,6 +287,7 @@ export function createTranslationStore(contentRoot: string, mods: NodeFsPath, on
     writeJson,
     fileFor,
     seed: () => seed,
+    revision: () => revision,
     rows,
     records,
     plan,

@@ -46,17 +46,28 @@ export function importGameLocalesCorpus(contentRoot: string, opts: { limit?: num
   const batchSize = opts.batchSize && opts.batchSize > 0 ? opts.batchSize : 1000
 
   try {
-    for (let i = 0; i < selectedPairs.length; i += batchSize) {
-      const chunk = selectedPairs.slice(i, i + batchSize)
-      for (const pair of chunk) {
+    const grouped = new Map<string, { from: string; to: string; pairs: [string, string][] }>()
+    for (const pair of selectedPairs) {
+      const k = `${pair.from}->${pair.to}`
+      let g = grouped.get(k)
+      if (!g) {
+        g = { from: pair.from, to: pair.to, pairs: [] }
+        grouped.set(k, g)
+      }
+      g.pairs.push([pair.src, pair.zh])
+    }
+
+    for (const group of grouped.values()) {
+      for (let i = 0; i < group.pairs.length; i += batchSize) {
+        const chunk = group.pairs.slice(i, i + batchSize)
         try {
-          const res = cache.writeMany([[pair.src, pair.zh]], 'game:locales', {
-            from: pair.from as any,
-            to: pair.to as any,
+          const res = cache.writeMany(chunk, 'game:locales', {
+            from: group.from as any,
+            to: group.to as any,
           })
           inserted += res.accepted.length
         } catch {
-          // ignore single item conflict/error
+          // ignore single chunk error
         }
       }
     }

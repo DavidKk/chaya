@@ -259,7 +259,7 @@ export function GameEditApp({ open, onRequestOpen, onRequestClose }: Props) {
   useEffect(() => {
     if (open) setHasOpened(true)
   }, [open])
-  const toolSettings = useToolSettings(pluginGameAgentRequest, 3000)
+  const toolSettings = useToolSettings(pluginGameAgentRequest, open ? 15000 : undefined)
   const tRef = useRef(t)
   tRef.current = t
   const [initial] = useState(initialView)

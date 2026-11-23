@@ -4,7 +4,7 @@ import { isTechnicalField, isTextField } from './data-fields'
 import { extractPluginText } from './plugin-text'
 
 type NodeFiles = { fs: typeof import('node:fs'); path: typeof import('node:path') }
-const EXCLUDED_DIRS = new Set(['node_modules', '.git', 'chaya', 'save', 'saves', 'locales', 'img', 'audio', 'movies', 'fonts'])
+const EXCLUDED_DIRS = new Set(['node_modules', '.git', 'chaya', 'save', 'saves', 'locales', 'localization', 'languages', 'csv', 'img', 'audio', 'movies', 'fonts'])
 const HANDLED_DATA = new Set([...DB_SPECS.map(([file]) => file), 'System.json', 'CommonEvents.json', 'Troops.json', 'MapInfos.json', 'Animations.json', 'Tilesets.json'])
 
 /** Return additional text resources only. Dedicated field and event parsers handle engine data, keeping scripts and developer notes out of game copy. */
@@ -15,7 +15,8 @@ export function* textResourceFiles(root: string, { fs, path }: NodeFiles): Gener
       if (entry.isDirectory()) {
         if (!EXCLUDED_DIRS.has(entry.name.toLowerCase()) && file !== 'js/libs') yield* walk(file)
       } else if (entry.isFile() && /\.(?:json|csv|txt)$/i.test(entry.name)) {
-        if (entry.name === 'package.json' || /(?:trans\.seed|extract\.strings|extract\.compare)\.json$/i.test(entry.name)) continue
+        if (entry.name === 'package.json' || /(?:trans\.seed|extract\.strings|extract\.compare)\.json$/i.test(entry.name) || /(?:UI|strings|locales)\.csv$/i.test(entry.name))
+          continue
         if (relative === 'data' && (HANDLED_DATA.has(entry.name) || /^Map\d+\.json$/.test(entry.name))) continue
         yield file
       }

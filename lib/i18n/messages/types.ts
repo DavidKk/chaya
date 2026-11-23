@@ -831,6 +831,10 @@ export type MessageTree = {
     statusFailed: string
     failureHint: string
     failedSummary: string
+    failedCount?: string
+    failedCharsHint?: string
+    retryFailuresBtn?: string
+    retryFailuresDone?: string
     processedLabel: string
     statusTranslated: string
     sourceManual: string

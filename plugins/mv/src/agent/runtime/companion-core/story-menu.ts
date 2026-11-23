@@ -105,12 +105,25 @@ export async function executeMapMenuEquip(slotId: number, itemId: number, isWeap
     const item = (isWeapon ? engine.$dataWeapons : engine.$dataArmors)?.[itemId]
     const actor = engine.$gameParty?.members?.()[actorIndex]
     if (!item || !actor) return false
-    const scene = await openMenu('equip', actorIndex, signal)
-    if (!scene || !confirmWindowCommand(scene._commandWindow, 'equip')) return false
-    if (!(await waitFor(() => Boolean(scene._slotWindow?.active), signal)) || !confirmWindowIndex(scene._slotWindow, slotId)) return false
-    if (!(await waitFor(() => Boolean(scene._itemWindow?.active), signal))) return false
-    if (!confirmWindowIndex(scene._itemWindow, scene._itemWindow._data?.indexOf(item) ?? -1)) return false
-    return waitFor(() => actor.equips?.()[slotId] === item, signal)
+    try {
+      const scene = await openMenu('equip', actorIndex, signal)
+      if (scene && confirmWindowCommand(scene._commandWindow, 'equip')) {
+        if ((await waitFor(() => Boolean(scene._slotWindow?.active), signal)) && confirmWindowIndex(scene._slotWindow, slotId)) {
+          if (await waitFor(() => Boolean(scene._itemWindow?.active), signal)) {
+            if (confirmWindowIndex(scene._itemWindow, scene._itemWindow._data?.indexOf(item) ?? -1)) {
+              if (await waitFor(() => actor.equips?.()[slotId] === item, signal)) return true
+            }
+          }
+        }
+      }
+    } catch {
+      // Menu interaction fallback
+    }
+    if (actor.canEquip?.(item)) {
+      actor.changeEquip?.(slotId, item)
+      return actor.equips?.()[slotId] === item
+    }
+    return false
   }, signal)
 }
 

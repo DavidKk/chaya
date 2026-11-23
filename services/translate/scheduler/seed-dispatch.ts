@@ -1,5 +1,5 @@
 import type { TranslateAgentEntry, TranslateEngineState, TranslateRunEngine } from '@/lib/translate/engines'
-import { engineAcceptsSensitive, resolveEngineCapacitySettings, translationFallbackOrder } from '@/lib/translate/engines'
+import { engineAcceptsSensitive, translationFallbackOrder } from '@/lib/translate/engines'
 import type { SentencePlan } from '@/lib/translate/sentence-plan'
 
 import type { AgentBatchScope } from '../agent-translate'
@@ -9,8 +9,6 @@ import { openSharedCache } from '../shared-cache'
 import type { IndexedRecord } from '../shared-cache/match-index'
 import { charCount } from '../text-classify'
 import type { CacheScanResult } from './cache-scan'
-import { engineConfiguredCapacity } from './engine-capacity'
-import { seedEngineBudget } from './seed-engine-budget'
 import { DONE, MISS, RECHECK, RUNNING } from './seed-engine-queue'
 
 export type SeedAttempt = {
@@ -24,6 +22,7 @@ export type SeedAttempt = {
 
 type SeedDispatchDeps = {
   contentRoot: string
+  sourceLang?: string
   pending: () => string[]
   states: Uint8Array
   loads: Map<TranslateRunEngine, { items: number; chars: number }>
@@ -67,18 +66,17 @@ export function createSeedDispatcher(deps: SeedDispatchDeps) {
 
   function takeAppleSegment(first: number): number[] {
     const ids = [first]
-    noteLoad(first, 'apple')
+    let totalChars = charCount(deps.pending()[first])
     deps.states[first] = RUNNING
-    const budget = seedEngineBudget('apple', deps.agents(), deps.configs())
-    const slots = budget?.items ?? engineConfiguredCapacity('apple', resolveEngineCapacitySettings('apple', deps.configs(), deps.agents()))
-    while (ids.length < 40) {
-      const load = deps.loads.get('apple')
-      if ((load?.items || 0) >= slots || (load?.chars || 0) >= 40_000) break
+    while (ids.length < 40 && totalChars < 3500) {
       const next = deps.nextTask('apple')
       if (next === undefined) break
       ids.push(next)
-      noteLoad(next, 'apple')
+      totalChars += charCount(deps.pending()[next])
       deps.states[next] = RUNNING
+    }
+    for (const id of ids) {
+      noteLoad(id, 'apple')
     }
     return ids
   }
@@ -154,12 +152,13 @@ export function createSeedDispatcher(deps: SeedDispatchDeps) {
           ids.map((current) => deps.pending()[current]),
           {
             contentRoot: deps.contentRoot,
+            sourceLang: deps.sourceLang,
             engines: [engine],
             sharedCache: deps.cache,
             cacheMode: singlePlan ? undefined : 'bypass',
             preparedPlan: singlePlan,
             local: { signal: controller.signal, batchScope: deps.batchScope },
-            itemTimeoutMs: engine.startsWith('agent:') ? 5 * 60 * 1000 : 15000,
+            itemTimeoutMs: engine.startsWith('agent:') ? 5 * 60 * 1000 : 30000,
             onTrace: deps.trace,
             onItem: (item) => {
               if (item.src) settleSrc(item.src, item)

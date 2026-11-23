@@ -281,8 +281,8 @@ function CompanionPanelBody({ gameId, open, observe: _observe, request }: Props)
                         : 'Chat with your companion, or ask them to handle something in the game.'}
                   </span>
                   {hasAgent ? (
-                    <Button size="mini" variant="accent" className="mt-1" onClick={() => void session.sendPrompt('开启托管')}>
-                      <Compass size={12} className="mr-1" aria-hidden />
+                    <Button variant="accent" className="mt-1" onClick={() => void session.sendPrompt('开启托管')}>
+                      <Compass size={14} aria-hidden />
                       {locale.startsWith('zh') || locale === 'cht' ? '开启托管' : 'Start Custody'}
                     </Button>
                   ) : null}

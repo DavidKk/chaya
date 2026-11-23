@@ -6,16 +6,18 @@ import { ensureGameContentDir, gameContentReadPath } from '@/lib/game/content-fi
 import { detectCacheLang } from '@/lib/translate/cache-lang'
 import { buildTranslationExport } from '@/lib/translate/export'
 import { lookupTranslationRecord } from '@/lib/translate/lookup'
-import { reconcileTranslationSeed } from '@/lib/translate/segments'
+import { reconcileTranslationSeed, translationSources } from '@/lib/translate/segments'
 import type { SourceLanguageOption } from '@/lib/translate/source-text'
 import { getResolvedFromConfig } from '@/services/game/binding'
 import { publicGameFiles, writePublicGameDocument } from '@/services/storage/game-files'
 import { lookupGameTranslation } from '@/services/translate/cache-lookup'
 import { getGameCacheContext } from '@/services/translate/game-cache-context'
 import { loadGameTranslateLookup } from '@/services/translate/game-lookup'
+import { importGameLocalesCorpus } from '@/services/translate/locales-corpus'
 import { loadResourceMatcher } from '@/services/translate/resources/snapshot'
 import { openSharedCache } from '@/services/translate/shared-cache'
 
+import { loadGameLocalesCatalog, normalizeLocalesKey } from './lib/game-locales'
 import { runExtract } from './lib/main'
 
 function loadExistingSeed(contentRoot: string): Record<string, string> {
@@ -64,6 +66,49 @@ export function extractAndEnsureSeed(options?: {
   const { OUT, allStrings, originalStrings } = runExtract(contentRoot, options)
   const existing = loadExistingSeed(contentRoot)
   const { seed, entries, added } = reconcileTranslationSeed(allStrings, existing)
+
+  const catalog = loadGameLocalesCatalog(contentRoot)
+  if (catalog.hasLocales) {
+    setImmediate(() => {
+      try {
+        importGameLocalesCorpus(contentRoot)
+      } catch {
+        // non-fatal
+      }
+    })
+    const zhDict = catalog.dictionaries['zh'] || catalog.dictionaries['cn'] || catalog.dictionaries['ch']
+    if (zhDict) {
+      const srcDict =
+        catalog.dictionaries[options?.sourceLanguage && options.sourceLanguage !== 'auto' ? options.sourceLanguage : catalog.primaryLanguage] ||
+        catalog.dictionaries['ja'] ||
+        catalog.dictionaries['en']
+      const srcToZh: Record<string, string> = {}
+      if (srcDict) {
+        for (const [key, srcVal] of Object.entries(srcDict)) {
+          const zhVal = zhDict[key]
+          if (srcVal && zhVal && srcVal.trim() && zhVal.trim()) {
+            srcToZh[srcVal.trim()] = zhVal.trim()
+            for (const part of translationSources(srcVal)) {
+              if (part.trim() && !srcToZh[part.trim()]) {
+                srcToZh[part.trim()] = zhVal.trim()
+              }
+            }
+          }
+        }
+      }
+      for (const [key, val] of Object.entries(seed)) {
+        if (!val || !val.trim()) {
+          const directZh = zhDict[key] || zhDict[normalizeLocalesKey(key)] || srcToZh[key.trim()]
+          if (directZh && directZh.trim()) {
+            seed[key] = directZh.trim()
+            if (entries[key] === '') {
+              entries[key] = directZh.trim()
+            }
+          }
+        }
+      }
+    }
+  }
 
   const seedFile = ensureGameContentDir(contentRoot, 'seed')
   writePublicGameDocument(contentRoot, 'seed', seed)

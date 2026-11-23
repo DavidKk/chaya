@@ -100,7 +100,16 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [view, setView] = useState<EngineView>(INITIAL)
-  const [systemStatus, setSystemStatus] = useState<Partial<Record<OfflineEngine, OfflineStatus>>>({})
+  const [systemStatus, setSystemStatus] = useState<Partial<Record<OfflineEngine, OfflineStatus>>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        if (localStorage.getItem('chaya:apple-translator-installed') === 'true') {
+          return { apple: { installed: true, status: 'installed' } }
+        }
+      } catch {}
+    }
+    return {}
+  })
   const statusController = useRef<AbortController | null>(null)
   const [selectedEngineId, setSelectedEngineId] = useState<EngineId | null>(null)
   // Bergamot debug scenarios only paint on the Bergamot detail sub-card — open it when a preview is active.
@@ -142,7 +151,7 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
 
   const checkSystemStatus = useCallback(
     async (id: OfflineEngine, signal: AbortSignal, pair?: { source?: string; target?: string }) => {
-      setSystemStatus((previous) => ({ ...previous, [id]: undefined }))
+      if (pair) setSystemStatus((previous) => ({ ...previous, [id]: undefined }))
       try {
         const res = await translationFetch('/api/translate', {
           method: 'POST',
@@ -152,7 +161,14 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
         })
         const status = await res.json()
         if (!res.ok || status.ok === false) throw new Error(readApiErrorMessage(status, t('translate.offlineCheckFailed')))
-        if (!signal.aborted) setSystemStatus((previous) => ({ ...previous, [id]: { ...status, installed: status.installed === true } }))
+        if (!signal.aborted) {
+          setSystemStatus((previous) => ({ ...previous, [id]: { ...status, installed: status.installed === true } }))
+          if (id === 'apple' && status.installed) {
+            try {
+              localStorage.setItem('chaya:apple-translator-installed', 'true')
+            } catch {}
+          }
+        }
       } catch (error) {
         if (!signal.aborted)
           setSystemStatus((previous) => ({ ...previous, [id]: { installed: false, status: 'error', message: error instanceof Error ? error.message : undefined } }))
@@ -165,7 +181,6 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
     let cancelled = false
     const controller = new AbortController()
     statusController.current = controller
-    setSystemStatus({})
     ;(async () => {
       try {
         const res = await translationFetch('/api/translate', {
@@ -173,7 +188,7 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mode: 'switches' }),
         })
-        const json = (await res.json()) as Partial<EngineView> & { ok?: boolean; error?: unknown }
+        const json = (await res.json()) as Partial<EngineView> & { ok?: boolean; error?: unknown; systemStatus?: Record<OfflineEngine, OfflineStatus> }
         if (cancelled) return
         if (!res.ok || json.ok === false) {
           reportError(readApiErrorMessage(json, t('translate.enginesLoadFailed')))
@@ -181,7 +196,17 @@ export function TranslateEngineRail({ languagePair, disabled, className, onChang
         }
         const next = viewFrom(json, INITIAL)
         setView(next)
-        for (const id of ['apple', 'bergamot'] as const) void checkSystemStatus(id, controller.signal)
+        if (json.systemStatus) {
+          setSystemStatus((previous) => ({ ...previous, ...json.systemStatus }))
+          if (json.systemStatus.apple?.installed) {
+            try {
+              localStorage.setItem('chaya:apple-translator-installed', 'true')
+            } catch {}
+          }
+        }
+        for (const id of ['apple', 'bergamot'] as const) {
+          if (!json.systemStatus?.[id]?.status) void checkSystemStatus(id, controller.signal)
+        }
         publishEvent(next)
       } catch (err) {
         if (!cancelled) reportError(thrownMessage(err, t, t('translate.enginesLoadFailed')))

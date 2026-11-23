@@ -13,6 +13,12 @@ describe('cache-lang', () => {
     // Han-only source defaults to Japanese for the RPG Maker catalog.
     expect(detectCacheLang('欢迎来到村子')).toBe('ja')
     expect(detectCacheLang('欢迎来到村子', 'zh')).toBe('zh')
+    expect(detectCacheLang('D3', 'ja')).toBe('ja')
+    expect(detectCacheLang('-L', 'ja')).toBe('ja')
+    expect(detectCacheLang('B1', 'ja')).toBe('ja')
+    expect(detectCacheLang('エネミーD3', 'ja')).toBe('ja')
+    expect(detectCacheLang('エネミーD3')).toBe('ja')
+    expect(detectCacheLang('Hello world', 'ja')).toBe('en')
   })
 
   it('detects target language from text', () => {

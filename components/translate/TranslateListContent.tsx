@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { IoChevronBackOutline, IoChevronForwardOutline, IoPlaySkipBackOutline, IoPlaySkipForwardOutline } from 'react-icons/io5'
+import { IoChevronBackOutline, IoChevronForwardOutline, IoPlaySkipBackOutline, IoPlaySkipForwardOutline, IoRefreshOutline } from 'react-icons/io5'
 
 import { useT } from '@/components/i18n/LocaleProvider'
 import { panelFoot } from '@/components/layoutClasses'
@@ -525,6 +525,27 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
     }
   }, [pagedItems, selectedScheme, sourceLang, targetLang, localesMeta, translationFetch, refreshUI, notify, t])
 
+  const [retryingFailures, setRetryingFailures] = useState(false)
+  const handleRetryAllFailures = useCallback(async () => {
+    if (retryingFailures) return
+    setRetryingFailures(true)
+    try {
+      const res = await translationFetch('/api/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'job', action: 'retry-failures', ...(urlGameId ? { game: urlGameId } : {}) }),
+      })
+      const json = (await res.json()) as { ok?: boolean; retriedCount?: number; error?: unknown }
+      if (!res.ok || json.error) throw new Error(readApiErrorMessage(json, t('translate.requestFailed')))
+      notify.success(t('translate.retryFailuresDone', { count: json.retriedCount ?? totalItems }))
+      void loadData()
+    } catch (err) {
+      notify.error(thrownMessage(err, t, t('translate.requestFailed')))
+    } finally {
+      setRetryingFailures(false)
+    }
+  }, [retryingFailures, translationFetch, urlGameId, totalItems, loadData, notify, t])
+
   // Reset single item (reverts to original text without auto-saving)
   const handleReset = useCallback(
     (item: ExtractedTranslationItem) => {
@@ -666,6 +687,21 @@ export function TranslateListContent({ onExtract, onLanguagePairChange }: { onEx
             />
 
             <div className="mx-0.5 h-3.5 w-px shrink-0 bg-line" aria-hidden="true" />
+
+            {statusFilter === 'failed' && totalItems > 0 ? (
+              <Button
+                type="button"
+                variant="warn"
+                size="xs"
+                className="shrink-0 gap-1 text-xs"
+                disabled={translatingPage || savingPage || resettingPage || syncingNames || retryingFailures}
+                loading={retryingFailures}
+                onClick={() => void handleRetryAllFailures()}
+              >
+                <IoRefreshOutline size={14} aria-hidden />
+                {t('translate.retryFailuresBtn') || '一键重试全部失败项'}
+              </Button>
+            ) : null}
 
             {/* 工具栏图标与 Select 同档：中性 ghost；色义留给行内文字钮。顺序：重置 → 翻译 → 同步 → 保存 */}
             <TranslateListPageActions

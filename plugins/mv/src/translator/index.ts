@@ -132,6 +132,7 @@ async function main() {
   }
 
   function loadNdjsonFull(file: string, lookup = Object.create(null) as TransLookup) {
+    if (!fs.existsSync(file)) return { lookup, bytes: 0 }
     const text = fs.readFileSync(file, 'utf8')
     const complete = completeNdjsonChunk(text)
     parseNdjsonChunk(complete.text, lookup)
@@ -151,12 +152,23 @@ async function main() {
     return lookup
   }
 
-  const found: CacheCandidate | undefined = candidates.find((item) => fs.existsSync(item.file))
-  if (!found) {
+  let candidate = candidates.find((item) => fs.existsSync(item.file))
+  if (!candidate && candidates[0]) {
+    candidate = candidates[0]
+    try {
+      fs.mkdirSync(path.dirname(candidate.file), { recursive: true })
+      if (!fs.existsSync(candidate.file)) {
+        fs.writeFileSync(candidate.file, '', 'utf8')
+      }
+    } catch (err) {
+      log.warn('Failed to initialize translation cache file', errMsg(err))
+    }
+  }
+  if (!candidate) {
     log.fail('Public translation snapshot is missing; reconnect the storage service')
     return
   }
-  const cacheFile = found
+  const cacheFile: CacheCandidate = candidate
 
   let lookup = Object.create(null) as TransLookup
   let fileSize = 0
@@ -186,9 +198,14 @@ async function main() {
       seedFile = nextSeed
       seedMtimeMs = seedOk ? nextSeedMtime : 0
       fileSize = loaded.bytes
-      const stat = fs.statSync(cacheFile.file)
-      fileMtimeMs = stat.mtimeMs
-      fileInode = stat.ino
+      if (fs.existsSync(cacheFile.file)) {
+        const stat = fs.statSync(cacheFile.file)
+        fileMtimeMs = stat.mtimeMs
+        fileInode = stat.ino
+      } else {
+        fileMtimeMs = 0
+        fileInode = 0
+      }
       entryCount = Object.keys(lookup).length
       enrich.reindexAll(lookup)
       publishTransGlobals()
@@ -271,9 +288,11 @@ async function main() {
     return added > 0
   }
 
-  if (!fullReload('Loaded')) return
+  if (!fullReload('Loaded')) {
+    log.warn('Initial translation cache load failed, continuing with live client')
+  }
 
-  const realtime = createRealtimeClient(contentRoots[0])
+  const realtime = createRealtimeClient(identity.contentRoot)
   let translating = false
 
   function translate(text: unknown): string {
@@ -501,4 +520,7 @@ async function main() {
   }
 }
 
-void main().catch((error: unknown) => log.fail('Translation storage unavailable', errMsg(error)))
+void main().catch((error: unknown) => {
+  const detail = error && typeof error === 'object' ? (error as { message?: unknown; stack?: unknown }) : null
+  log.fail('Translation initialization failed', { message: detail?.message ?? String(error), stack: detail?.stack })
+})

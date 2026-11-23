@@ -2,11 +2,9 @@
 import fs from 'node:fs'
 
 import { gameContentReadPath, localGameContentFile } from '@/lib/game/content-files'
-import { DEFAULT_CACHE_SRC_LANG, detectCacheLang } from '@/lib/translate/cache-lang'
+import { detectCacheLang } from '@/lib/translate/cache-lang'
 import { createNumericLabelIndex, numericLabelFamily } from '@/lib/translate/dynamic-template'
 import type { SeedProgress, TranslationWindowReason } from '@/lib/translate/runtime-api'
-import { detectSourceLanguage } from '@/lib/translate/source-text'
-import { filterRgssSeedKeys } from '@/services/extract/lib/rgss'
 import { getResolvedFromConfig } from '@/services/game/binding'
 
 import { lookupCachedTranslation } from './cache-lookup'
@@ -16,8 +14,11 @@ import { readSeedInventory } from './scheduler/seed-inventory'
 import { prepareSeedInventory } from './scheduler/seed-prepare'
 import { createScheduledSeedSession } from './scheduler/seed-session'
 import { readSeedFailures, recordSeedFailure, seedFailureFile, writeSeedFailure } from './seed-failures'
+import { getSeedSourceLanguage, loadSeedKeys } from './seed-source-language'
 import { openSharedCache } from './shared-cache'
 import { charCount, lineCount, shouldTranslate } from './text-classify'
+
+export { getSeedSourceLanguage } from './seed-source-language'
 
 const DEFAULT_BATCH = 40
 
@@ -55,34 +56,6 @@ export function resolveTranslateContentRoot(options?: { gameId?: string; content
   const result = tryResolveTranslateContentRoot(options)
   if (!result.ok) throw new Error(result.error)
   return result.contentRoot
-}
-
-function loadSeedKeys(contentRoot: string): string[] {
-  const file = gameContentReadPath(contentRoot, 'seed', { alsoParent: true })
-  if (!file || !fs.existsSync(file)) return []
-  const raw: unknown = JSON.parse(fs.readFileSync(file, 'utf8'))
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('seed must be an object mapping source text to translation')
-  return filterRgssSeedKeys(
-    contentRoot,
-    Object.keys(raw).filter((key) => key.trim())
-  )
-}
-
-export function getSeedSourceLanguage(contentRoot = resolveTranslateContentRoot()): string {
-  const seedKeys = loadSeedKeys(contentRoot)
-  if (seedKeys.length) return detectSourceLanguage(seedKeys)
-  try {
-    const extractFile = localGameContentFile(contentRoot, 'extractStrings')
-    if (extractFile && fs.existsSync(extractFile)) {
-      const parsed = JSON.parse(fs.readFileSync(extractFile, 'utf8'))
-      if (parsed?.meta?.sourceLanguage && typeof parsed.meta.sourceLanguage === 'string') {
-        return parsed.meta.sourceLanguage
-      }
-    }
-  } catch {
-    /* ignore parse errors */
-  }
-  return DEFAULT_CACHE_SRC_LANG
 }
 
 /** Verify only the selected slice; progress polling must not scan the whole corpus. */
@@ -210,7 +183,8 @@ export async function fillMissingFromSeed(opts?: { contentRoot?: string; limit?:
   const limit = Math.min(Math.max(1, Math.floor(opts?.limit || DEFAULT_BATCH)), DEFAULT_BATCH)
   const batch = inventory.pending.filter((key) => !opts?.exclude?.has(key)).slice(0, limit)
   if (!batch.length) return { ...inventory.progress, translated: 0, failed: 0, scanned: 0, unresolved: [], items: [] }
-  const { items } = await liveTranslateTexts(batch, { contentRoot })
+  const sourceLang = getSeedSourceLanguage(contentRoot)
+  const { items } = await liveTranslateTexts(batch, { contentRoot, sourceLang })
   for (const item of items) {
     if (item.engineWork && (item.zh == null || item.error || item.status === 'partial')) writeSeedFailure(contentRoot, item.src, item.error || 'No valid translation returned')
   }
@@ -283,6 +257,9 @@ export function createSeedFillSession(
     get processed(): number | undefined {
       return undefined
     },
+    get inventoryBundle(): import('./scheduler/seed-prepare').SeedInventoryBundle | undefined {
+      return undefined
+    },
     pause() {},
     async close() {},
     async fill(opts: SeedFillOptions = {}): Promise<FillMissingResult> {
@@ -318,14 +295,14 @@ export function createSeedFillSession(
       )
       let cacheMs = 0
       const translateStarted = performance.now()
-      const deadline = AbortSignal.timeout(15_000)
+      const deadline = AbortSignal.timeout(45_000)
       let items: FillMissingResult['items'] = []
       const terminalFailures = new Map<string, { src: string; error?: string }>()
       try {
         const result = await liveTranslateTexts(batch, {
           contentRoot,
           local: { signal: deadline },
-          itemTimeoutMs: 15_000,
+          itemTimeoutMs: 45_000,
           onTrace: trace,
           onCacheMatch: (ms) => {
             cacheMs += ms

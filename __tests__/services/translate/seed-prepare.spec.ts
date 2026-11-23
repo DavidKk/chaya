@@ -10,7 +10,13 @@ const mockCloseCache = jest.fn()
 jest.mock('@/services/translate/shared-cache', () => ({
   openSharedCache: () => ({ syncGameCache: mockSyncGameCache, close: mockCloseCache }),
 }))
-jest.mock('@/services/translate/scheduler/seed-inventory', () => ({ readSeedInventory: () => ({ pending: [], stamp: 'fallback' }) }))
+jest.mock('@/services/translate/scheduler/seed-inventory', () => {
+  const actual = jest.requireActual<typeof import('@/services/translate/scheduler/seed-inventory')>('@/services/translate/scheduler/seed-inventory')
+  return {
+    ...actual,
+    readSeedInventory: () => ({ pending: [], stamp: 'fallback' }),
+  }
+})
 
 import fs from 'node:fs'
 import os from 'node:os'

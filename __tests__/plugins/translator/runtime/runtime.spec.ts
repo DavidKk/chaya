@@ -3,13 +3,16 @@ jest.mock('@/plugins/mv/src/helpers/storage/pending', () => jest.requireActual('
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import vm from 'node:vm'
 
 import { gameContentRelPath } from '@/lib/game/content-paths'
 import { detectCacheLang } from '@/lib/translate/cache-lang'
 import { createResourceMatcher } from '@/lib/translate/resource-matcher'
 import { chayaFetch } from '@/plugins/mv/src/helpers/net/http'
+import { ChayaLog } from '@/plugins/mv/src/helpers/net/logger'
 import { createTranslationRuntime } from '@/plugins/mv/src/translator/runtime'
 import { engineFetch } from '@/plugins/mv/src/translator/runtime/engine-fetch'
+import { createPluginTranslationJob } from '@/plugins/mv/src/translator/runtime/jobs'
 import { createTranslationStore } from '@/plugins/mv/src/translator/runtime/store'
 import { bundledResourceSnapshot } from '@/services/translate/resources/defaults'
 
@@ -323,6 +326,75 @@ it('extracts locally, runs a plugin-owned job and supports import/edit/delete wi
   runtime.dispose()
   runtime = createTranslationRuntime(root, { mods: { fs, path } })
   expect((await call('/api/translate-cache?q=村', undefined, 'GET')).data.total).toBe(0)
+})
+
+it('returns preparing progress while yielding to game timers, shares polls and refreshes after cache changes', async () => {
+  jest.useFakeTimers()
+  let revision = 1
+  let now = 0
+  const clock = jest.spyOn(Date, 'now').mockImplementation(() => now)
+  const seed = Object.fromEntries(Array.from({ length: 100 }, (_, i) => [`村へ行こう${i}`, '']))
+  const lookup = jest.fn(() => {
+    now += 8
+    return revision === 1 ? null : '去村子吧'
+  })
+  const store = { load: async () => {}, seed: () => seed, revision: () => revision, lookup } as unknown as ReturnType<typeof createTranslationStore>
+  const job = createPluginTranslationJob(store, jest.fn())
+  try {
+    const heartbeat = jest.fn()
+    setTimeout(heartbeat, 1)
+    const polls = [job.snapshot(), job.snapshot()]
+    await jest.advanceTimersByTimeAsync(16)
+    const partial = await Promise.all(polls)
+    expect(heartbeat).toHaveBeenCalledTimes(1)
+    expect(partial.every((p) => p.preparing && p.total === 100)).toBe(true)
+    expect(lookup.mock.calls.length).toBeLessThan(100)
+    await jest.runAllTimersAsync()
+    expect(await job.snapshot()).toMatchObject({ total: 100, missing: 100 })
+    expect(lookup).toHaveBeenCalledTimes(100)
+    expect((await job.snapshot()).preparing).toBeUndefined()
+    expect(lookup).toHaveBeenCalledTimes(100)
+
+    revision++
+    const refresh = job.snapshot()
+    await jest.advanceTimersByTimeAsync(16)
+    expect((await refresh).preparing).toBe(true)
+    await jest.runAllTimersAsync()
+    expect(await job.snapshot()).toMatchObject({ total: 100, done: 100, missing: 0 })
+    expect(lookup).toHaveBeenCalledTimes(200)
+
+    revision++
+    const interrupted = job.snapshot()
+    await jest.advanceTimersByTimeAsync(16)
+    await interrupted
+    job.dispose()
+    const callsAtDispose = lookup.mock.calls.length
+    await jest.runAllTimersAsync()
+    expect(lookup).toHaveBeenCalledTimes(callsAtDispose)
+  } finally {
+    job.dispose()
+    clock.mockRestore()
+    jest.useRealTimers()
+  }
+})
+
+it('preserves Node-realm extraction errors and logs the operation and stack', async () => {
+  const error = vm.runInNewContext('new Error("EACCES: permission denied, scandir data")') as Error
+  expect(error).not.toBeInstanceOf(Error)
+  const readdir = jest.spyOn(fs.promises, 'readdir').mockRejectedValueOnce(error)
+  try {
+    expect(await call('/api/extract')).toEqual({
+      status: 400,
+      data: { ok: false, error: { message: error.message } },
+    })
+    expect(ChayaLog.fail).toHaveBeenCalledWith('ChayaTrans', 'Translation operation failed: POST /api/extract', {
+      message: error.message,
+      name: error.name,
+      stack: error.stack,
+    })
+  } finally {
+    readdir.mockRestore()
+  }
 })
 
 it('rejects arbitrary paths and stale-game settings writes', async () => {

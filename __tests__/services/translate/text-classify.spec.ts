@@ -77,6 +77,10 @@ describe('text-classify protect / cache core', () => {
   it('rejects identical src/zh as useful translation', () => {
     expect(isIdenticalTranslation('値', '値')).toBe(true)
     expect(isUsefulTranslation('値', '値', '値', '値')).toBe(false)
+    expect(isUsefulTranslation('こんにちは', 'こんにちは', 'こんにちは', 'こんにちは')).toBe(false)
+    expect(isUsefulTranslation('雪山', '雪山', '雪山', '雪山')).toBe(true)
+    expect(isUsefulTranslation('地震', '地震', '地震', '地震')).toBe(true)
+    expect(isUsefulTranslation('自慰', '自慰', '自慰', '自慰')).toBe(true)
     expect(isUsefulTranslation('\\c[16]次のレベルまで', '次のレベルまで', '更上一层楼', '\\c[16]更上一层楼')).toBe(true)
   })
 
@@ -147,5 +151,11 @@ describe('text-classify protect / cache core', () => {
     expect(guard.plain).toBe('Take __C0__this potion__C1__ now')
     expect(restoreForTranslate('现在拿走__C0__这瓶药水__C1__', guard)).toBe('现在拿走<B>这瓶药水</B>')
     expect(shouldTranslate('<br>')).toBe(false)
+    expect(shouldTranslate('D3', 'ja')).toBe(false)
+    expect(shouldTranslate('-L', 'ja')).toBe(false)
+    expect(shouldTranslate('B1', 'ja')).toBe(false)
+    expect(shouldTranslate('エネミーD3', 'ja')).toBe(true)
+    expect(shouldTranslate('【Q201a', 'ja')).toBe(false)
+    expect(shouldTranslate('】赤x2+僧', 'ja')).toBe(true)
   })
 })

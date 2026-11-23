@@ -1675,7 +1675,12 @@ function detectCacheLang(text2, fallback = DEFAULT_CACHE_SRC_LANG) {
   if (CYRILLIC.test(body)) return "ru";
   if (HANGUL.test(body)) return "ko";
   if (KANA2.test(body)) return "ja";
-  if (LATIN2.test(body) && !HAN2.test(body) && !KANA2.test(body)) return "en";
+  if (LATIN2.test(body) && !HAN2.test(body) && !KANA2.test(body)) {
+    if (/^[-_+#/:.()\[\]【】\s]*(?:[A-Za-z]{1,2}\d+|\d+[A-Za-z]{1,2}|[A-Za-z]\d+[A-Za-z]|\d+|[A-Za-z]{1,2})[-_+#/:.()\[\]【】\s]*$/.test(body)) {
+      return fallback;
+    }
+    return "en";
+  }
   if (HAN2.test(body)) return fallback;
   return fallback;
 }
@@ -3765,10 +3770,16 @@ function isIdenticalTranslation(src, zh) {
 function isStorableTranslation(src, zh, targetLang = "zh") {
   if (!validDynamicTranslation(src, zh)) return false;
   if (translationRubyChunks(zh).some((part) => part.ruby && JAPANESE.test(part.base + part.reading))) return false;
-  if (!String(src ?? "").trim() || !String(zh ?? "").trim() || isIdenticalTranslation(src, zh)) return false;
+  if (!String(src ?? "").trim() || !String(zh ?? "").trim()) return false;
   const sourceText = normCmp(stripControlNoise(src));
   const translatedText = normCmp(stripControlNoise(zh));
-  if (!translatedText || sourceText && sourceText === translatedText) return false;
+  if (!translatedText) return false;
+  if (isIdenticalTranslation(src, zh)) {
+    if (JAPANESE.test(sourceText) || !HAN3.test(sourceText)) return false;
+    if (retainsJapaneseHanPhrase(sourceText, translatedText) || /[応駅図広気帰転戦楽読売発変実対観関験険値]/.test(translatedText)) return false;
+    return true;
+  }
+  if (sourceText && sourceText === translatedText) return false;
   if (JAPANESE.test(translatedText)) return false;
   if (retainsJapaneseHanPhrase(sourceText, translatedText)) return false;
   const isTargetZh = !targetLang || targetLang === "zh" || targetLang === "ch" || targetLang === "zh-CN" || targetLang === "zh-Hans" || targetLang === "zh-TW" || targetLang === "cht";
@@ -3791,7 +3802,7 @@ function shouldTranslate(text2, sourceLang) {
     const compact2 = core.replace(/[\s\u3000]+/g, "");
     return compact2.length > 0 && !/^[\p{P}\p{S}]+$/u.test(compact2);
   }
-  if (!JAPANESE.test(core) && !isSourceText(core, sourceLang === "en" ? "en" : "all")) return false;
+  if (!JAPANESE.test(core) && !isSourceText(core, sourceLang === "en" ? "en" : sourceLang === "ja" ? "ja" : "all")) return false;
   const compact = core.replace(/[\s\u3000]+/g, "");
   return !(compact.length > 0 && /^[\p{P}\p{S}]+$/u.test(compact));
 }
@@ -4160,23 +4171,15 @@ function createMatchIndex(client) {
       return records2.every((r) => Number(prepare(joined + " WHERE r.id=?").get(r.id)?.revision) === r.revision);
     },
     plan(src, pair, local = [], opts) {
-      client.exec("BEGIN");
-      try {
-        const selected = candidates2(src, pair, opts);
-        const limited = selected.limited || local.limited === true;
-        const resolved = planSentenceTranslation(src, limited ? [] : [...local, ...selected.records].filter((r) => pair.to !== "zh" || isReusableTranslation(r.src, r.zh)), opts);
-        const plan = {
-          ...resolved,
-          limited: limited || resolved.limited,
-          ruleVersion: SENTENCE_RULE_VERSION,
-          corpusVersion: String(prepare("SELECT value FROM cache_meta WHERE key='sentence_version'").get().value)
-        };
-        client.exec("COMMIT");
-        return plan;
-      } catch (e) {
-        client.exec("ROLLBACK");
-        throw e;
-      }
+      const selected = candidates2(src, pair, opts);
+      const limited = selected.limited || local.limited === true;
+      const resolved = planSentenceTranslation(src, limited ? [] : [...local, ...selected.records].filter((r) => pair.to !== "zh" || isReusableTranslation(r.src, r.zh)), opts);
+      return {
+        ...resolved,
+        limited: limited || resolved.limited,
+        ruleVersion: SENTENCE_RULE_VERSION,
+        corpusVersion: String(prepare("SELECT value FROM cache_meta WHERE key='sentence_version'").get().value)
+      };
     },
     setAlignment(src, pair, groups, expectedRevision, opts) {
       const r = opts?.candidateId ? inserted(opts.candidateId) : record(src, pair);
@@ -4238,6 +4241,7 @@ function createGameCoverage(records2, opts) {
   const resolver = createSentenceResolver(records2);
   const numeric = createNumericLabelIndex(records2);
   let client;
+  let exactQuery;
   let shared;
   let opened = false;
   const resolved = /* @__PURE__ */ new Map();
@@ -4247,26 +4251,39 @@ function createGameCoverage(records2, opts) {
       if (opts?.blocked?.(src)) return null;
       let hit = lookup[src] ?? numeric.resolve(src);
       if (hit == null) {
+        hit = lookupCachedTranslation((key3) => lookup[key3], src);
+      }
+      if (hit == null) {
         if (!opened) {
           opened = true;
           const database = opts?.database ?? TRANSLATE_CACHE_DB_PATH;
           if (database && fs12.existsSync(database)) {
             client = new DatabaseSync2(database, { readOnly: true });
             client.exec("PRAGMA query_only=ON; PRAGMA busy_timeout=250");
-            if (client.prepare("SELECT 1 FROM sqlite_master WHERE name='match_keys'").get()) shared = createMatchIndex(client);
+            if (client.prepare("SELECT 1 FROM sqlite_master WHERE name='match_keys'").get()) {
+              shared = createMatchIndex(client);
+              exactQuery = client.prepare(
+                "SELECT t.zh FROM translation_records r JOIN translations t ON t.id=r.translation_id WHERE r.src=? AND r.src_lang=? AND r.tgt_lang=? LIMIT 1"
+              );
+            }
           }
         }
         const pair = { from: detectCacheLang(src), to: "zh" };
-        const plan = shared ? shared.plan(src, pair, resolver.select(src)) : resolver.plan(src);
-        if (!plan.limited) {
-          hit = plan.status === "full" ? plan.zh : null;
-          if (hit == null) hit = lookupCachedTranslation((key3) => lookup[key3], src);
-          if (hit == null && shared && numericLabelFamily(src)) {
-            const rows = shared.numericRecords(pair, src);
-            if (!rows.limited) hit = createNumericLabelIndex([...rows, ...records2]).resolve(src);
-          }
-          if (hit == null && /\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(src)) {
-            hit = lookupCachedTranslation((key3) => lookup[key3] ?? shared?.record(key3, pair)?.zh, src);
+        if (exactQuery) {
+          const row = exactQuery.get(src, pair.from, pair.to);
+          if (row?.zh) hit = row.zh;
+        }
+        if (hit == null && shared && numericLabelFamily(src)) {
+          const rows = shared.numericRecords(pair, src);
+          if (!rows.limited) hit = createNumericLabelIndex([...rows, ...records2]).resolve(src);
+        }
+        if (hit == null && /[,\r\n，、。．.!！?？;；…\\]/.test(src)) {
+          const plan = shared ? shared.plan(src, pair, resolver.select(src)) : resolver.plan(src);
+          if (!plan.limited) {
+            hit = plan.status === "full" ? plan.zh : null;
+            if (hit == null && /\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(src)) {
+              hit = lookupCachedTranslation((key3) => lookup[key3] ?? shared?.record(key3, pair)?.zh, src);
+            }
           }
         }
       }

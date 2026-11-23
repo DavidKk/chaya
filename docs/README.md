@@ -22,6 +22,7 @@
 | 旅伴全托管剧情与推进、对话快进、分支决断、地图自律探索 | [全托管剧情需求](companion-story-automation.md) | [全托管技术方案](technical/companion-story-automation.md) |
 | 旅伴 HP 条件经验、样本统计、反例与经验引用 | [重构需求](companion-core-rebuild.md) §6 | [HP 条件经验](technical/companion-experience.md)（T7 首增量；非完整经验推理） |
 | 旅伴游玩记忆、死亡 / 读档采集 | [游玩记忆](companion-memory.md) | [记忆实现](technical/companion-memory.md) |
+| 旅伴记忆可视化、客观事件审计与复核、生命周期管理 | [记忆可视化审计](companion-memory-inspector.md) | [记忆可视化技术设计](technical/companion-memory-inspector.md) |
 | 本波补齐、可恢复性、冻结清单 | [能力补齐](capability-supplement.md) §3–9 | [补齐设计](technical/capability-supplement.md)；排期才读 [backlog](backlog-2026-10-08.md) |
 | 数据修改、地图事件 | [数据](edit-save-data.md) / [地图](edit-map-events.md) | [数据设计](technical/edit-save-data.md) / [地图设计](technical/edit-map-events.md) |
 | 当前战斗、敌群 | [战斗](edit-battle.md) / [敌群](edit-troops.md) | [战斗设计](technical/edit-battle.md) / [敌群设计](technical/edit-troops.md) |

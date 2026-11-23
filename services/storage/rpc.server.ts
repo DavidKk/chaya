@@ -1,3 +1,4 @@
+import fs from 'node:fs'
 import path from 'node:path'
 
 import type { SourceGameEvent } from '@/lib/game-agent/audit'
@@ -55,8 +56,21 @@ export function createStorageRpc(shared: SharedCacheDb, companion: CompanionDb, 
       refreshAll = false
       refreshRoots.clear()
       for (const root of roots) {
-        await games.mount(root)
-        if (cache.flushBackfill(root, { projectionBudgetMs: complete ? Infinity : 25 }).pending) refreshRoots.add(root)
+        try {
+          if (!fs.existsSync(root)) {
+            refreshRoots.delete(root)
+            continue
+          }
+          await games.mount(root)
+          if (cache.flushBackfill(root, { projectionBudgetMs: complete ? Infinity : 25 }).pending) {
+            refreshRoots.add(root)
+          } else {
+            refreshRoots.delete(root)
+          }
+        } catch (err) {
+          refreshRoots.delete(root)
+          process.emitWarning(`Failed to refresh game cache for ${root}: ${err instanceof Error ? err.message : String(err)}`, { code: 'CHAYA_GAME_CACHE_REFRESH' })
+        }
       }
       if (refreshRoots.size) scheduleGameCacheRefresh(refreshRoots.values().next().value!)
       timing.end('completed', { roots: roots.size, pendingRoots: refreshRoots.size })

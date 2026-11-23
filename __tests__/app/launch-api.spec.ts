@@ -50,7 +50,9 @@ jest.mock('@/services/disk-ops', () => ({
   }),
   ensureNwPackageName: () => ({}),
   isShellInstalling: jest.fn(() => false),
-  injectTrackedPlugins: () => ({ missingKit: [], copied: ['x'] }),
+  injectTrackedPlugins: jest.fn(() => {
+    throw new Error('Plugin installation is unavailable')
+  }),
   ensureShellLinkedToContent: jest.fn(),
   launchShellWithContent: jest.fn(async () => {}),
   openInFinder: jest.fn(),
@@ -75,6 +77,28 @@ test('启动前先恢复 .old，再解析游戏状态', async () => {
   expect(res.status).toBe(200)
   expect(calls).toEqual(['resolve', 'recover', 'resolve'])
   expect(diskOps.launchShellWithContent).toHaveBeenCalled()
+})
+
+it.each([false, true])('launches without installing plugins (bundled: %s)', async (bundled) => {
+  jest.mocked(diskOps.getResolvedFromConfig).mockReturnValueOnce({
+    ok: true,
+    hasShell: true,
+    remote: false,
+    bundled,
+    shellApp: '/data/shell/Chaya',
+    contentRoot: '/game/www',
+  } as never)
+  jest.mocked(diskOps.getResolvedFromConfig).mockReturnValueOnce({
+    ok: true,
+    hasShell: true,
+    remote: false,
+    bundled,
+    shellApp: '/data/shell/Chaya',
+    contentRoot: '/game/www',
+  } as never)
+  expect((await launch()).status).toBe(200)
+  expect(diskOps.injectTrackedPlugins).not.toHaveBeenCalled()
+  expect(bundled ? diskOps.openInFinder : diskOps.launchShellWithContent).toHaveBeenCalled()
 })
 
 test('恢复失败：返回错误，不解析也不启动', async () => {

@@ -126,8 +126,14 @@ export function nameGaps(src: string, spans: readonly NameSpan[]): NameGap[] {
   return gaps
 }
 
+const LITERAL_GAP_CODE = /^[-_+#/:.()\[\]【】\s]*(?:[A-Za-z]{1,2}\d+|\d+[A-Za-z]{1,2}|[A-Za-z]\d+[A-Za-z]|\d+|[A-Za-z]{1,2})[-_+#/:.()\[\]【】\s]*$/
+
 export function isLiteralNameGap(text: string): boolean {
-  return !text || !text.replace(/\s+/g, '') || /^[\s\p{P}\p{S}]+$/u.test(text)
+  if (!text || !text.replace(/\s+/g, '')) return true
+  const compact = text.trim()
+  if (/^[\s\p{P}\p{S}]+$/u.test(compact)) return true
+  if (LITERAL_GAP_CODE.test(compact)) return true
+  return false
 }
 
 export function padGapTranslation(original: string, translated: string): string {

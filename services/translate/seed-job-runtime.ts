@@ -20,8 +20,9 @@ import { getTranslateEngineSwitches } from './engine-switches'
 import { createSeedFillSession, type SeedProgress } from './fill-missing'
 import { logTranslationEvent } from './runtime-log'
 import { localGameContentFile, seedFileStamp, seedProgressStamp } from './scheduler/seed-inventory'
-import { isSeedInventoryPreparing, peekSeedInventory, prepareSeedInventory } from './scheduler/seed-prepare'
+import { invalidateSeedInventory, isSeedInventoryPreparing, peekSeedInventory, prepareSeedInventory, reconcileSeedInventory, setSeedInventory } from './scheduler/seed-prepare'
 import { createSeedBatchBudget } from './seed-batch'
+import { clearSeedFailures, readSeedFailures } from './seed-failures'
 import {
   emptySeedProgress,
   idleSeedJob,
@@ -190,7 +191,7 @@ async function runLoop(contentRoot: string) {
   rt.state.performance = null
   const initialSessionDone = rt.state.sessionDone
   const isBatchEngine = rt.state.engines.length > 0 && rt.state.engines.some((e) => e === 'apple' || e.startsWith('agent:'))
-  const budget = createSeedBatchBudget(isBatchEngine ? 40 : 4)
+  const budget = createSeedBatchBudget(isBatchEngine ? 40 : 4, isBatchEngine)
   const trace = (message: string) => {
     const previousLogSeq = rt.logSeq
     const request = /^(Agent|Apple) request submitted: items=(\d+), sourceChars=(\d+)$/.exec(message)
@@ -270,6 +271,7 @@ async function runLoop(contentRoot: string) {
           },
         })
         rt.progress = rt.session.progress
+        if (rt.session?.inventoryBundle) setSeedInventory(contentRoot, rt.session.inventoryBundle)
         const measuredNow = performance.now()
         const elapsedMs = measuredNow - started
         const sampleElapsedMs = measuredNow - measuredAt
@@ -369,6 +371,7 @@ async function runLoop(contentRoot: string) {
     }
   } finally {
     try {
+      if (rt.session?.inventoryBundle) setSeedInventory(contentRoot, rt.session.inventoryBundle)
       await rt.session?.close?.()
       if (rt.session) {
         rt.progress = rt.session.progress
@@ -473,6 +476,10 @@ function applyInventoryBundle(rt: Runtime, bundle: import('./scheduler/seed-prep
   } else if (progress.missing && rt.state.status === 'done') {
     rt.state.status = 'paused'
     rt.state.liveStatus = ''
+  } else if (rt.state.status === 'idle' || rt.state.status === 'paused') {
+    if (rt.state.liveStatus === '正在准备原文库存…') {
+      rt.state.liveStatus = ''
+    }
   }
   persist(rt)
 }
@@ -609,6 +616,9 @@ export function startSeedJob(opts?: { gameId?: string; contentRoot?: string; eng
   if (peeked && peeked.stamp === seedStampNow && peeked.progressStamp === seedProgressStamp(contentRoot)) {
     beginSeedLoop(contentRoot, peeked, fixedEngines)
     const rt = getRuntime(contentRoot)
+    rt.state.inventoryPreparing = false
+    rt.state.liveStatus = '正在翻译…'
+    persist(rt)
     return { ...(rt.progress ?? peeked.progress), job: visibleSeedJobState(rt.state) }
   }
 
@@ -617,8 +627,8 @@ export function startSeedJob(opts?: { gameId?: string; contentRoot?: string; eng
   rt.state.contentRoot = contentRoot
   rt.state.status = 'running'
   rt.state.engines = engines
-  rt.state.liveStatus = resume ? '正在准备库存以继续…' : '正在准备原文库存…'
   rt.state.error = null
+  rt.state.liveStatus = resume ? '正在准备库存以继续…' : '正在准备原文库存…'
   rt.state.inventoryPreparing = true
   persist(rt)
 
@@ -659,9 +669,58 @@ export function pauseSeedJob(opts?: { gameId?: string; contentRoot?: string }): 
     return getSeedJobSnapshot()
   }
   rt.stopRequested = true
+  if (rt.session?.inventoryBundle) {
+    setSeedInventory(contentRoot, rt.session.inventoryBundle)
+  }
   rt.session?.pause?.()
   rt.state.liveStatus = '正在暂停…'
   pushLog(rt, 'warn', 'Pausing: will stop after the current batch.')
   persist(rt)
   return { ...(rt.progress ?? rt.state.progress ?? emptySeedProgress(contentRoot)), job: visibleSeedJobState(rt.state) }
+}
+
+/** Reset all failure checkpoints for the bound game and trigger a fresh seed job loop. */
+export async function retrySeedJobFailures(opts?: { gameId?: string; contentRoot?: string; engines?: string[] }): Promise<SeedJobSnapshot & { retriedCount: number }> {
+  const contentRoot = requireBoundRoot(opts)
+  const rt = getRuntime(contentRoot)
+  if (rt.running) {
+    rt.stopRequested = true
+    rt.session?.pause?.()
+    let waited = 0
+    while (rt.running && waited < 3000) {
+      await new Promise((r) => setTimeout(r, 100))
+      waited += 100
+    }
+  }
+  const failures = readSeedFailures(contentRoot)
+  const count = failures.size
+  clearSeedFailures(contentRoot)
+  const peeked = peekSeedInventory(contentRoot)
+  if (peeked) {
+    const failedKeys = [...failures.keys()]
+    const pendingSet = new Set(peeked.pending)
+    for (const key of failedKeys) {
+      pendingSet.add(key)
+    }
+    peeked.pending = [...pendingSet]
+    const reconciled = reconcileSeedInventory(peeked, contentRoot)
+    setSeedInventory(contentRoot, reconciled)
+    applyInventoryBundle(rt, reconciled)
+  } else {
+    invalidateSeedInventory(contentRoot)
+  }
+  if (rt.progress) {
+    rt.progress.failedCount = 0
+    rt.progress.failedChars = 0
+  }
+  rt.state.failedSources = []
+  if (rt.state.progress) {
+    rt.state.progress.failedCount = 0
+    rt.state.progress.failedChars = 0
+  }
+  rt.stopRequested = false
+  rt.running = false
+  rt.session = undefined
+  const snap = startSeedJob({ contentRoot, engines: opts?.engines })
+  return { ...snap, retriedCount: count }
 }

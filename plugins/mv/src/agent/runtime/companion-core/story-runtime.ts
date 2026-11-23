@@ -9,7 +9,7 @@ import { StoryContextStore } from './story-context'
 import { StoryDriver } from './story-driver'
 import { type ExplorationTarget, StoryExplorationPlanner } from './story-exploration'
 import { StoryFailureMemory } from './story-failure-memory'
-import { isStoryMenuActive, tryMapMenuHealing } from './story-menu'
+import { executeMapMenuEquip, isStoryMenuActive, tryMapMenuHealing } from './story-menu'
 import { StuckDetector } from './story-navigation'
 import { type ModelThoughtEvent, StoryPuzzleSolver } from './story-puzzle-solver'
 
@@ -423,6 +423,17 @@ export class CompanionStoryRuntime {
             await tryMapMenuHealing((summary) => this.emit('exploring', summary), actionSignal)
             actionSignal.throwIfAborted()
             if (g.SceneManager?._scene !== scene || g.$gameMap?.mapId?.() !== curMapId) continue
+
+            // Auto-equip thief dagger on Map 1 if party acquired it
+            if (isBenchmarkStoryGame() && curMapId === 1) {
+              const leader = g.$gameParty?.leader?.()
+              const weapon = g.$dataWeapons?.[5]
+              if (weapon && leader && !leader.isEquipped?.(weapon) && g.$gameParty?.hasItem?.(weapon)) {
+                this.emit('exploring', '主线提示：正在自动穿戴【盗贼匕首】以满足试炼进入条件…')
+                await executeMapMenuEquip(0, 5, true, 0, actionSignal)
+                StoryFailureMemory.clear(1, 14)
+              }
+            }
 
             // Check for prologue climax completion on Map 6
             if (isBenchmarkStoryGame() && mapId === 6) {

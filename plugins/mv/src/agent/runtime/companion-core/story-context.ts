@@ -432,13 +432,59 @@ export class StoryContextStore {
 
     if (isBenchmarkStoryGame() && ctx.mapId === 1) {
       const leader = party?.leader ? party.leader() : null
-      const hasDagger = leader && g.$dataWeapons ? leader.hasWeapon(g.$dataWeapons[5]) || leader.isEquipped(g.$dataWeapons[5]) : false
-      if (!hasDagger) {
+      const isDaggerEquipped = leader && g.$dataWeapons ? leader.isEquipped(g.$dataWeapons[5]) : false
+      const hasDagger = leader && g.$dataWeapons ? leader.hasWeapon(g.$dataWeapons[5]) || isDaggerEquipped : false
+      const s30 = switches ? switches.value(30) : false
+      const s31 = switches ? switches.value(31) : false
+      if (s30 || s31) {
+        if (!s31) {
+          ctx.activeObjective = '试炼已完成，与公会里的鲍里斯 (11, 3) 汇报对话'
+          ctx.phase = 'report_boris'
+        } else {
+          ctx.activeObjective = '公会试炼全面完成，与暗影大师 (8, 3) 对话离开公会前往第一章'
+          ctx.phase = 'depart_for_chapter1'
+        }
+      } else if (!hasDagger) {
         ctx.activeObjective = '开启武器箱 (8, 8) 拾取并装备盗贼匕首'
+        ctx.phase = 'equip_weapon'
+      } else if (!isDaggerEquipped) {
+        ctx.activeObjective = '穿戴盗贼匕首以进入地下试炼场'
         ctx.phase = 'equip_weapon'
       } else {
         ctx.activeObjective = '前往秘密楼梯 (15, 11) 进入公会地下试炼场'
         ctx.phase = 'enter_dungeon'
+      }
+      return
+    }
+
+    if (isBenchmarkStoryGame() && ctx.mapId === 9) {
+      const s52 = switches ? switches.value(52) : false
+      const s54 = switches ? switches.value(54) : false
+      const s55 = switches ? switches.value(55) : false
+      const s57 = switches ? switches.value(57) : false
+      const s59 = switches ? switches.value(59) : false
+      const s60 = switches ? switches.value(60) : false
+      if (!s52) {
+        ctx.activeObjective = '第一幕城镇开局：等待鲍里斯与菲利西亚对话推进剧情'
+        ctx.phase = 'chapter1_intro'
+      } else if (!s54) {
+        ctx.activeObjective = '菲利西亚走失！调查南街哭泣的小女孩与青蛙 (45, 30) 寻找线索'
+        ctx.phase = 'find_felicia'
+      } else if (!s55) {
+        ctx.activeObjective = '发现盗贼踪迹！追赶盗贼 (31, 27)'
+        ctx.phase = 'chase_thief_1'
+      } else if (!s57) {
+        ctx.activeObjective = '追查盗贼逃窜路线，沿小巷追击至 (18, 24)'
+        ctx.phase = 'chase_thief_2'
+      } else if (!s59) {
+        ctx.activeObjective = '与斯维特拉娜 (20, 22) 会合，协助抓捕逃犯'
+        ctx.phase = 'help_svetlana'
+      } else if (!s60) {
+        ctx.activeObjective = '堵截盗贼退路，前往小巷深处 (12, 19)'
+        ctx.phase = 'corner_thief'
+      } else {
+        ctx.activeObjective = '第一章开局追捕已完成，探索城镇集结队伍'
+        ctx.phase = 'explore_town'
       }
       return
     }

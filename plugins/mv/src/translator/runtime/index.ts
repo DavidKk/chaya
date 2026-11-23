@@ -6,6 +6,7 @@ import { parseTranslateImportText } from '@/services/translate/import-text'
 import { isReusableTranslation } from '@/services/translate/text-classify'
 
 import { resolveApiBase } from '../../helpers/env/env'
+import { ChayaLog } from '../../helpers/net/logger'
 import { type NodeFsPath, tryNodeFsPath } from '../../helpers/node/node-require'
 import { extractPluginSeed } from './extract'
 import { createPluginTranslationJob } from './jobs'
@@ -125,7 +126,8 @@ export function createTranslationRuntime(contentRoot: string, options: { mods?: 
   let extracting: Promise<unknown> | null = null
 
   async function execute(input: TranslationRequest, signal?: AbortSignal): Promise<Record<string, unknown>> {
-    if (lifetime.signal.aborted || signal?.aborted) throw new Error('翻译已取消')
+    if (signal?.aborted) throw new Error('翻译操作已取消')
+    if (lifetime.signal.aborted) throw new Error('翻译服务已重置，请重试')
     if (!input || typeof input.path !== 'string' || !['GET', 'POST', 'PATCH', 'DELETE'].includes(input.method)) throw new Error('无效翻译操作')
     const url = new URL(input.path, 'http://game.local')
     const body = input.body || {}
@@ -221,7 +223,11 @@ export function createTranslationRuntime(contentRoot: string, options: { mods?: 
     try {
       return { status: 200, data: { ...(await execute(input, signal)), ok: true } }
     } catch (error) {
-      return { status: 400, data: { ok: false, error: { message: error instanceof Error ? error.message : '翻译操作失败' } } }
+      // Node errors in NW.js belong to another realm and fail browser instanceof checks.
+      const detail = error && typeof error === 'object' ? (error as { message?: unknown; stack?: unknown; name?: unknown }) : undefined
+      const message = typeof detail?.message === 'string' && detail.message.trim() ? detail.message : typeof error === 'string' && error.trim() ? error : '翻译操作失败'
+      ChayaLog.fail('ChayaTrans', `Translation operation failed: ${input.method} ${input.path}`, { message, name: detail?.name, stack: detail?.stack })
+      return { status: 400, data: { ok: false, error: { message } } }
     }
   }
   return {

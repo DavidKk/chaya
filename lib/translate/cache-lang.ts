@@ -36,7 +36,13 @@ export function detectCacheLang(text: string, fallback: CacheLang = DEFAULT_CACH
   if (CYRILLIC.test(body)) return 'ru'
   if (HANGUL.test(body)) return 'ko'
   if (KANA.test(body)) return 'ja'
-  if (LATIN.test(body) && !HAN.test(body) && !KANA.test(body)) return 'en'
+  if (LATIN.test(body) && !HAN.test(body) && !KANA.test(body)) {
+    // Alphanumeric code tokens, coordinates, abbreviations or single letters without Latin words should respect caller fallback
+    if (/^[-_+#/:.()\[\]【】\s]*(?:[A-Za-z]{1,2}\d+|\d+[A-Za-z]{1,2}|[A-Za-z]\d+[A-Za-z]|\d+|[A-Za-z]{1,2})[-_+#/:.()\[\]【】\s]*$/.test(body)) {
+      return fallback
+    }
+    return 'en'
+  }
   if (HAN.test(body)) return fallback
   return fallback
 }
@@ -55,7 +61,7 @@ export function detectCacheTargetLang(text: string, fallback: CacheLang = DEFAUL
 export type CacheLangPair = { from: CacheLang; to: CacheLang }
 
 export function resolveCacheLangPair(opts?: { from?: string | null; to?: string | null; src?: string }): CacheLangPair {
-  const from = opts?.from != null ? canonicalResourceLanguage(opts.from) : opts?.src != null ? detectCacheLang(opts.src) : DEFAULT_CACHE_SRC_LANG
-  const to = opts?.to != null ? canonicalResourceLanguage(opts.to) : DEFAULT_CACHE_TGT_LANG
+  const from = opts?.from?.trim() ? canonicalResourceLanguage(opts.from) : opts?.src != null ? detectCacheLang(opts.src) : DEFAULT_CACHE_SRC_LANG
+  const to = opts?.to?.trim() ? canonicalResourceLanguage(opts.to) : DEFAULT_CACHE_TGT_LANG
   return { from, to }
 }

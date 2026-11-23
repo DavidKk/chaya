@@ -96,6 +96,14 @@ afterEach(async () => {
 const clearButton = () => host.querySelector('button[aria-label="清理聊天"]') as HTMLButtonElement
 const deletes = () => calls.filter((call) => call.method === 'DELETE')
 
+it('renders start custody as a button with text in the empty state', async () => {
+  const btn = Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.includes('开启托管'))
+  expect(btn).toBeTruthy()
+  expect(btn?.getAttribute('data-size')).toBeNull()
+  expect(btn?.className).not.toContain('w-6')
+  expect(btn?.textContent).toContain('开启托管')
+})
+
 it('toggles the thinking process from the toolbar and restores it after reload', async () => {
   const showActivity = host.querySelector<HTMLButtonElement>('button[aria-label="显示思考过程"]')!
   expect(showActivity).not.toBeNull()

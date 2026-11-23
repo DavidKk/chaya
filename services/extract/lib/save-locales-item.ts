@@ -5,7 +5,7 @@ import { updateSharedTranslateCache } from '@/services/translate/cache-api'
 import { appendGameNdjson } from '@/services/translate/live-translate'
 import { isSeedTarget, writeSeedFailure } from '@/services/translate/seed-failures'
 
-import { findLocalesDirectory, loadGameLocalesCatalog, normalizeLocalesKey } from './game-locales'
+import { canonicalLanguageCode, findLocalesDirectory, loadGameLocalesCatalog, normalizeLocalesKey, parseCsvRows } from './game-locales'
 
 export type SaveLocalesItemParams = {
   contentRoot: string
@@ -49,6 +49,98 @@ export function saveLocalesItem(params: SaveLocalesItemParams): SaveLocalesItemR
   if (!fileName) {
     fileName = catalog.keyToFileMap[cleanKey] || catalog.keyToFileMap[localesKey]
   }
+
+  // Handle CSV localization files (e.g. Chimaki_Lang, csv/UI.csv)
+  if (fileName && /\.csv$/i.test(fileName)) {
+    const targetPath = path.isAbsolute(fileName) ? fileName : path.join(contentRoot, fileName)
+    const backupPath = targetPath.replace(/\.csv$/i, '.bak.csv')
+    let backupCreated = false
+
+    if (fs.existsSync(targetPath) && !fs.existsSync(backupPath)) {
+      try {
+        fs.copyFileSync(targetPath, backupPath)
+        backupCreated = true
+      } catch (e) {
+        console.warn('[save-locales-item] Failed to backup original locales CSV file:', e)
+      }
+    }
+
+    let rows: string[][] = []
+    if (fs.existsSync(targetPath)) {
+      try {
+        rows = parseCsvRows(fs.readFileSync(targetPath, 'utf8'))
+      } catch {
+        rows = []
+      }
+    }
+
+    if (rows.length > 0) {
+      const header = rows[0]
+      const targetCanon = canonicalLanguageCode(targetLang)
+      let targetCol = header.findIndex((h, idx) => idx !== 0 && canonicalLanguageCode(h) === targetCanon)
+      if (targetCol < 0) {
+        targetCol = header.findIndex((h) => new RegExp(`^${targetLang}$`, 'i').test(h))
+      }
+      if (targetCol >= 0) {
+        let rowFound = false
+        for (let r = 1; r < rows.length; r++) {
+          if (normalizeLocalesKey(rows[r][0]) === cleanKey) {
+            rows[r][targetCol] = zh
+            rowFound = true
+            break
+          }
+        }
+        if (!rowFound) {
+          const newRow = new Array(header.length).fill('')
+          newRow[0] = cleanKey
+          newRow[targetCol] = zh
+          rows.push(newRow)
+        }
+
+        const serialized =
+          rows
+            .map((row) =>
+              row
+                .map((field) => {
+                  if (field == null) return ''
+                  const s = String(field)
+                  if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"'
+                  return s
+                })
+                .join(',')
+            )
+            .join('\n') + '\n'
+
+        try {
+          const tempPath = `${targetPath}.${Date.now()}.tmp`
+          fs.writeFileSync(tempPath, serialized, 'utf8')
+          fs.renameSync(tempPath, targetPath)
+        } catch (e) {
+          return { ok: false, error: '写入目标语言 CSV 文件失败: ' + String(e) }
+        }
+      }
+    }
+
+    if (text && zh && text.trim() !== zh.trim()) {
+      try {
+        updateSharedTranslateCache(text.trim(), zh.trim(), 'manual', {
+          from: sourceLang,
+          to: targetLang,
+        })
+      } catch (e) {
+        console.warn('[save-locales-item] Failed to update translation cache:', e)
+      }
+    }
+    if (text && zh) appendGameNdjson(contentRoot, [[text, zh]])
+    if (text && zh.trim() && isSeedTarget(targetLang)) writeSeedFailure(contentRoot, text, null)
+
+    return {
+      ok: true,
+      file: fileName,
+      backupCreated,
+    }
+  }
+
   if (!fileName) {
     // If unknown, fallback to first json in targetLang folder or Manual.json
     const targetFolder = path.join(localesDir, targetLang)

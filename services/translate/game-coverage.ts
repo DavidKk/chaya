@@ -16,6 +16,7 @@ export function createGameCoverage(records: SentenceRecord[], opts?: { database?
   const resolver = createSentenceResolver(records)
   const numeric = createNumericLabelIndex(records)
   let client: DatabaseSync | undefined
+  let exactQuery: ReturnType<DatabaseSync['prepare']> | undefined
   let shared: ReturnType<typeof createMatchIndex> | undefined
   let opened = false
   const resolved = new Map<string, string | null>()
@@ -25,27 +26,39 @@ export function createGameCoverage(records: SentenceRecord[], opts?: { database?
       if (opts?.blocked?.(src)) return null
       let hit: string | null = lookup[src] ?? numeric.resolve(src)
       if (hit == null) {
+        hit = lookupCachedTranslation((key) => lookup[key], src)
+      }
+      if (hit == null) {
         if (!opened) {
           opened = true
           const database = opts?.database ?? TRANSLATE_CACHE_DB_PATH
           if (database && fs.existsSync(database)) {
             client = new DatabaseSync(database, { readOnly: true })
             client.exec('PRAGMA query_only=ON; PRAGMA busy_timeout=250')
-            if (client.prepare("SELECT 1 FROM sqlite_master WHERE name='match_keys'").get()) shared = createMatchIndex(client)
+            if (client.prepare("SELECT 1 FROM sqlite_master WHERE name='match_keys'").get()) {
+              shared = createMatchIndex(client)
+              exactQuery = client.prepare(
+                'SELECT t.zh FROM translation_records r JOIN translations t ON t.id=r.translation_id WHERE r.src=? AND r.src_lang=? AND r.tgt_lang=? LIMIT 1'
+              )
+            }
           }
         }
         const pair = { from: detectCacheLang(src), to: 'zh' as const }
-        const plan = shared ? shared.plan(src, pair, resolver.select(src)) : resolver.plan(src)
-        if (!plan.limited) {
-          hit = plan.status === 'full' ? plan.zh : null
-          // Durable control/template mirrors must still count after a job resumes.
-          if (hit == null) hit = lookupCachedTranslation((key) => lookup[key], src)
-          if (hit == null && shared && numericLabelFamily(src)) {
-            const rows = shared.numericRecords(pair, src)
-            if (!rows.limited) hit = createNumericLabelIndex([...rows, ...records]).resolve(src)
-          }
-          if (hit == null && /\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(src)) {
-            hit = lookupCachedTranslation((key) => lookup[key] ?? shared?.record(key, pair)?.zh, src)
+        if (exactQuery) {
+          const row = exactQuery.get(src, pair.from, pair.to) as { zh?: string } | undefined
+          if (row?.zh) hit = row.zh
+        }
+        if (hit == null && shared && numericLabelFamily(src)) {
+          const rows = shared.numericRecords(pair, src)
+          if (!rows.limited) hit = createNumericLabelIndex([...rows, ...records]).resolve(src)
+        }
+        if (hit == null && /[,\r\n，、。．.!！?？;；…\\]/.test(src)) {
+          const plan = shared ? shared.plan(src, pair, resolver.select(src)) : resolver.plan(src)
+          if (!plan.limited) {
+            hit = plan.status === 'full' ? plan.zh : null
+            if (hit == null && /\\(?:C\[|FS\[|RB\[|ruby\[)/i.test(src)) {
+              hit = lookupCachedTranslation((key) => lookup[key] ?? shared?.record(key, pair)?.zh, src)
+            }
           }
         }
       }

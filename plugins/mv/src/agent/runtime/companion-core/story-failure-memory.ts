@@ -185,6 +185,13 @@ export class StoryFailureMemory {
     }
   }
 
+  public static clear(mapId: number, eventId: number): void {
+    const current = storage()
+    current.failures.delete(`${mapId}:${eventId}`)
+    current.pendingChoices.delete(`${mapId}:${eventId}`)
+    persist(current)
+  }
+
   public static loopDetector(mapId: number): StoryLoopDetector {
     const current = storage()
     if (!current.loops.has(mapId)) current.loops.set(mapId, new StoryLoopDetector(12))

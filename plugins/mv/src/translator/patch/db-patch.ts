@@ -27,13 +27,192 @@ export function patchCommand(cmd: Cmd | null | undefined, translate: Translate, 
   }
 }
 
+const ORIGINAL_ROW_DATA = Symbol.for('chaya.originalRowData')
+
 export function patchRow(row: Record<string, unknown> | null | undefined, translate: Translate) {
   if (!row) return
+  const anyRow = row as any
+  let origData: Record<string, string> | undefined = anyRow[ORIGINAL_ROW_DATA]
+  if (!origData) {
+    origData = {}
+    for (const field of DB_TEXT_FIELDS) {
+      if (row[field] != null && row[field] !== '') {
+        origData[field] = String(row[field])
+      }
+    }
+    try {
+      Object.defineProperty(anyRow, ORIGINAL_ROW_DATA, {
+        value: origData,
+        writable: false,
+        enumerable: false,
+        configurable: true,
+      })
+      if (row.name != null && row.name !== '' && !anyRow._originalName) {
+        Object.defineProperty(anyRow, '_originalName', {
+          value: String(row.name),
+          writable: true,
+          enumerable: false,
+          configurable: true,
+        })
+      }
+    } catch {
+      anyRow[ORIGINAL_ROW_DATA] = origData
+      if (row.name != null && row.name !== '' && !anyRow._originalName) {
+        anyRow._originalName = String(row.name)
+      }
+    }
+  }
+
   for (const field of DB_TEXT_FIELDS) {
-    const cur = row[field]
-    if (cur == null || cur === '') continue
-    const zh = translate(String(cur))
-    if (zh !== cur) row[field] = zh
+    const raw = origData[field] ?? row[field]
+    if (raw == null || raw === '') continue
+    const zh = translate(String(raw))
+    if (zh !== row[field]) row[field] = zh
+  }
+}
+
+const ORIGINAL_VALUES = Symbol.for('chaya.originalValues')
+
+export function patchLookupArray(arr: unknown[] | null | undefined, translate: Translate) {
+  if (!Array.isArray(arr)) return
+  const anyArr = arr as any
+  const originals: (string | undefined)[] = anyArr[ORIGINAL_VALUES] || arr.map((item) => (item != null ? String(item) : undefined))
+  if (!anyArr[ORIGINAL_VALUES]) {
+    try {
+      Object.defineProperty(anyArr, ORIGINAL_VALUES, {
+        value: originals,
+        writable: false,
+        enumerable: false,
+        configurable: true,
+      })
+    } catch {
+      anyArr[ORIGINAL_VALUES] = originals
+    }
+  }
+
+  for (let i = 0; i < arr.length; i++) {
+    const raw = originals[i]
+    if (raw) {
+      const zh = translate(raw)
+      if (zh && zh !== arr[i]) arr[i] = zh
+    }
+  }
+
+  // Define non-enumerable property aliases for direct named access (e.g. arr['メインアクション'])
+  for (let i = 0; i < originals.length; i++) {
+    const raw = originals[i]
+    if (raw && !(raw in anyArr)) {
+      try {
+        Object.defineProperty(anyArr, raw, {
+          get: () => anyArr[i],
+          enumerable: false,
+          configurable: true,
+        })
+      } catch {}
+    }
+  }
+
+  // Safety property for negative index (e.g. arr[-1] when plugin calculations like indexOf(...) || 1 evaluate to -1)
+  try {
+    Object.defineProperty(anyArr, '-1', {
+      get: () => anyArr[1] || anyArr[0] || '',
+      enumerable: false,
+      configurable: true,
+    })
+  } catch {}
+
+  if (!anyArr.__chaya_lookup_hooked) {
+    try {
+      Object.defineProperty(anyArr, '__chaya_lookup_hooked', {
+        value: true,
+        writable: true,
+        enumerable: false,
+        configurable: true,
+      })
+    } catch {
+      anyArr.__chaya_lookup_hooked = true
+    }
+    const origIndexOf = Array.prototype.indexOf
+    const origIncludes = Array.prototype.includes
+    const origFindIndex = Array.prototype.findIndex
+    const origFind = Array.prototype.find
+
+    const customIndexOf = function (this: any[], searchElement: any, fromIndex?: number): number {
+      const idx = origIndexOf.call(this, searchElement, fromIndex)
+      if (idx !== -1) return idx
+      if (typeof searchElement === 'string') {
+        const origIdx = originals.indexOf(searchElement, fromIndex)
+        if (origIdx !== -1) return origIdx
+        const trimmed = searchElement.trim()
+        if (trimmed && trimmed !== searchElement) {
+          const trimmedIdx = origIndexOf.call(this, trimmed, fromIndex)
+          if (trimmedIdx !== -1) return trimmedIdx
+          const trimmedOrigIdx = originals.indexOf(trimmed, fromIndex)
+          if (trimmedOrigIdx !== -1) return trimmedOrigIdx
+        }
+        const translated = translate(searchElement)
+        if (translated && translated !== searchElement) {
+          const transIdx = origIndexOf.call(this, translated, fromIndex)
+          if (transIdx !== -1) return transIdx
+        }
+        for (let i = 0; i < originals.length; i++) {
+          const orig = originals[i]
+          if (orig && translate(orig) === searchElement) return i
+        }
+      }
+      return -1
+    }
+
+    const customIncludes = function (this: any[], searchElement: any, fromIndex?: number): boolean {
+      if (origIncludes.call(this, searchElement, fromIndex)) return true
+      return customIndexOf.call(this, searchElement, fromIndex) !== -1
+    }
+
+    const customFindIndex = function (this: any[], predicate: (value: any, index: number, obj: any[]) => boolean, thisArg?: any): number {
+      const idx = origFindIndex.call(this, predicate, thisArg)
+      if (idx !== -1) return idx
+      return origFindIndex.call(originals, predicate, thisArg)
+    }
+
+    const customFind = function (this: any[], predicate: (value: any, index: number, obj: any[]) => boolean, thisArg?: any): any {
+      const val = origFind.call(this, predicate, thisArg)
+      if (val !== undefined) return val
+      const origIdx = origFindIndex.call(originals, predicate, thisArg)
+      if (origIdx !== -1) return this[origIdx]
+      return undefined
+    }
+
+    try {
+      Object.defineProperty(anyArr, 'indexOf', {
+        value: customIndexOf,
+        writable: true,
+        enumerable: false,
+        configurable: true,
+      })
+      Object.defineProperty(anyArr, 'includes', {
+        value: customIncludes,
+        writable: true,
+        enumerable: false,
+        configurable: true,
+      })
+      Object.defineProperty(anyArr, 'findIndex', {
+        value: customFindIndex,
+        writable: true,
+        enumerable: false,
+        configurable: true,
+      })
+      Object.defineProperty(anyArr, 'find', {
+        value: customFind,
+        writable: true,
+        enumerable: false,
+        configurable: true,
+      })
+    } catch {
+      anyArr.indexOf = customIndexOf
+      anyArr.includes = customIncludes
+      anyArr.findIndex = customFindIndex
+      anyArr.find = customFind
+    }
   }
 }
 
@@ -45,11 +224,7 @@ export function patchSystem(translate: Translate) {
   const terms = sys.terms
   if (terms) {
     for (const bag of ['basic', 'commands', 'params'] as const) {
-      const arr = terms[bag]
-      if (!arr) continue
-      for (let i = 0; i < arr.length; i++) {
-        if (arr[i]) arr[i] = translate(String(arr[i]))
-      }
+      patchLookupArray(terms[bag], translate)
     }
     if (terms.messages) {
       for (const key of Object.keys(terms.messages)) {
@@ -59,11 +234,7 @@ export function patchSystem(translate: Translate) {
   }
   // Switch/variable names are script identifiers, even when their strings were collected as candidates.
   for (const key of ['elements', 'skillTypes', 'weaponTypes', 'armorTypes', 'equipTypes']) {
-    const arr = sys[key]
-    if (!arr) continue
-    for (let i = 0; i < arr.length; i++) {
-      if (arr[i]) arr[i] = translate(String(arr[i]))
-    }
+    patchLookupArray(sys[key], translate)
   }
 }
 

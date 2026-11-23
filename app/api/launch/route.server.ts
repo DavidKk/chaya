@@ -4,7 +4,6 @@ import {
   ensureNwPackageName,
   ensureShellLinkedToContent,
   getResolvedFromConfig,
-  injectTrackedPlugins,
   isShellInstalling,
   launchShellWithContent,
   openInFinder,
@@ -24,7 +23,7 @@ import { readRemotePlayHostSettings } from '@/services/runtime/remote-play-setti
 
 export const runtime = 'nodejs'
 
-/** Launch: Ensure loader, environment, and disk cache, then launch shell or open directory. */
+/** Prepare the launch environment and open the game independently of plugin installation. */
 export const POST = defineApiRoute('post:/api/launch', async ({ request }) => {
   const denied = requireDisk()
   if (denied) return denied
@@ -147,16 +146,6 @@ export const POST = defineApiRoute('post:/api/launch', async ({ request }) => {
       }
     }
     const apiBase = preferredPluginApiBase(toolkitListenPort())
-    const plugins = injectTrackedPlugins(resolved.contentRoot)
-    if (plugins.missingKit.length && plugins.copied.length === 0) {
-      return apiBadRequest(`Missing plugin build artifacts: ${plugins.missingKit.join('、')} (run pnpm build:plugins first)`, 'PLUGINS_MISSING')
-    }
-    if (plugins.pluginsJsMissing) {
-      return apiBadRequest(`Missing js/plugins.js in content root: ${resolved.contentRoot}`)
-    }
-    if (plugins.pluginsJsParseFailed) {
-      return apiError(500, 'PLUGINS_JS_PARSE_FAILED', `Failed to parse js/plugins.js ($plugins array format invalid): ${resolved.contentRoot}`)
-    }
     const { env, session } = writeLaunchEnv(resolved, apiBase, { silentMode: isSilent, ...(muteHostAudio !== undefined ? { muteHostAudio } : {}) })
 
     if (resolved.bundled) {
@@ -169,7 +158,6 @@ export const POST = defineApiRoute('post:/api/launch', async ({ request }) => {
         env,
         launchToken: session.token,
         launchTokenPersistence: session.persistence,
-        plugins,
         nwPackage,
       })
     }
@@ -196,7 +184,6 @@ export const POST = defineApiRoute('post:/api/launch', async ({ request }) => {
       env,
       launchToken: session.token,
       launchTokenPersistence: session.persistence,
-      plugins,
       nwPackage,
     })
   } catch (err) {

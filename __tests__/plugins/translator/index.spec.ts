@@ -5,6 +5,7 @@ import path from 'node:path'
 import { GAME_CONTENT_RELS } from '@/lib/game/content-paths'
 import { tryNodeFsPath } from '@/plugins/mv/src/helpers'
 import { pluginStorageCall } from '@/plugins/mv/src/helpers/storage/client'
+import { createRealtimeClient } from '@/plugins/mv/src/translator/engine/realtime-client'
 import { createRenderTranslation } from '@/plugins/mv/src/translator/engine/render-translation'
 
 jest.mock('@/plugins/mv/src/helpers', () => ({
@@ -22,7 +23,7 @@ jest.mock('@/plugins/mv/src/translator/engine/render-translation', () => ({
   createRenderTranslation: jest.fn(() => ({ observe: jest.fn(), subscribe: jest.fn(), dispose: jest.fn() })),
 }))
 jest.mock('@/plugins/mv/src/translator/engine/realtime-client', () => ({
-  createRealtimeClient: () => ({ settings: () => ({ mode: 'realtime' }), dispose: jest.fn() }),
+  createRealtimeClient: jest.fn(() => ({ settings: () => ({ mode: 'realtime' }), dispose: jest.fn() })),
 }))
 jest.mock('@/plugins/mv/src/translator/patch/apply-queue', () => ({
   createTransCatchUp: () => ({ scheduleCatchUp: jest.fn(), scheduleWindowRefresh: jest.fn(), dispose: jest.fn() }),
@@ -42,6 +43,7 @@ it('refreshes runtime aliases and immediately uses translations returned by real
   jest.mocked(pluginStorageCall).mockResolvedValue({ directory: root })
   try {
     await import('@/plugins/mv/src/translator')
+    expect(createRealtimeClient).toHaveBeenCalledWith('/game')
     const translate = hot.ChayaTrans!.translate
     expect(translate('Alice is waiting.')).toBe('Alice在等你。')
     name = 'Bob'

@@ -8,6 +8,7 @@ import { localGameContentFile } from '@/lib/game/content-files'
 import { getResolvedFromConfig } from '@/services/game/binding'
 import { shouldDemoteOrphanRunning } from '@/services/jobs'
 
+import { clearSeedFailures, readSeedFailures } from './seed-failures'
 import {
   emptySeedProgress,
   idleSeedJob,
@@ -100,6 +101,14 @@ function diskSnapshot(contentRoot: string): SeedJobSnapshot {
     state.status = 'paused'
     state.liveStatus = ''
     writeSeedJobState(state)
+  }
+  if (!preparing && (state.status === 'idle' || state.status === 'paused') && state.liveStatus === '正在准备原文库存…') {
+    state.liveStatus = ''
+    try {
+      writeSeedJobState(state)
+    } catch {
+      /* snapshot still returned */
+    }
   }
   if (shouldDemoteOrphanRunning(state.status, { running: workerRunning, preparing })) {
     state.status = 'paused'
@@ -207,12 +216,40 @@ export function startSeedJob(options?: { gameId?: string; contentRoot?: string; 
 }
 
 /** Pause after the worker finishes its current batch. */
-export function pauseSeedJob(options?: { gameId?: string; contentRoot?: string }): SeedJobSnapshot {
+export async function pauseSeedJob(options?: { gameId?: string; contentRoot?: string }): Promise<SeedJobSnapshot> {
   const contentRoot = requireBoundRoot(options)
-  const snapshot = diskSnapshot(contentRoot)
   const explicitRoot = options?.contentRoot || (options?.gameId ? contentRoot : undefined)
-  void legacyRuntimeDrained()
-    .then(() => (explicitRoot ? commandSeedJobWorker('pause', explicitRoot) : commandSeedJobWorker('pause')))
-    .catch(() => {})
+  await legacyRuntimeDrained()
+  let snapshot: SeedJobSnapshot
+  try {
+    snapshot = await (explicitRoot ? commandSeedJobWorker('pause', explicitRoot) : commandSeedJobWorker('pause'))
+  } catch {
+    snapshot = diskSnapshot(contentRoot)
+  }
+  // Wait up to 1000ms for status to become 'paused' on disk so UI gets 'paused' immediately
+  const deadline = Date.now() + 1000
+  while (snapshot.job.status === 'running' && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 60))
+    snapshot = diskSnapshot(contentRoot)
+  }
+  if (snapshot.job.status === 'running') {
+    snapshot = {
+      ...snapshot,
+      job: {
+        ...snapshot.job,
+        liveStatus: '正在暂停…',
+      },
+    }
+  }
   return snapshot
+}
+
+/** Clear all failure checkpoints and start a fresh batch translation on those items. */
+export function retrySeedJobFailures(options?: { gameId?: string; contentRoot?: string; engines?: string[] }): SeedJobSnapshot & { retriedCount: number } {
+  const contentRoot = requireBoundRoot(options)
+  const failures = readSeedFailures(contentRoot)
+  const count = failures.size
+  clearSeedFailures(contentRoot)
+  const snapshot = startSeedJob(options)
+  return { ...snapshot, retriedCount: count }
 }

@@ -8,6 +8,7 @@ import { collectAllStrings, compareWithManual } from './compare'
 import { extractDataFields } from './data-fields'
 import { extractDatabase, loadJson } from './database'
 import { extractDialogueFromEvents } from './dialogue'
+import { loadGameLocalesCatalog, resolveLocalesText } from './game-locales'
 import { extractPluginsJsText } from './plugin-text'
 import { looksLikeRgssProject, runRgssExtract } from './rgss'
 import { extractTextResource, textResourceFiles } from './text-resources'
@@ -64,18 +65,72 @@ export function runExtract(contentRoot: string, options?: { sourceLanguage?: Sou
     for (const value of extractDataFields(data)) candidates.add(value)
   }
   db.textFields = [...preferredFields]
+  const localesCatalog = loadGameLocalesCatalog(contentRoot)
   const knownSources = collectAllStrings(dialogue, db)
   const sourceLanguage =
     options?.sourceLanguage && options.sourceLanguage !== 'auto'
       ? options.sourceLanguage
-      : detectSourceLanguage(knownSources.size ? knownSources : collectAllStrings([], { dataFields: [...candidates] }), loadJson(path.join(DATA, 'System.json'))?.locale)
+      : localesCatalog.hasLocales && localesCatalog.primaryLanguage
+        ? (localesCatalog.primaryLanguage as SourceLanguageOption)
+        : detectSourceLanguage(knownSources.size ? knownSources : collectAllStrings([], { dataFields: [...candidates] }), loadJson(path.join(DATA, 'System.json'))?.locale)
+
+  if (localesCatalog.hasLocales) {
+    const srcDict =
+      localesCatalog.dictionaries[sourceLanguage] ||
+      localesCatalog.dictionaries[localesCatalog.primaryLanguage] ||
+      localesCatalog.dictionaries['ja'] ||
+      Object.values(localesCatalog.dictionaries)[0]
+    if (srcDict) {
+      for (const block of dialogue) {
+        if (block.lines) block.lines = block.lines.map((l: string) => resolveLocalesText(l, srcDict))
+        if (block.speaker) block.speaker = resolveLocalesText(block.speaker, srcDict)
+        if (block.choices) block.choices = block.choices.map((c: string) => resolveLocalesText(c, srcDict))
+      }
+      const resolveObjectStrings = (obj: any) => {
+        if (!obj || typeof obj !== 'object') return
+        for (const [k, v] of Object.entries(obj)) {
+          if (typeof v === 'string') {
+            obj[k] = resolveLocalesText(v, srcDict)
+          } else if (typeof v === 'object' && v !== null && !Array.isArray(v)) {
+            resolveObjectStrings(v)
+          }
+        }
+      }
+      for (const [cat, entries] of Object.entries(db)) {
+        if (!Array.isArray(entries)) continue
+        if (cat === 'textFields' || cat === 'plugins' || cat === 'system' || cat === 'resources' || cat === 'dataFields') {
+          db[cat] = entries.map((item) => (typeof item === 'string' ? resolveLocalesText(item, srcDict) : item))
+        } else {
+          for (const item of entries) {
+            resolveObjectStrings(item)
+          }
+        }
+      }
+      const targetLang = sourceLanguage === 'auto' ? undefined : sourceLanguage
+      const localesResources: string[] = []
+      for (const [, val] of Object.entries(srcDict)) {
+        if (typeof val === 'string' && val.trim()) {
+          const trimmed = val.trim()
+          if (isSourceText(trimmed, targetLang)) {
+            localesResources.push(trimmed)
+          }
+        }
+      }
+      const existingResources = Array.isArray(db.resources) ? (db.resources as string[]) : []
+      db.resources = [...new Set([...existingResources, ...localesResources])]
+    }
+  }
+
   const pluginsFile = path.join(contentRoot, 'js', 'plugins.js')
   if (fs.existsSync(pluginsFile)) db.plugins = extractPluginsJsText(fs.readFileSync(pluginsFile, 'utf8'))
-  db.resources = [...new Set([...textResourceFiles(contentRoot, { fs, path })].flatMap((file) => extractTextResource(file, fs.readFileSync(path.join(contentRoot, file), 'utf8'))))]
+  const textResources = [...textResourceFiles(contentRoot, { fs, path })].flatMap((file) => extractTextResource(file, fs.readFileSync(path.join(contentRoot, file), 'utf8')))
+  const existingResources = Array.isArray(db.resources) ? (db.resources as string[]) : []
+  db.resources = [...new Set([...textResources, ...existingResources])]
   // Unknown fields remain available, after dialogue, database prose and plugin text.
   db.dataFields = [...candidates]
-  const allStrings = new Set([...collectAllStrings(dialogue, db)].filter((text) => isSourceText(text, sourceLanguage)))
-  const originalStrings = new Set([...collectAllStrings(dialogue, db, { original: true })].filter((text) => isSourceText(text, sourceLanguage)))
+  const targetLang = sourceLanguage === 'auto' ? undefined : sourceLanguage
+  const allStrings = new Set([...collectAllStrings(dialogue, db)].filter((text) => isSourceText(text, targetLang)))
+  const originalStrings = new Set([...collectAllStrings(dialogue, db, { original: true })].filter((text) => isSourceText(text, targetLang)))
   const counts: Record<string, number> = {
     dialogueBlocks: dialogue.length,
     dialogueLines: new Set(dialogue.flatMap((b) => b.lines || [])).size,

@@ -91,6 +91,7 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         | 'import-locales-corpus'
         | 'sources'
         | 'optimize'
+        | 'failures'
       settings?: unknown
       config?: unknown
       silent?: unknown
@@ -114,6 +115,8 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
         | 'scan-names'
         | 'apply-names'
         | 'idle-status'
+        | 'retry-failures'
+        | 'failures'
       scope?: 'short-entities' | 'all' | 'engine'
       includeChoices?: boolean
       planId?: string
@@ -259,13 +262,30 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       return apiOk(getSeedJobSnapshot(seedJobOpts))
     }
 
+    if (body.mode === 'failures') {
+      const root = resolveRoot()
+      if (!root) return apiError(400, 'GAME_UNBOUND', 'Please bind a local game in the game library first')
+      const { readSeedFailures } = await import('@/services/translate/seed-failures')
+      const failures = Array.from(readSeedFailures(root).entries()).map(([src, error]) => ({ src, error }))
+      return apiOk({ failures, total: failures.length })
+    }
+
     if (body.mode === 'job') {
       const root = resolveRoot()
       if (!root) return apiError(400, 'GAME_UNBOUND', 'Please bind a local game in the game library first')
       const jobOpts = { contentRoot: root }
-      if (body.action === 'pause') return apiOk(pauseSeedJob(jobOpts))
-      if (body.action === 'start') return apiOk(startSeedJob(jobOpts))
-      return apiError(400, 'TRANSLATE_JOB_ACTION', 'Missing action: start | pause')
+      if (body.action === 'pause') return apiOk(await pauseSeedJob(jobOpts))
+      if (body.action === 'start') return apiOk(startSeedJob({ ...jobOpts, engines: Array.isArray(body.engines) ? body.engines : undefined }))
+      if (body.action === 'retry-failures') {
+        const { retrySeedJobFailures } = await import('@/services/translate/seed-job')
+        return apiOk(await retrySeedJobFailures({ ...jobOpts, engines: Array.isArray(body.engines) ? body.engines : undefined }))
+      }
+      if (body.action === 'failures') {
+        const { readSeedFailures } = await import('@/services/translate/seed-failures')
+        const failures = Array.from(readSeedFailures(root).entries()).map(([src, error]) => ({ src, error }))
+        return apiOk({ failures, total: failures.length })
+      }
+      return apiError(400, 'TRANSLATE_JOB_ACTION', 'Missing action: start | pause | retry-failures | failures')
     }
 
     if (body.mode === 'optimize') {
@@ -380,21 +400,28 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       return apiOk({ config: getSilentTranslateConfig() })
     }
 
+    const session = !hasManagementAccess(request) ? peekLaunchToken(request.headers.get('x-chaya-launch-token')) : null
+    const game = session ? resolveGame(session.gameRoot) : null
+    if (session && (!game?.ok || game.remote)) return apiError(400, 'GAME_UNAVAILABLE', 'Game path unavailable')
+    const resolveGameOrTargetRoot = () => (game?.ok ? game.contentRoot : resolveRoot())
+
     if (body.mode === 'switches') {
       const { getSilentTranslateConfig, setSilentTranslateConfig } = await import('@/services/translate/silent-translate')
       if (body.silent && typeof body.silent === 'object') {
         setSilentTranslateConfig(body.silent as any)
       }
-      if (body.switches?.apple === true || body.switches?.bergamot === true) {
-        const current = getTranslateEngineSwitches()
-        const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
-        let seedLang: string | undefined
-        try {
-          const root = resolveRoot()
-          seedLang = root ? getSeedSourceLanguage(root) : undefined
-        } catch {
-          seedLang = undefined
+      let seedLang: string | undefined
+      try {
+        const root = resolveGameOrTargetRoot() ?? resolveRoot()
+        if (root) {
+          const { getSeedSourceLanguage } = await import('@/services/translate/fill-missing')
+          seedLang = getSeedSourceLanguage(root)
         }
+      } catch {
+        seedLang = undefined
+      }
+      if (body.switches?.apple === true || body.switches?.bergamot === true) {
+        const current = getTranslateEngineSwitches(targetContentRoot)
         for (const id of ['apple', 'bergamot'] as const) {
           if (body.switches[id] !== true || current.switches[id]) continue
           const from = seedLang || 'ja'
@@ -405,12 +432,24 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
           if (!status.installed) return apiError(409, 'TRANSLATE_ENGINE_NOT_READY', status.message || `${id} translation is not ready`)
         }
       }
+      let appleStatus: { status: string; installed: boolean; message?: string } | undefined
+      if (process.platform === 'darwin') {
+        try {
+          const { appleTranslator } = await import('@/services/translate/lib/macos-translate')
+          const from = (typeof (body.from ?? body.source) === 'string' ? (body.from ?? body.source) : seedLang) || 'ja'
+          appleStatus = await appleTranslator.checkStatus(from, 'zh')
+        } catch {
+          // ignore
+        }
+      }
+      const systemStatus = { ...(appleStatus ? { apple: appleStatus } : {}) }
+
       const agents = Array.isArray(body.agents) ? body.agents : undefined
       if ((body.switches && typeof body.switches === 'object') || Array.isArray(body.order) || agents || (body.configs && typeof body.configs === 'object')) {
         const nextState = setTranslateEngineSwitches({ switches: body.switches, order: body.order, agents, configs: body.configs }, targetContentRoot)
-        return apiOk({ ...nextState, silent: getSilentTranslateConfig() })
+        return apiOk({ ...nextState, silent: getSilentTranslateConfig(), systemStatus })
       }
-      return apiOk({ ...getTranslateEngineSwitches(targetContentRoot), silent: getSilentTranslateConfig() })
+      return apiOk({ ...getTranslateEngineSwitches(targetContentRoot), silent: getSilentTranslateConfig(), systemStatus })
     }
 
     if (body.mode === 'translate-agents') {
@@ -428,11 +467,6 @@ export const POST = defineApiRoute('post:/api/translate', async ({ request }) =>
       const result = await fillMissingFromSeed({ limit: body.limit, contentRoot: targetContentRoot })
       return apiOk(result)
     }
-
-    const session = !hasManagementAccess(request) ? peekLaunchToken(request.headers.get('x-chaya-launch-token')) : null
-    const game = session ? resolveGame(session.gameRoot) : null
-    if (session && (!game?.ok || game.remote)) return apiError(400, 'GAME_UNAVAILABLE', 'Game path unavailable')
-    const resolveGameOrTargetRoot = () => (game?.ok ? game.contentRoot : resolveRoot())
 
     if (body.mode === 'extract-items') {
       const root = resolveGameOrTargetRoot()

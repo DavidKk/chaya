@@ -208,4 +208,69 @@ describe('patchSystem / patchMap / patchDatabase', () => {
     expect(tables[3]).toBeUndefined()
     restore()
   })
+
+  it('preserves note-tag lookups in skillTypes and elements across original and translated terms', () => {
+    const sys = {
+      skillTypes: ['', 'メインアクション', 'ハニートラップ'],
+      elements: ['', '低速特攻', '高速特効'],
+    }
+    const dict: Record<string, string> = {
+      メインアクション: '主动作',
+      ハニートラップ: '哈尼特拉',
+      低速特攻: '低速特攻(中)',
+    }
+    const translate = (s: string) => dict[s] || s
+    const restore = installGlobals({ $dataSystem: sys })
+    patchSystem(translate)
+
+    // Array is translated in-place
+    expect(sys.skillTypes[1]).toBe('主动作')
+    expect(sys.skillTypes[2]).toBe('哈尼特拉')
+
+    // Plugin note-tag lookup by original Japanese string finds the ID
+    expect(sys.skillTypes.indexOf('メインアクション')).toBe(1)
+    expect(sys.skillTypes.indexOf('ハニートラップ')).toBe(2)
+    // Keke_VariableActorCommand pattern: id = indexOf(...) || 1
+    const kekeId = sys.skillTypes.indexOf('メインアクション') || 1
+    expect(kekeId).toBe(1)
+
+    // Translated queries also resolve to the same ID
+    expect(sys.skillTypes.indexOf('主动作')).toBe(1)
+    expect(sys.skillTypes.indexOf('哈尼特拉')).toBe(2)
+    expect(sys.skillTypes.includes('メインアクション')).toBe(true)
+    expect(sys.skillTypes.includes('主动作')).toBe(true)
+    expect(sys.skillTypes.indexOf('未知技能')).toBe(-1)
+
+    // Enumerable keys are preserved (no extra pollution in for..in / Object.keys)
+    expect(Object.keys(sys.skillTypes)).toEqual(['0', '1', '2'])
+
+    // Re-applying patchSystem does not overwrite original Japanese strings with translated ones
+    patchSystem((s: string) => `ZH2:${s}`)
+    expect(sys.skillTypes.indexOf('メインアクション')).toBe(1)
+
+    // Direct property lookup by original name and negative index safety fallback
+    expect((sys.skillTypes as any)['メインアクション']).toBe('ZH2:メインアクション')
+    expect((sys.skillTypes as any)['-1']).toBe('ZH2:メインアクション')
+
+    // findIndex and find support original names
+    expect(sys.skillTypes.findIndex((x) => x === 'メインアクション')).toBe(1)
+    expect(sys.skillTypes.find((x) => x === 'メインアクション')).toBe('ZH2:メインアクション')
+
+    restore()
+  })
+
+  it('preserves row original name and avoids degradation across re-translation', () => {
+    const row = { id: 1, name: '攻撃', description: '通常攻撃' }
+    patchRow(row, (s) => (s === '攻撃' ? '普通攻击' : s === '通常攻撃' ? '通常攻击' : s))
+
+    expect(row.name).toBe('普通攻击')
+    expect(row.description).toBe('通常攻击')
+    expect((row as any)._originalName).toBe('攻撃')
+    expect(Object.keys(row)).toEqual(['id', 'name', 'description'])
+
+    // Second translation pass translates from true original rather than chaining translations
+    patchRow(row, (s) => (s === '攻撃' ? '物理攻击' : s))
+    expect(row.name).toBe('物理攻击')
+    expect((row as any)._originalName).toBe('攻撃')
+  })
 })

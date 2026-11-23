@@ -102,7 +102,16 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
   const [saving, setSaving] = useState(false)
   const [view, setView] = useState<EngineView>(INITIAL)
   const [silentConfig, setSilentConfig] = useState<SilentTranslateConfig>(DEFAULT_SILENT_TRANSLATE_CONFIG)
-  const [systemStatus, setSystemStatus] = useState<Partial<Record<OfflineEngine, OfflineStatus>>>({})
+  const [systemStatus, setSystemStatus] = useState<Partial<Record<OfflineEngine, OfflineStatus>>>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        if (localStorage.getItem('chaya:apple-translator-installed') === 'true') {
+          return { apple: { installed: true, status: 'installed' } }
+        }
+      } catch {}
+    }
+    return {}
+  })
   const statusController = useRef<AbortController | null>(null)
 
   const [addMenuOpen, setAddMenuOpen] = useState(false)
@@ -189,7 +198,14 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
         })
         const status = await res.json()
         if (!res.ok || status.ok === false) throw new Error(readApiErrorMessage(status, t('translate.offlineCheckFailed')))
-        if (!signal.aborted) setSystemStatus((prev) => ({ ...prev, [id]: { ...status, installed: status.installed === true } }))
+        if (!signal.aborted) {
+          setSystemStatus((prev) => ({ ...prev, [id]: { ...status, installed: status.installed === true } }))
+          if (id === 'apple' && status.installed) {
+            try {
+              localStorage.setItem('chaya:apple-translator-installed', 'true')
+            } catch {}
+          }
+        }
       } catch (error) {
         if (!signal.aborted) {
           setSystemStatus((prev) => ({ ...prev, [id]: { installed: false, status: 'error', message: error instanceof Error ? error.message : undefined } }))
@@ -205,7 +221,6 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
     let cancelled = false
     const controller = new AbortController()
     statusController.current = controller
-    setSystemStatus({})
     ;(async () => {
       try {
         const res = await translationFetch('/api/translate', {
@@ -213,7 +228,7 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ mode: 'switches', ...(urlGameId ? { game: urlGameId } : {}) }),
         })
-        const json = (await res.json()) as Partial<EngineView> & { ok?: boolean; error?: unknown }
+        const json = (await res.json()) as Partial<EngineView> & { ok?: boolean; error?: unknown; systemStatus?: Record<OfflineEngine, OfflineStatus> }
         if (cancelled) return
         if (!res.ok || json.ok === false) {
           reportError(readApiErrorMessage(json, t('translate.enginesLoadFailed')))
@@ -223,6 +238,14 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
         setView({ switches: merged.switches, agents: merged.agents, order: merged.order, configs: merged.configs })
         if ((json as { silent?: SilentTranslateConfig }).silent) {
           setSilentConfig((json as { silent?: SilentTranslateConfig }).silent!)
+        }
+        if (json.systemStatus) {
+          setSystemStatus((prev) => ({ ...prev, ...json.systemStatus }))
+          if (json.systemStatus.apple?.installed) {
+            try {
+              localStorage.setItem('chaya:apple-translator-installed', 'true')
+            } catch {}
+          }
         }
         for (const id of ['apple', 'bergamot'] as const) void checkSystemStatus(id, controller.signal)
       } catch (err) {
@@ -252,7 +275,8 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
         }
       } finally {
         pending = false
-        if (!controller.signal.aborted) timer = setTimeout(poll, 5000)
+        const allInstalled = systemStatus.apple?.installed && systemStatus.bergamot?.installed
+        if (!controller.signal.aborted) timer = setTimeout(poll, allInstalled ? 60000 : 5000)
       }
     }
     const refresh = () => void poll()
@@ -265,7 +289,7 @@ export function TranslateEnginesPane({ manageAgentsHref = '/assist/agents' }: { 
       window.removeEventListener('focus', refresh)
       document.removeEventListener('visibilitychange', refresh)
     }
-  }, [loading, selectedEngineId, checkSystemStatus])
+  }, [loading, selectedEngineId, checkSystemStatus, systemStatus.apple?.installed, systemStatus.bergamot?.installed])
 
   async function persist(
     patch: { switches?: Partial<TranslateEngineSwitches>; order?: EngineId[]; agents?: TranslateAgentEntry[]; configs?: Partial<Record<string, TranslateEngineSettings>> },
