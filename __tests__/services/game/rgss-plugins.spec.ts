@@ -99,7 +99,10 @@ it('hot-syncs only bridge-reloadable Ruby without touching the entry script or o
   installRgssPlugins(root)
   const installed = path.join(root, 'chaya/plugins/rgss')
   const scripts = fs.readFileSync(path.join(installed, 'Scripts.rvdata2'))
-  const assets = Object.fromEntries(RGSS_ASSET_FILES.map((name) => [name, fs.readFileSync(path.join(installed, 'dist', name))]))
+  // Overlay assets are only built and installed on macOS; elsewhere check whichever ones were installed.
+  const assets = Object.fromEntries(
+    RGSS_ASSET_FILES.filter((name) => fs.existsSync(path.join(installed, 'dist', name))).map((name) => [name, fs.readFileSync(path.join(installed, 'dist', name))])
+  )
   const reloadable = RGSS_HOT_RELOAD_FILES.find((name) => name === 'translation.rb')!
   fs.writeFileSync(path.join(installed, reloadable), 'stale')
   fs.writeFileSync(path.join(installed, 'preload.rb'), 'stale')
