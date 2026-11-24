@@ -9,6 +9,7 @@ jest.mock('@/plugins/mv/src/helpers/node/node-require', () => ({
   tryNodeFsPath: () => ({ fs: jest.requireActual('node:fs'), path: jest.requireActual('node:path') }),
 }))
 jest.mock('@/plugins/mv/src/helpers/game/game-identity', () => ({ detectGameIdentity: () => ({ contentRoot: root }) }))
+jest.mock('@/plugins/mv/src/helpers/storage/client', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
 
 import { createGameSavesBackend, gunzipText, gzipText } from '@/plugins/mv/src/cheat/game-saves/store'
 

@@ -9,6 +9,16 @@ import * as ollamaClient from '@/services/game-agent/ollama-client'
 import { GAME_AGENT_SETTINGS_PATH, GAME_AGENT_SYNC_PATH } from '@/services/game-agent/settings'
 import { clearLaunchToken, issueLaunchToken } from '@/services/runtime/launch-token'
 
+// Read and write Agent settings files in-process instead of through the shared storage daemon.
+const previousStorageOwner = process.env.CHAYA_STORAGE_OWNER
+beforeAll(() => {
+  process.env.CHAYA_STORAGE_OWNER = '1'
+})
+afterAll(() => {
+  if (previousStorageOwner === undefined) delete process.env.CHAYA_STORAGE_OWNER
+  else process.env.CHAYA_STORAGE_OWNER = previousStorageOwner
+})
+
 const ctx = { params: Promise.resolve({}) }
 const url = 'http://localhost/api/integration/game-agent'
 

@@ -1,3 +1,4 @@
+jest.mock('@/services/storage/game-files', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
 import { PUT } from '@/app/api/status/route'
 import * as game from '@/services/game'
 import { resetGameBindEpochForTests } from '@/services/game/bind-epoch'

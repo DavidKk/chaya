@@ -1,3 +1,4 @@
+jest.mock('@/services/storage/game-files', () => jest.requireActual('@/__tests__/mocks/public-game-files'))
 import { planSentenceTranslation } from '@/lib/translate/sentence-plan'
 import { agentJaToZh, type AgentTranslateOptions } from '@/services/translate/agent-translate'
 import type { startCacheLane } from '@/services/translate/scheduler/cache-lane'
